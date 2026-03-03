@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	mangaDir := "C:/Users/emirc/Downloads"
+	mangaDir := "."
 	port := ":8080"
 
 	// 2. Initialize the Server (Router)
