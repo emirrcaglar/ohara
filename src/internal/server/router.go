@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"ohara/src/internal/handler"
+	"ohara/src/web"
 )
 
 func New(baseDir string) http.Handler {
@@ -11,8 +12,13 @@ func New(baseDir string) http.Handler {
 
 	mangaHandler := &handler.MangaHandler{BaseDir: baseDir}
 
+	// Serve embedded web files
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(web.Files))))
+
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "static/index.html")
+		data, _ := web.Files.ReadFile("index.html")
+		w.Header().Set("Content-Type", "text/html")
+		w.Write(data)
 	})
 
 	mux.HandleFunc("GET /manga/{name}/page/{page}", mangaHandler.HandleMangaPage)
