@@ -1,22 +1,21 @@
-package server
+package router
 
 import (
 	"net/http"
 
 	"ohara/src/internal/handler"
-	"ohara/src/web"
+	"ohara/src/ui"
 )
 
-func New(baseDir string) http.Handler {
+func SetupRoutes(baseDir string) http.Handler {
 	mux := http.NewServeMux()
 
 	mangaHandler := &handler.MangaHandler{BaseDir: baseDir}
 
-	// Serve embedded web files
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(web.Files))))
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(ui.Files))))
 
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		data, _ := web.Files.ReadFile("index.html")
+		data, _ := ui.Files.ReadFile("index.html")
 		w.Header().Set("Content-Type", "text/html")
 		w.Write(data)
 	})
@@ -32,6 +31,7 @@ func New(baseDir string) http.Handler {
 	return mux
 }
 
-type Server struct {
+type Router struct {
+	// bundan kurtul
 	BaseDir string
 }
