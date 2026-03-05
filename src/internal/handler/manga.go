@@ -11,11 +11,13 @@ import (
 	"strconv"
 	"strings"
 
+	"ohara/src/internal/db"
 	cbzReader "ohara/src/internal/media/cbz"
 )
 
 type MangaHandler struct {
 	BaseDir string
+	DB      *db.DB
 }
 
 func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {

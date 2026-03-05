@@ -3,14 +3,15 @@ package router
 import (
 	"net/http"
 
+	"ohara/src/internal/db"
 	"ohara/src/internal/handler"
 	"ohara/src/ui"
 )
 
-func SetupRoutes(baseDir string) http.Handler {
+func SetupRoutes(baseDir string, database *db.DB) http.Handler {
 	mux := http.NewServeMux()
 
-	mangaHandler := &handler.MangaHandler{BaseDir: baseDir}
+	mangaHandler := &handler.MangaHandler{BaseDir: baseDir, DB: database}
 
 	mux.Handle("GET /static/", http.FileServer(http.FS(ui.Files)))
 
