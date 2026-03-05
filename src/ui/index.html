@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ohara Reader</title>
+    <link rel="stylesheet" href="/static/style.css">
     <script src="https://unpkg.com/htmx.org@2.0.0"></script>
     <script>
 
@@ -14,8 +15,10 @@
             const manga = params.get('manga');
             const page = parseInt(params.get('page') || '0');
 
+            const mangaEncoded = encodeURIComponent(manga);
+
             const img = document.getElementById('manga-page');
-            img.src = `/manga/${manga}/page/${page}`;
+            img.src = `/manga/${mangaEncoded}/page/${page}`;
 
             const counter = document.getElementById('page-counter');
             counter.textContent = `Page ${page}`;
@@ -23,8 +26,8 @@
             const prevBtn = document.getElementById('prev-btn');
             const nextBtn = document.getElementById('next-btn');
 
-            prevBtn.setAttribute('hx-get', `/manga/${manga}/snippet/${Math.max(0, page - 1)}`);
-            nextBtn.setAttribute('hx-get', `/manga/${manga}/snippet/${page + 1}`);
+            prevBtn.setAttribute('hx-get', `/manga/${mangaEncoded}/snippet/${Math.max(0, page - 1)}`);
+            nextBtn.setAttribute('hx-get', `/manga/${mangaEncoded}/snippet/${page + 1}`);
 
             htmx.process(document.body);
 
@@ -75,15 +78,7 @@
         });
     </script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            background: #121212;
-            color: white;
             height: 100vh;
             overflow: hidden;
         }
@@ -114,25 +109,12 @@
             justify-content: center;
             padding: 10px 0;
         }
-
-        button {
-            padding: 8px 16px;
-            cursor: pointer;
-            background: #333;
-            color: white;
-            border: 1px solid #555;
-            border-radius: 4px;
-            font-size: 1rem;
-        }
-
-        button:hover {
-            background: #444;
-        }
     </style>
 </head>
 
 <body>
 
+    <a href="/library" class="nav-link">&#8592; Library</a>
     <div id="reader-ui" class="reader-container">
         <div id="image-container" class="image-wrapper">
             <img id="manga-page" src="" alt="">

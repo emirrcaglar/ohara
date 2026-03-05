@@ -12,13 +12,15 @@ func SetupRoutes(baseDir string) http.Handler {
 
 	mangaHandler := &handler.MangaHandler{BaseDir: baseDir}
 
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(ui.Files))))
+	mux.Handle("GET /static/", http.FileServer(http.FS(ui.Files)))
 
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		data, _ := ui.Files.ReadFile("index.html")
 		w.Header().Set("Content-Type", "text/html")
 		w.Write(data)
 	})
+
+	mux.HandleFunc("GET /library", mangaHandler.HandleMangaList)
 
 	mux.HandleFunc("GET /manga/{name}/page/{page}", mangaHandler.HandleMangaPage)
 	mux.HandleFunc("GET /manga/{name}/snippet/{page}", mangaHandler.HandleMangaSnippet)
@@ -29,9 +31,4 @@ func SetupRoutes(baseDir string) http.Handler {
 	mux.HandleFunc("GET /manga/{name}/info", mangaHandler.HandleMangaInfo)
 
 	return mux
-}
-
-type Router struct {
-	// bundan kurtul
-	BaseDir string
 }

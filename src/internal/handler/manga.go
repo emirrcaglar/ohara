@@ -5,15 +5,57 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	cbzReader "ohara/src/internal/media/cbz"
 )
 
 type MangaHandler struct {
 	BaseDir string
+}
+
+func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
+	matches, _ := filepath.Glob(filepath.Join(h.BaseDir, "*.cbz"))
+
+	var cards strings.Builder
+	for _, path := range matches {
+		name := strings.TrimSuffix(filepath.Base(path), ".cbz")
+		nameQ := url.QueryEscape(name)
+		nameP := url.PathEscape(name)
+		cards.WriteString(fmt.Sprintf(`
+		<a class="manga-card" href="/?manga=%s&page=0">
+			<img src="/manga/%s/page/0" alt="%s" loading="lazy">
+			<span>%s</span>
+		</a>`, nameQ, nameP, name, name))
+	}
+
+	html := fmt.Sprintf(`<!DOCTYPE html>
+		<html lang="en">
+			<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<title>Library - Ohara</title>
+				<link rel="stylesheet" href="/static/style.css">
+				<style>
+					body { padding: 20px; }
+					.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+					.manga-card { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: white; background: #1e1e1e; border-radius: 8px; overflow: hidden; transition: transform 0.15s; }
+					.manga-card:hover { transform: scale(1.04); }
+					.manga-card img { width: 100%%; aspect-ratio: 2/3; object-fit: cover; background: #333; }
+					.manga-card span { padding: 8px; font-size: 0.85rem; text-align: center; word-break: break-word; }
+				</style>
+			</head>
+			<body>
+				<div class="grid">%s</div>
+			</body>
+		</html>`, cards.String())
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(html))
 }
 
 func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {

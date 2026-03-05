@@ -20,7 +20,7 @@ func main() {
 		Port:    *port,
 		DataDir: *dataDir,
 	}
-	mangaDir := "."
+	mangaDir := "C:/Users/emirc/Downloads/blame"
 
 	r := router.SetupRoutes(mangaDir)
 

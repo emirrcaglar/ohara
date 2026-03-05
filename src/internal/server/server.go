@@ -17,12 +17,10 @@ type Config struct {
 
 func Start(cfg Config, handler http.Handler) error {
 	if cfg.Domain == "" {
-		// --- LOCAL DEV MODE ---
 		log.Printf("Starting local server on http://localhost:%s\n", cfg.Port)
 		return http.ListenAndServe(":"+cfg.Port, handler)
 	}
 
-	// --- VPS MODE (Auto HTTPS) ---
 	certManager := autocert.Manager{
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(cfg.Domain),
