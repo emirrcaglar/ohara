@@ -186,5 +186,5 @@ func (h *MangaHandler) HandleMangaResume(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/?manga=%d&page=%d", m.ID, page), http.StatusFound)
+	http.Redirect(w, r, fmt.Sprintf("/reader?manga=%d&page=%d&total=%d", m.ID, page, m.PageCount), http.StatusFound)
 }

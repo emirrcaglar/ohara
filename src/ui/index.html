@@ -6,51 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ohara Reader</title>
     <link rel="stylesheet" href="/static/style.css">
-    <script src="https://unpkg.com/htmx.org@2.0.0"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const params = new URLSearchParams(window.location.search);
-            const manga = params.get('manga');
-            const page = parseInt(params.get('page') || '0');
-
-            const img = document.getElementById('manga-page');
-            img.src = `/manga/${manga}/page/${page}`;
-
-            document.getElementById('page-counter').textContent = `Page ${page}`;
-
-            const prevBtn = document.getElementById('prev-btn');
-            const nextBtn = document.getElementById('next-btn');
-            prevBtn.setAttribute('hx-get', `/manga/${manga}/snippet/${Math.max(0, page - 1)}`);
-            nextBtn.setAttribute('hx-get', `/manga/${manga}/snippet/${page + 1}`);
-            htmx.process(document.body);
-
-            document.body.addEventListener('htmx:afterSettle', function () {
-                const img = document.getElementById('manga-page');
-                if (!img) return;
-
-                const match = img.src.match(/\/manga\/(\d+)\/page\/(\d+)/);
-                if (!match) return;
-
-                const manga = match[1];
-                const page = match[2];
-
-                window.history.pushState({ manga, page }, '', `/?manga=${manga}&page=${page}`);
-                document.getElementById('page-counter').textContent = `Page ${page}`;
-
-                const currentPage = parseInt(page);
-                prevBtn.setAttribute('hx-get', `/manga/${manga}/snippet/${Math.max(0, currentPage - 1)}`);
-                nextBtn.setAttribute('hx-get', `/manga/${manga}/snippet/${currentPage + 1}`);
-                htmx.process(prevBtn);
-                htmx.process(nextBtn);
-            });
-
-            window.addEventListener('popstate', function (event) {
-                if (!event.state) return;
-                document.getElementById('manga-page').src = `/manga/${event.state.manga}/page/${event.state.page}`;
-                document.getElementById('page-counter').textContent = `Page ${event.state.page}`;
-            });
-        });
-    </script>
     <style>
         body {
             height: 100vh;
@@ -87,17 +42,57 @@
 </head>
 
 <body>
-    <a href="/library" class="nav-link">&#8592; Library</a>
-    <div id="reader-ui" class="reader-container">
-        <div id="image-container" class="image-wrapper">
+    <a href="/manga/library" class="nav-link">&#8592; Library</a>
+    <div class="reader-container">
+        <div class="image-wrapper">
             <img id="manga-page" src="" alt="">
         </div>
         <div class="controls">
-            <button id="prev-btn" hx-target="#image-container" hx-swap="outerHTML">Previous</button>
+            <button id="prev-btn">Previous</button>
             <span id="page-counter" style="align-content: center; font-size: 1.2rem;">Page 0</span>
-            <button id="next-btn" hx-target="#image-container" hx-swap="outerHTML">Next</button>
+            <button id="next-btn">Next</button>
         </div>
     </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const manga = params.get('manga');
+        let page = parseInt(params.get('page') || '0');
+        const total = parseInt(params.get('total') || '0');
+
+        const img = document.getElementById('manga-page');
+        const counter = document.getElementById('page-counter');
+
+        function showPage(newPage) {
+            newPage = Math.max(0, Math.min(newPage, total - 1));
+            if (newPage === page && img.src) return;
+
+            const newSrc = `/manga/${manga}/page/${newPage}`;
+
+            const preload = new Image();
+            preload.onload = () => {
+                img.src = newSrc;
+                page = newPage;
+                counter.textContent = `Page ${page}`;
+                window.history.pushState({ page }, '', `/reader?manga=${manga}&page=${page}&total=${total}`);
+            };
+            preload.src = newSrc;
+
+            // save progress server-side (fire and forget)
+            fetch(`/manga/${manga}/snippet/${newPage}`);
+        }
+
+        document.getElementById('prev-btn').addEventListener('click', () => showPage(page - 1));
+        document.getElementById('next-btn').addEventListener('click', () => showPage(page + 1));
+
+        window.addEventListener('popstate', (e) => {
+            if (e.state) showPage(e.state.page);
+        });
+
+        // initial load (no preload needed, browser handles it)
+        img.src = `/manga/${manga}/page/${page}`;
+        counter.textContent = `Page ${page}`;
+    </script>
 </body>
 
 </html>
