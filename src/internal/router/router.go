@@ -8,10 +8,10 @@ import (
 	"ohara/src/ui"
 )
 
-func SetupRoutes(baseDir string, database *db.DB) http.Handler {
+func SetupRoutes(database *db.DB) http.Handler {
 	mux := http.NewServeMux()
 
-	mangaHandler := &handler.MangaHandler{BaseDir: baseDir, DB: database}
+	mangaHandler := &handler.MangaHandler{DB: database}
 
 	mux.Handle("GET /static/", http.FileServer(http.FS(ui.Files)))
 
@@ -23,13 +23,10 @@ func SetupRoutes(baseDir string, database *db.DB) http.Handler {
 
 	mux.HandleFunc("GET /library", mangaHandler.HandleMangaList)
 
-	mux.HandleFunc("GET /manga/{name}/page/{page}", mangaHandler.HandleMangaPage)
-	mux.HandleFunc("GET /manga/{name}/snippet/{page}", mangaHandler.HandleMangaSnippet)
-
-	mux.HandleFunc("GET /manga/{name}/reader/", mangaHandler.HandleMangaReader)
-	mux.HandleFunc("GET /manga/{name}/reader/{page}", mangaHandler.HandleMangaReader)
-
-	mux.HandleFunc("GET /manga/{name}/info", mangaHandler.HandleMangaInfo)
+	mux.HandleFunc("GET /manga/{id}/resume", mangaHandler.HandleMangaResume)
+	mux.HandleFunc("GET /manga/{id}/page/{page}", mangaHandler.HandleMangaPage)
+	mux.HandleFunc("GET /manga/{id}/snippet/{page}", mangaHandler.HandleMangaSnippet)
+	mux.HandleFunc("GET /manga/{id}/info", mangaHandler.HandleMangaInfo)
 
 	return mux
 }

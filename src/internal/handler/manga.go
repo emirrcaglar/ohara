@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -16,23 +13,41 @@ import (
 )
 
 type MangaHandler struct {
-	BaseDir string
-	DB      *db.DB
+	DB *db.DB
+}
+
+func (h *MangaHandler) mangaByID(idStr string) (*db.MangaRow, int, error) {
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return nil, http.StatusBadRequest, fmt.Errorf("invalid id")
+	}
+	m, err := h.DB.GetMangaByID(id)
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+	if m == nil {
+		return nil, http.StatusNotFound, fmt.Errorf("manga not found")
+	}
+	return m, 0, nil
 }
 
 func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
-	matches, _ := filepath.Glob(filepath.Join(h.BaseDir, "*.cbz"))
+	mangas, err := h.DB.ListManga(1)
+	if err != nil {
+		http.Error(w, "Failed to load library", http.StatusInternalServerError)
+		return
+	}
 
 	var cards strings.Builder
-	for _, path := range matches {
-		name := strings.TrimSuffix(filepath.Base(path), ".cbz")
-		nameQ := url.QueryEscape(name)
-		nameP := url.PathEscape(name)
+	for _, m := range mangas {
 		cards.WriteString(fmt.Sprintf(`
-		<a class="manga-card" href="/?manga=%s&page=0">
-			<img src="/manga/%s/page/0" alt="%s" loading="lazy">
-			<span>%s</span>
-		</a>`, nameQ, nameP, name, name))
+		<a class="manga-card" href="/manga/%d/resume">
+			<div class="cover-wrap">
+				<img src="/manga/%d/page/0" alt="%s" loading="lazy">
+				<span class="progress-badge">%d / %d</span>
+			</div>
+			<span class="title">%s</span>
+		</a>`, m.ID, m.ID, m.Title, m.Progress, m.PageCount, m.Title))
 	}
 
 	html := fmt.Sprintf(`<!DOCTYPE html>
@@ -47,8 +62,10 @@ func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
 					.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
 					.manga-card { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: white; background: #1e1e1e; border-radius: 8px; overflow: hidden; transition: transform 0.15s; }
 					.manga-card:hover { transform: scale(1.04); }
-					.manga-card img { width: 100%%; aspect-ratio: 2/3; object-fit: cover; background: #333; }
-					.manga-card span { padding: 8px; font-size: 0.85rem; text-align: center; word-break: break-word; }
+					.cover-wrap { position: relative; width: 100%%; }
+					.cover-wrap img { width: 100%%; aspect-ratio: 2/3; object-fit: cover; background: #333; display: block; }
+					.progress-badge { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.65); color: #ccc; font-size: 0.75rem; text-align: center; padding: 3px 0; }
+					.title { padding: 8px; font-size: 0.85rem; text-align: center; word-break: break-word; }
 				</style>
 			</head>
 			<body>
@@ -61,24 +78,20 @@ func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
-	pageStr := r.PathValue("page")
-	mangaName := r.PathValue("name")
-	fullPath := filepath.Join(h.BaseDir, mangaName+".cbz")
+	m, status, err := h.mangaByID(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), status)
+		return
+	}
 
-	pageIdx, err := strconv.Atoi(pageStr)
+	pageIdx, err := strconv.Atoi(r.PathValue("page"))
 	if err != nil || pageIdx < 0 {
 		http.Error(w, "Invalid page number", http.StatusBadRequest)
 		return
 	}
 
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		http.Error(w, "Manga not found", http.StatusNotFound)
-		return
-	}
-
-	manga, err := cbzReader.Open(fullPath)
+	manga, err := cbzReader.Open(m.Path)
 	if err != nil {
-		fmt.Printf("Error opening cbzReader: %v\n", err)
 		http.Error(w, "Could not open manga file", http.StatusInternalServerError)
 		return
 	}
@@ -86,7 +99,6 @@ func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 
 	rc, err := manga.GetPageReader(pageIdx)
 	if err != nil {
-		// Distinguish between "page out of bounds" and "read error" if possible
 		http.Error(w, "Page not found", http.StatusNotFound)
 		return
 	}
@@ -101,50 +113,43 @@ func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MangaHandler) HandleMangaInfo(w http.ResponseWriter, r *http.Request) {
-	mangaName := r.PathValue("name")
-	fullPath := filepath.Join(h.BaseDir, mangaName+".cbz")
-
-	manga, err := cbzReader.Open(fullPath)
+	m, status, err := h.mangaByID(r.PathValue("id"))
 	if err != nil {
-		fmt.Printf("Error opening cbzReader: %v\n", err)
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	manga, err := cbzReader.Open(m.Path)
+	if err != nil {
 		http.Error(w, "Could not open manga file", http.StatusInternalServerError)
 		return
 	}
 	defer manga.Close()
 
-	m, err := json.MarshalIndent(manga, "", "  ")
+	data, err := json.MarshalIndent(manga, "", "  ")
 	if err != nil {
-		w.Write([]byte(err.Error()))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(m)
-}
-
-func (h *MangaHandler) HandleMangaReader(w http.ResponseWriter, r *http.Request) {
-	mangaName := r.PathValue("name")
-	pageStr := r.PathValue("page")
-
-	if pageStr == "" {
-		pageStr = "0"
-	}
-
-	redirectURL := fmt.Sprintf("/?manga=%s&page=%s", mangaName, pageStr)
-	http.Redirect(w, r, redirectURL, http.StatusMovedPermanently)
+	w.Write(data)
 }
 
 func (h *MangaHandler) HandleMangaSnippet(w http.ResponseWriter, r *http.Request) {
-	mangaName := r.PathValue("name")
-	pageStr := r.PathValue("page")
+	m, status, err := h.mangaByID(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), status)
+		return
+	}
 
-	pageIdx, err := strconv.Atoi(pageStr)
+	pageIdx, err := strconv.Atoi(r.PathValue("page"))
 	if err != nil || pageIdx < 0 {
 		http.Error(w, "Invalid page number", http.StatusBadRequest)
 		return
 	}
 
-	fullPath := filepath.Join(h.BaseDir, mangaName+".cbz")
-	manga, err := cbzReader.Open(fullPath)
+	manga, err := cbzReader.Open(m.Path)
 	if err != nil {
 		http.Error(w, "Manga not found", http.StatusNotFound)
 		return
@@ -155,10 +160,31 @@ func (h *MangaHandler) HandleMangaSnippet(w http.ResponseWriter, r *http.Request
 		pageIdx = manga.PageCount - 1
 	}
 
+	// TODO: no auth yet so id=1 (admin)
+	if err := h.DB.UpsertProgress(1, m.ID, pageIdx); err != nil {
+		fmt.Printf("progress save error: %v\n", err)
+	}
+
 	snippet := fmt.Sprintf(`<div id="image-container" class="image-wrapper">
-    <img id="manga-page" src="/manga/%s/page/%d" alt="Manga Page">
-</div>`, mangaName, pageIdx)
+    <img id="manga-page" src="/manga/%d/page/%d" alt="Manga Page">
+</div>`, m.ID, pageIdx)
 
 	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(snippet))
+}
+
+func (h *MangaHandler) HandleMangaResume(w http.ResponseWriter, r *http.Request) {
+	m, status, err := h.mangaByID(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	page, err := h.DB.GetProgress(1, m.ID)
+	if err != nil {
+		http.Error(w, "Failed to fetch progress", http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/?manga=%d&page=%d", m.ID, page), http.StatusFound)
 }
