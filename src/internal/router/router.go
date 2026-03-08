@@ -11,9 +11,13 @@ import (
 func SetupRoutes(database *db.DB) http.Handler {
 	mux := http.NewServeMux()
 
-	mangaHandler := &handler.MangaHandler{DB: database}
+	mangaHandler := &handler.MangaHandler{DB: database, Cache: handler.NewPageCache(), Inflight: handler.NewInflight()}
 
 	mux.Handle("GET /static/", http.FileServer(http.FS(ui.Files)))
+
+	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
 
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		data, _ := ui.Files.ReadFile("home.html")
@@ -31,7 +35,7 @@ func SetupRoutes(database *db.DB) http.Handler {
 
 	mux.HandleFunc("GET /manga/{id}/resume", mangaHandler.HandleMangaResume)
 	mux.HandleFunc("GET /manga/{id}/page/{page}", mangaHandler.HandleMangaPage)
-	mux.HandleFunc("GET /manga/{id}/snippet/{page}", mangaHandler.HandleMangaSnippet)
+	mux.HandleFunc("POST /manga/{id}/progress/{page}", mangaHandler.HandleMangaProgress)
 	mux.HandleFunc("GET /manga/{id}/info", mangaHandler.HandleMangaInfo)
 
 	return mux

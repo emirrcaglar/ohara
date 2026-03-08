@@ -1,19 +1,23 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"ohara/src/internal/db"
 	cbzReader "ohara/src/internal/media/cbz"
+	"ohara/src/internal/media/imgutil"
 )
 
 type MangaHandler struct {
-	DB *db.DB
+	DB       *db.DB
+	Cache    *PageCache
+	Inflight *Inflight
 }
 
 func (h *MangaHandler) mangaByID(idStr string) (*db.MangaRow, int, error) {
@@ -77,7 +81,70 @@ func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(html))
 }
 
+func (h *MangaHandler) compressPage(m *db.MangaRow, pageIdx int) ([]byte, bool, error) {
+	if data, ok := h.Cache.Get(m.ID, pageIdx); ok {
+		return data, true, nil
+	}
+
+	data, err := h.Inflight.Do(m.ID, pageIdx, func() ([]byte, error) {
+		if data, ok := h.Cache.Get(m.ID, pageIdx); ok {
+			return data, nil
+		}
+
+		t := time.Now()
+		manga, err := cbzReader.Open(m.Path)
+		if err != nil {
+			return nil, err
+		}
+		defer manga.Close()
+		openDur := time.Since(t)
+
+		t = time.Now()
+		rc, err := manga.GetPageReader(pageIdx)
+		if err != nil {
+			return nil, err
+		}
+		defer rc.Close()
+
+		var buf bytes.Buffer
+		if err := imgutil.Compress(rc, &buf, 1200, 70); err != nil {
+			return nil, err
+		}
+		compressDur := time.Since(t)
+
+		data := buf.Bytes()
+		h.Cache.Set(m.ID, pageIdx, data)
+
+		fmt.Printf("[compress] manga=%d page=%d size=%dKB open=%v compress=%v\n",
+			m.ID, pageIdx, len(data)/1024, openDur, compressDur)
+
+		return data, nil
+	})
+
+	return data, false, err
+}
+
+func (h *MangaHandler) prefetchAhead(m *db.MangaRow, fromPage, count int) {
+	go func() {
+		for i := 1; i <= count; i++ {
+			p := fromPage + i
+			if p >= m.PageCount {
+				break
+			}
+			if _, ok := h.Cache.Get(m.ID, p); ok {
+				continue
+			}
+			fmt.Printf("[prefetch] manga=%d page=%d compressing...\n", m.ID, p)
+			if _, _, err := h.compressPage(m, p); err != nil {
+				fmt.Printf("[prefetch] manga=%d page=%d error: %v\n", m.ID, p, err)
+			}
+		}
+	}()
+}
+
 func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
+	t0 := time.Now()
+
 	m, status, err := h.mangaByID(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, err.Error(), status)
@@ -90,26 +157,48 @@ func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	manga, err := cbzReader.Open(m.Path)
-	if err != nil {
-		http.Error(w, "Could not open manga file", http.StatusInternalServerError)
-		return
-	}
-	defer manga.Close()
-
-	rc, err := manga.GetPageReader(pageIdx)
+	data, cached, err := h.compressPage(m, pageIdx)
 	if err != nil {
 		http.Error(w, "Page not found", http.StatusNotFound)
 		return
 	}
-	defer rc.Close()
+
+	source := "compressed"
+	if cached {
+		source = "cache"
+	}
+
+	go h.prefetchAhead(m, pageIdx, 15)
+
+	fmt.Printf("[page] manga=%d page=%d size=%dKB source=%s total=%v\n",
+		m.ID, pageIdx, len(data)/1024, source, time.Since(t0))
 
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Write(data)
+}
 
-	if _, err := io.Copy(w, rc); err != nil {
-		fmt.Printf("Stream error: %v\n", err)
+func (h *MangaHandler) HandleMangaProgress(w http.ResponseWriter, r *http.Request) {
+	m, status, err := h.mangaByID(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), status)
+		return
 	}
+
+	pageIdx, err := strconv.Atoi(r.PathValue("page"))
+	if err != nil || pageIdx < 0 {
+		http.Error(w, "Invalid page number", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.DB.UpsertProgress(1, m.ID, pageIdx); err != nil {
+		fmt.Printf("[progress] save error manga=%d page=%d: %v\n", m.ID, pageIdx, err)
+		http.Error(w, "Failed to save progress", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *MangaHandler) HandleMangaInfo(w http.ResponseWriter, r *http.Request) {
@@ -134,43 +223,6 @@ func (h *MangaHandler) HandleMangaInfo(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
-}
-
-func (h *MangaHandler) HandleMangaSnippet(w http.ResponseWriter, r *http.Request) {
-	m, status, err := h.mangaByID(r.PathValue("id"))
-	if err != nil {
-		http.Error(w, err.Error(), status)
-		return
-	}
-
-	pageIdx, err := strconv.Atoi(r.PathValue("page"))
-	if err != nil || pageIdx < 0 {
-		http.Error(w, "Invalid page number", http.StatusBadRequest)
-		return
-	}
-
-	manga, err := cbzReader.Open(m.Path)
-	if err != nil {
-		http.Error(w, "Manga not found", http.StatusNotFound)
-		return
-	}
-	defer manga.Close()
-
-	if pageIdx >= manga.PageCount {
-		pageIdx = manga.PageCount - 1
-	}
-
-	// TODO: no auth yet so id=1 (admin)
-	if err := h.DB.UpsertProgress(1, m.ID, pageIdx); err != nil {
-		fmt.Printf("progress save error: %v\n", err)
-	}
-
-	snippet := fmt.Sprintf(`<div id="image-container" class="image-wrapper">
-    <img id="manga-page" src="/manga/%d/page/%d" alt="Manga Page">
-</div>`, m.ID, pageIdx)
-
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(snippet))
 }
 
 func (h *MangaHandler) HandleMangaResume(w http.ResponseWriter, r *http.Request) {
