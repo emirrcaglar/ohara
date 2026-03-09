@@ -1,7 +1,7 @@
 package indexer
 
 import (
-	"log"
+	"fmt"
 	"path/filepath"
 
 	"ohara/src/internal/db"
@@ -23,7 +23,7 @@ func Run(database *db.DB, mangaDir string) (int, error) {
 	for _, path := range matches {
 		abs, err := filepath.Abs(path)
 		if err != nil {
-			log.Printf("indexer: skipping %s: %v", path, err)
+			fmt.Printf("indexer: skipping %s: %v", path, err)
 			continue
 		}
 
@@ -33,17 +33,17 @@ func Run(database *db.DB, mangaDir string) (int, error) {
 
 		manga, err := cbzReader.Open(abs)
 		if err != nil {
-			log.Printf("indexer: skipping %s: %v", abs, err)
+			fmt.Printf("indexer: skipping %s: %v", abs, err)
 			continue
 		}
 		manga.Close()
 
 		if err := database.InsertManga(abs, manga.Title, manga.PageCount); err != nil {
-			log.Printf("indexer: failed to insert %s: %v", abs, err)
+			fmt.Printf("indexer: failed to insert %s: %v", abs, err)
 			continue
 		}
 
-		log.Printf("indexer: indexed %q (%d pages)", manga.Title, manga.PageCount)
+		fmt.Printf("indexer: indexed %q (%d pages)", manga.Title, manga.PageCount)
 		added++
 	}
 

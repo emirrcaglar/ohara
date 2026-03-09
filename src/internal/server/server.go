@@ -3,7 +3,7 @@ package server
 
 import (
 	"crypto/tls"
-	"log"
+	"fmt"
 	"net/http"
 
 	"golang.org/x/crypto/acme/autocert"
@@ -17,7 +17,7 @@ type Config struct {
 
 func Start(cfg Config, handler http.Handler) error {
 	if cfg.Domain == "" {
-		log.Printf("Starting local server on http://localhost:%s\n", cfg.Port)
+		fmt.Printf("Starting local server on http://localhost:%s\n", cfg.Port)
 		return http.ListenAndServe(":"+cfg.Port, handler)
 	}
 
@@ -36,13 +36,13 @@ func Start(cfg Config, handler http.Handler) error {
 	}
 
 	go func() {
-		log.Printf("Starting HTTP-to-HTTPS redirect on port 80...")
+		fmt.Printf("Starting HTTP-to-HTTPS redirect on port 80...")
 		err := http.ListenAndServe(":http", certManager.HTTPHandler(nil))
 		if err != nil {
-			log.Printf("HTTP challenge server failed: %v", err)
+			fmt.Printf("HTTP challenge server failed: %v", err)
 		}
 	}()
 
-	log.Printf("Starting secure server on https://%s\n", cfg.Domain)
+	fmt.Printf("Starting secure server on https://%s\n", cfg.Domain)
 	return srv.ListenAndServeTLS("", "")
 }

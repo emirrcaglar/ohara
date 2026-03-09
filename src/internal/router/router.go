@@ -8,10 +8,10 @@ import (
 	"ohara/src/ui"
 )
 
-func SetupRoutes(database *db.DB) http.Handler {
+func SetupRoutes(database *db.DB, dataDir string) http.Handler {
 	mux := http.NewServeMux()
 
-	mangaHandler := &handler.MangaHandler{DB: database, Cache: handler.NewPageCache(), Inflight: handler.NewInflight()}
+	mangaHandler := &handler.MangaHandler{DB: database, Cache: handler.NewPageCache(dataDir), Inflight: handler.NewInflight()}
 
 	mux.Handle("GET /static/", http.FileServer(http.FS(ui.Files)))
 

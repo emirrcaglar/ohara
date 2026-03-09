@@ -1,6 +1,11 @@
 package handler
 
-import "sync"
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
+)
 
 type pageKey struct {
 	mangaID int64
@@ -8,25 +13,34 @@ type pageKey struct {
 }
 
 type PageCache struct {
-	mu    sync.RWMutex
-	items map[pageKey][]byte
+	dir string
 }
 
-func NewPageCache() *PageCache {
-	return &PageCache{items: make(map[pageKey][]byte)}
+func NewPageCache(dataDir string) *PageCache {
+	cacheDir := filepath.Join(dataDir, "cache")
+	os.MkdirAll(cacheDir, 0o755)
+	return &PageCache{dir: cacheDir}
+}
+
+func (c *PageCache) getPath(mangaID int64, page int) string {
+	return filepath.Join(c.dir, fmt.Sprintf("%d_%d.jpg", mangaID, page))
 }
 
 func (c *PageCache) Get(mangaID int64, page int) ([]byte, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	data, ok := c.items[pageKey{mangaID, page}]
-	return data, ok
+	data, err := os.ReadFile(c.getPath(mangaID, page))
+	if err != nil {
+		return nil, false
+	}
+	return data, true
 }
 
 func (c *PageCache) Set(mangaID int64, page int, data []byte) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.items[pageKey{mangaID, page}] = data
+	finalPath := c.getPath(mangaID, page)
+	tempPath := finalPath + ".tmp"
+
+	if err := os.WriteFile(tempPath, data, 0o644); err == nil {
+		os.Rename(tempPath, finalPath)
+	}
 }
 
 type inflightCall struct {

@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"ohara/src/internal/db"
+	"ohara/src/internal/utils/imgutil"
+
 	cbzReader "ohara/src/internal/media/cbz"
-	"ohara/src/internal/media/imgutil"
 )
 
 type MangaHandler struct {

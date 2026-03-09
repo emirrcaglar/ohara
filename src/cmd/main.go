@@ -3,12 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
+	"path/filepath"
+	"time"
 
 	"ohara/src/internal/db"
 	"ohara/src/internal/indexer"
 	"ohara/src/internal/router"
 	"ohara/src/internal/server"
+	"ohara/src/internal/worker"
 )
 
 func main() {
@@ -18,26 +20,31 @@ func main() {
 	scanDir := flag.String("scan-manga", "", "Scan a directory for manga and exit")
 	flag.Parse()
 
+	cacheDir := filepath.Join(*dataDir, "cache")
+	fmt.Printf("[cache] Cache Directory: %s", cacheDir)
+	// 1 GB
+	go worker.StartCacheCleaner(cacheDir, 1000, 15*time.Minute)
+
 	database, err := db.Init(*dataDir)
 	if err != nil {
-		log.Fatalf("Failed to init database: %v", err)
+		fmt.Printf("Failed to init database: %v", err)
 	}
 	defer database.Close()
 
 	if *scanDir != "" {
 		added, err := indexer.Run(database, *scanDir)
 		if err != nil {
-			log.Fatalf("Scan failed: %v", err)
+			fmt.Printf("Scan failed: %v", err)
 		}
 		fmt.Printf("Indexed %d new manga from %s\n", added, *scanDir)
 		return
 	}
 
-	r := router.SetupRoutes(database)
+	r := router.SetupRoutes(database, *dataDir)
 
 	fmt.Printf("Ohara port: %s\n", *port)
 
 	if err := server.Start(server.Config{Domain: *domain, Port: *port, DataDir: *dataDir}, r); err != nil {
-		log.Fatalf("Server crashed: %v", err)
+		fmt.Printf("Server crashed: %v", err)
 	}
 }
