@@ -1,4 +1,4 @@
-package cbz_reader
+package cbz
 
 import (
 	"archive/zip"

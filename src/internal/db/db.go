@@ -60,6 +60,16 @@ func migrate(conn *sql.DB) error {
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (user_id, manga_id)
 		);
+
+		CREATE TABLE IF NOT EXISTS audio (
+			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
+			path       TEXT     NOT NULL UNIQUE,
+			title      TEXT     NOT NULL,
+			artist     TEXT     NOT NULL DEFAULT '',
+			album      TEXT     NOT NULL DEFAULT '',
+			duration   INTEGER  NOT NULL DEFAULT 0,
+			indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
 	`)
 	return err
 }

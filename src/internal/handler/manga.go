@@ -12,7 +12,7 @@ import (
 	"ohara/src/internal/db"
 	"ohara/src/internal/utils/imgutil"
 
-	cbzReader "ohara/src/internal/media/cbz"
+	"ohara/src/internal/media/cbz"
 )
 
 type MangaHandler struct {
@@ -93,7 +93,7 @@ func (h *MangaHandler) compressPage(m *db.MangaRow, pageIdx int) ([]byte, bool, 
 		}
 
 		t := time.Now()
-		manga, err := cbzReader.Open(m.Path)
+		manga, err := cbz.Open(m.Path)
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +209,7 @@ func (h *MangaHandler) HandleMangaInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	manga, err := cbzReader.Open(m.Path)
+	manga, err := cbz.Open(m.Path)
 	if err != nil {
 		http.Error(w, "Could not open manga file", http.StatusInternalServerError)
 		return

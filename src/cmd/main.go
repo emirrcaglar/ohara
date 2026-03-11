@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"ohara/src/internal/db"
-	"ohara/src/internal/indexer"
 	"ohara/src/internal/router"
+	"ohara/src/internal/scanner"
 	"ohara/src/internal/server"
 	"ohara/src/internal/worker"
 )
@@ -17,13 +17,11 @@ func main() {
 	domain := flag.String("domain", "", "Domain for auto-HTTPS (e.g., stream.example.com)")
 	port := flag.String("port", "8080", "Local dev port")
 	dataDir := flag.String("data", "./app-data", "Path to store certs and media")
-	scanDir := flag.String("scan-manga", "", "Scan a directory for manga and exit")
+	scan := flag.String("scan", "", "Scan for media: all, manga, or audio")
 	flag.Parse()
 
 	cacheDir := filepath.Join(*dataDir, "cache")
-	fmt.Printf("[cache] Cache Directory: %s", cacheDir)
-	// 1 GB
-	go worker.StartCacheCleaner(cacheDir, 1000, 15*time.Minute)
+	go worker.StartCacheCleaner(cacheDir, 1000, 15*time.Minute) // 1 GB
 
 	database, err := db.Init(*dataDir)
 	if err != nil {
@@ -31,12 +29,18 @@ func main() {
 	}
 	defer database.Close()
 
-	if *scanDir != "" {
-		added, err := indexer.Run(database, *scanDir)
+	if *scan != "" {
+		if flag.NArg() == 0 {
+			fmt.Println("Usage: --scan <type> <directory>")
+			return
+		}
+		dir := flag.Arg(0)
+		s := scanner.NewScanner(database, dir, scanner.ScanType(*scan))
+		scannedCount, err := s.Run()
 		if err != nil {
 			fmt.Printf("Scan failed: %v", err)
 		}
-		fmt.Printf("Indexed %d new manga from %s\n", added, *scanDir)
+		fmt.Printf("Indexed %d new %s from %s\n", scannedCount, *scan, dir)
 		return
 	}
 
