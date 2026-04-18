@@ -2,14 +2,19 @@
 defineProps<{
   title: string
   subLabel: string
-  image: string
+  imageUrl: string
   bitrate: string
+  isPlaying?: boolean
+}>()
+
+const emit = defineEmits<{
+  play: []
 }>()
 </script>
 
 <template>
   <div class="relative flex-1 bg-surface-container-lowest group overflow-hidden border-0">
-    <img :src="image" class="w-full h-full object-cover opacity-80 grayscale group-hover:grayscale-0 transition-all duration-700" />
+    <img :src="imageUrl" class="w-full h-full object-cover opacity-80 grayscale group-hover:grayscale-0 transition-all duration-700" />
 
     <div class="absolute top-8 left-8 text-left">
       <div class="inline-block bg-secondary-container px-3 py-1 mb-2">
@@ -24,8 +29,8 @@ defineProps<{
     </div>
 
     <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-      <button class="w-24 h-24 bg-primary-container text-on-primary-container flex items-center justify-center hover:scale-105 transition-transform">
-        <span class="material-symbols-outlined text-5xl" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+      <button class="w-24 h-24 bg-primary-container text-on-primary-container flex items-center justify-center hover:scale-105 transition-transform" @click="emit('play')">
+        <span class="material-symbols-outlined text-5xl" style="font-variation-settings: 'FILL' 1;">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
       </button>
     </div>
   </div>

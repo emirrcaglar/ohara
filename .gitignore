@@ -33,3 +33,6 @@ __screenshots__/
 tmp/
 temp/
 *.tmp
+
+# docs
+docs/

@@ -2,8 +2,18 @@
 defineProps<{
   currentTime: string
   totalTime: string
-  progress: number // 0 to 100
-  volume: number   // 0 to 100
+  progress: number
+  volume: number
+  isPlaying: boolean
+}>()
+
+const emit = defineEmits<{
+  play: []
+  pause: []
+  seek: [time: number]
+  volumeChange: [volume: number]
+  next: []
+  previous: []
 }>()
 </script>
 
@@ -23,11 +33,11 @@ defineProps<{
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-8">
         <button class="text-white/60 hover:text-secondary"><span class="material-symbols-outlined">shuffle</span></button>
-        <button class="text-primary hover:text-primary-container scale-125"><span class="material-symbols-outlined">skip_previous</span></button>
-        <button class="w-14 h-14 bg-primary-container text-on-primary-container flex items-center justify-center hover:bg-primary transition-transform active:scale-95">
-          <span class="material-symbols-outlined text-3xl" style="font-variation-settings: 'FILL' 1;">pause</span>
+        <button class="text-primary hover:text-primary-container scale-125" @click="emit('previous')"><span class="material-symbols-outlined">skip_previous</span></button>
+        <button class="w-14 h-14 bg-primary-container text-on-primary-container flex items-center justify-center hover:bg-primary transition-transform active:scale-95" @click="isPlaying ? emit('pause') : emit('play')">
+          <span class="material-symbols-outlined text-3xl" style="font-variation-settings: 'FILL' 1;">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
         </button>
-        <button class="text-primary hover:text-primary-container scale-125"><span class="material-symbols-outlined">skip_next</span></button>
+        <button class="text-primary hover:text-primary-container scale-125" @click="emit('next')"><span class="material-symbols-outlined">skip_next</span></button>
         <button class="text-white/60 hover:text-secondary"><span class="material-symbols-outlined">repeat</span></button>
       </div>
 
