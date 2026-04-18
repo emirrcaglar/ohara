@@ -17,7 +17,7 @@ type Page struct {
 	source *zip.File
 }
 
-type Manga struct {
+type CBZ struct {
 	FilePath  string  `json:"file_path"`
 	Title     string  `json:"title"`
 	PageCount int     `json:"page_count"`
@@ -26,7 +26,7 @@ type Manga struct {
 	closer *zip.ReadCloser
 }
 
-func (c *Manga) GetPageReader(pageIndex int) (io.ReadCloser, error) {
+func (c *CBZ) GetPageReader(pageIndex int) (io.ReadCloser, error) {
 	if pageIndex < 0 || pageIndex >= len(c.Pages) {
 		return nil, fmt.Errorf("page index out of bounds")
 	}
@@ -34,17 +34,17 @@ func (c *Manga) GetPageReader(pageIndex int) (io.ReadCloser, error) {
 	return c.Pages[pageIndex].source.Open()
 }
 
-func (c *Manga) Close() error {
+func (c *CBZ) Close() error {
 	return c.closer.Close()
 }
 
-func Open(path string) (*Manga, error) {
+func Open(path string) (*CBZ, error) {
 	r, err := zip.OpenReader(path)
 	if err != nil {
 		return nil, err
 	}
 
-	manga := &Manga{
+	cbz := &CBZ{
 		FilePath: path,
 		Title:    strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)),
 		closer:   r,
@@ -60,7 +60,7 @@ func Open(path string) (*Manga, error) {
 		return validFiles[i].Name < validFiles[j].Name
 	})
 	for i, f := range validFiles {
-		manga.Pages = append(manga.Pages, &Page{
+		cbz.Pages = append(cbz.Pages, &Page{
 			Index:    i,
 			FileName: f.Name,
 			Size:     f.UncompressedSize64,
@@ -68,8 +68,8 @@ func Open(path string) (*Manga, error) {
 		})
 	}
 
-	manga.PageCount = len(manga.Pages)
-	return manga, nil
+	cbz.PageCount = len(cbz.Pages)
+	return cbz, nil
 }
 
 func isImageFile(filename string) bool {

@@ -3,15 +3,19 @@ import { createRouter, createWebHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    component: () => import('../views/HomeView.vue')
+    redirect: '/library'
+  },
+  {
+    path: '/library',
+    component: () => import('../views/LibraryView.vue')
   },
   {
     path: '/media',
     component: () => import('../views/MediaView.vue')
   },
   {
-    path: '/library',
-    component: () => import('../views/LibraryView.vue')
+    path: '/reader',
+    component: () => import('../views/ReaderView.vue')
   },
   {
     path: '/uploads',

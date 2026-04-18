@@ -16,9 +16,9 @@ export async function saveMangaProgress(id: number, page: number): Promise<void>
 }
 
 export function getMangaCoverUrl(id: number): string {
-  return `${API_BASE}/manga/${id}/page/0`
+  return `/manga/${id}/page/0`
 }
 
 export function getMangaPageUrl(id: number, page: number): string {
-  return `${API_BASE}/manga/${id}/page/${page}`
+  return `/manga/${id}/page/${page}`
 }

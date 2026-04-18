@@ -8,10 +8,17 @@ defineProps<{
   stats?: string
   category?: string
 }>()
+
+const emit = defineEmits<{
+  click: [manga: MangaRow]
+}>()
 </script>
 
 <template>
-  <div class="group bg-surface-container-low transition-none flex flex-col hover:bg-surface-container-high cursor-pointer">
+  <div
+    class="group bg-surface-container-low transition-none flex flex-col hover:bg-surface-container-high cursor-pointer"
+    @click="manga && emit('click', manga)"
+  >
     <div class="aspect-[3/4] overflow-hidden bg-surface-container-lowest relative flex items-center justify-center">
       <template v-if="manga">
         <img :src="coverUrl" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" />

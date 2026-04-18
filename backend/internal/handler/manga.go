@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"ohara/src/internal/db"
@@ -43,43 +43,37 @@ func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var cards strings.Builder
+	items := make([]MangaResponse, 0, len(mangas))
 	for _, m := range mangas {
-		cards.WriteString(fmt.Sprintf(`
-		<a class="manga-card" href="/manga/%d/resume">
-			<div class="cover-wrap">
-				<img src="/manga/%d/page/0" alt="%s" loading="lazy">
-				<span class="progress-badge">%d / %d</span>
-			</div>
-			<span class="title">%s</span>
-		</a>`, m.ID, m.ID, m.Title, m.Progress, m.PageCount, m.Title))
+		items = append(items, MangaResponse{
+			ID:            m.ID,
+			Title:         m.Title,
+			PageCount:     m.PageCount,
+			CurrentPage:   m.Progress,
+			FileExtension: filepath.Ext(m.Path),
+		})
 	}
 
-	html := fmt.Sprintf(`<!DOCTYPE html>
-		<html lang="en">
-			<head>
-			<meta charset="UTF-8">
-			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-				<title>Library - Ohara</title>
-				<link rel="stylesheet" href="/static/style.css">
-				<style>
-					body { padding: 20px; }
-					.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
-					.manga-card { display: flex; flex-direction: column; align-items: center; text-decoration: none; color: white; background: #1e1e1e; border-radius: 8px; overflow: hidden; transition: transform 0.15s; }
-					.manga-card:hover { transform: scale(1.04); }
-					.cover-wrap { position: relative; width: 100%%; }
-					.cover-wrap img { width: 100%%; aspect-ratio: 2/3; object-fit: cover; background: #333; display: block; }
-					.progress-badge { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.65); color: #ccc; font-size: 0.75rem; text-align: center; padding: 3px 0; }
-					.title { padding: 8px; font-size: 0.85rem; text-align: center; word-break: break-word; }
-				</style>
-			</head>
-			<body>
-				<div class="grid">%s</div>
-			</body>
-		</html>`, cards.String())
+	response := MangaLibraryResponse{
+		Items: items,
+		Total: len(items),
+	}
 
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+type MangaResponse struct {
+	ID            int64  `json:"id"`
+	Title         string `json:"title"`
+	PageCount     int    `json:"pageCount"`
+	CurrentPage   int    `json:"currentPage"`
+	FileExtension string `json:"fileExtension"`
+}
+
+type MangaLibraryResponse struct {
+	Items []MangaResponse `json:"items"`
+	Total int             `json:"total"`
 }
 
 func (h *MangaHandler) compressPage(m *db.MangaRow, pageIdx int) ([]byte, bool, error) {
@@ -209,21 +203,22 @@ func (h *MangaHandler) HandleMangaInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	manga, err := cbz.Open(m.Path)
-	if err != nil {
-		http.Error(w, "Could not open manga file", http.StatusInternalServerError)
-		return
-	}
-	defer manga.Close()
-
-	data, err := json.MarshalIndent(manga, "", "  ")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(data)
+	json.NewEncoder(w).Encode(MangaDetailResponse{
+		ID:          m.ID,
+		Title:       m.Title,
+		Path:        m.Path,
+		PageCount:   m.PageCount,
+		CurrentPage: m.Progress,
+	})
+}
+
+type MangaDetailResponse struct {
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	Path        string `json:"path"`
+	PageCount   int    `json:"pageCount"`
+	CurrentPage int    `json:"currentPage"`
 }
 
 func (h *MangaHandler) HandleMangaResume(w http.ResponseWriter, r *http.Request) {

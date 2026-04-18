@@ -36,3 +36,18 @@ temp/
 
 # docs
 docs/
+
+# media files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.mp4
+*.mp3
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.pdf
