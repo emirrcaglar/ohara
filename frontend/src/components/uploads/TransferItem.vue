@@ -2,7 +2,7 @@
 defineProps<{
   name: string
   progress: number
-  sizeInfo: string
+  sizeInfo?: string
   status: 'active' | 'complete' | 'paused'
   eta?: string
   speed?: string
@@ -20,7 +20,7 @@ defineProps<{
         <p v-if="status === 'complete'" class="text-[10px] text-secondary-fixed-dim font-mono">
           SUCCESS_COMPLETED
         </p>
-        <p v-else class="text-[10px] text-on-surface-variant font-mono">
+        <p v-else-if="sizeInfo" class="text-[10px] text-on-surface-variant font-mono">
           {{ sizeInfo }}
         </p>
       </div>
