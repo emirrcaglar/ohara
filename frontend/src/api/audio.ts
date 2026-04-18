@@ -6,5 +6,5 @@ export async function fetchAudioLibrary(): Promise<AudioLibraryResponse> {
 }
 
 export function getAudioStreamUrl(id: number): string {
-  return `${API_BASE}/audio/${id}/stream`
+  return `/audio/${id}/stream`
 }

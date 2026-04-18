@@ -10,10 +10,6 @@ const routes = [
     component: () => import('../views/LibraryView.vue')
   },
   {
-    path: '/media',
-    component: () => import('../views/MediaView.vue')
-  },
-  {
     path: '/reader',
     component: () => import('../views/ReaderView.vue')
   },

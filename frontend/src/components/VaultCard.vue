@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { MangaRow, AudioRow } from '../types/api'
 
-defineProps<{
+const props = defineProps<{
   manga?: MangaRow
   audio?: AudioRow
   coverUrl?: string
@@ -10,14 +10,25 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  click: [manga: MangaRow]
+  click: [item: MangaRow | AudioRow]
 }>()
+
+function handleClick() {
+  if (props.manga) {
+    emit('click', props.manga)
+    return
+  }
+
+  if (props.audio) {
+    emit('click', props.audio)
+  }
+}
 </script>
 
 <template>
   <div
     class="group bg-surface-container-low transition-none flex flex-col hover:bg-surface-container-high cursor-pointer"
-    @click="manga && emit('click', manga)"
+    @click="handleClick"
   >
     <div class="aspect-[3/4] overflow-hidden bg-surface-container-lowest relative flex items-center justify-center">
       <template v-if="manga">

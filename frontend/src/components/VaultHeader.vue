@@ -1,7 +1,14 @@
 <script setup lang="ts">
 defineProps<{
   totalManga?: number
+  modelValue?: 'ALL' | 'CBZ' | 'AUDIO'
 }>()
+
+defineEmits<{
+  'update:modelValue': [value: 'ALL' | 'CBZ' | 'AUDIO']
+}>()
+
+const tabs = ['ALL', 'CBZ', 'AUDIO'] as const
 </script>
 
 <template>
@@ -9,7 +16,15 @@ defineProps<{
     <div>
       <h2 class="text-4xl font-black tracking-tighter uppercase mb-4">Central_Vault</h2>
       <div class="flex gap-2">
-        <button class="px-6 py-2 bg-primary-container text-on-primary-container font-bold text-xs uppercase">All</button>
+        <button
+          v-for="tab in tabs"
+          :key="tab"
+          @click="$emit('update:modelValue', tab)"
+          class="px-6 py-2 font-bold text-xs uppercase transition-colors"
+          :class="modelValue === tab ? 'bg-primary-container text-on-primary-container' : 'bg-surface-hover text-secondary hover:text-white'"
+        >
+          {{ tab }}
+        </button>
       </div>
     </div>
     <div class="text-right hidden sm:block">

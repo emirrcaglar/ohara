@@ -16,10 +16,10 @@ func SetupRoutes(database *db.DB, dataDir string) http.Handler {
 	mux.HandleFunc("GET /api/manga", mangaHandler.HandleMangaList)
 	mux.HandleFunc("GET /api/audio", audioHandler.HandleAudioList)
 
-	mux.HandleFunc("GET /manga/{id}/resume", mangaHandler.HandleMangaResume)
-	mux.HandleFunc("GET /manga/{id}/page/{page}", mangaHandler.HandleMangaPage)
-	mux.HandleFunc("POST /manga/{id}/progress/{page}", mangaHandler.HandleMangaProgress)
-	mux.HandleFunc("GET /manga/{id}/info", mangaHandler.HandleMangaInfo)
+	mux.HandleFunc("GET /api/manga/{id}/resume", mangaHandler.HandleMangaResume)
+	mux.HandleFunc("GET /api/manga/{id}/page/{page}", mangaHandler.HandleMangaPage)
+	mux.HandleFunc("POST /api/manga/{id}/progress/{page}", mangaHandler.HandleMangaProgress)
+	mux.HandleFunc("GET /api/manga/{id}/info", mangaHandler.HandleMangaInfo)
 
 	mux.HandleFunc("GET /audio/{id}/stream", audioHandler.HandleAudioStream)
 

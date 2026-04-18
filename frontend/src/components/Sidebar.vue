@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
-import { PlayCircle, Library, UploadCloud, Network, Terminal, User } from 'lucide-vue-next';
+import { Library, UploadCloud, Network, Terminal, User } from 'lucide-vue-next';
 
 const route = useRoute();
 
 const navItems = [
-  { name: 'Media', icon: PlayCircle, path: '/media' },
   { name: 'Library', icon: Library, path: '/library' },
   { name: 'Uploads', icon: UploadCloud, path: '/uploads' },
   { name: 'Network', icon: Network, path: '/network' },

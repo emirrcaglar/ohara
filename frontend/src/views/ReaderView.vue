@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMangaStore } from '../stores/manga'
+import { API_BASE } from '../api/client'
 
 const route = useRoute()
 const router = useRouter()
@@ -11,7 +12,7 @@ const mangaId = computed(() => Number(route.query.manga))
 const currentPage = ref(Number(route.query.page) || 0)
 const totalPages = ref(Number(route.query.total) || 0)
 
-const pageUrl = computed(() => `/manga/${mangaId.value}/page/${currentPage.value}`)
+const pageUrl = computed(() => `${API_BASE}/manga/${mangaId.value}/page/${currentPage.value}`)
 
 const hasPrev = computed(() => currentPage.value > 0)
 const hasNext = computed(() => currentPage.value < totalPages.value - 1)
