@@ -1,15 +1,15 @@
-module ohara
+module ohara/src
 
 go 1.24.4
 
 require (
+	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	golang.org/x/crypto v0.48.0
 	golang.org/x/image v0.36.0
 	modernc.org/sqlite v1.46.1
 )
 
 require (
-	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

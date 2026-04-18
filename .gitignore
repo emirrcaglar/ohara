@@ -1,2 +1,35 @@
-/tmp/
-deploy.sh
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sw?
+*.suo
+
+# Testing
+coverage/
+cypress/videos/
+cypress/screenshots/
+__screenshots__/
+
+# Temp files
+tmp/
+temp/
+*.tmp
