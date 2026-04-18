@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ohara Reader</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            overflow-y: scroll;
+        }
+
+        .pages {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 48px 0 80px;
+        }
+
+        .pages img {
+            width: 100%;
+            display: block;
+            /* aspect-ratio reserves space before src loads so scroll positions are accurate */
+            aspect-ratio: 2/3;
+            background: #1a1a1a;
+        }
+
+        #page-counter {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #ccc;
+            font-size: 0.85rem;
+            padding: 4px 10px;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+    <a href="/manga/library" class="nav-link">&#8592; Library</a>
+    <div class="pages" id="pages"></div>
+    <div id="page-counter"></div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const manga = params.get('manga');
+        const startPage = parseInt(params.get('page') || '0');
+        const total = parseInt(params.get('total') || '0');
+
+        const container = document.getElementById('pages');
+        const counter = document.getElementById('page-counter');
+
+        const imgs = [];
+        for (let i = 0; i < total; i++) {
+            const img = document.createElement('img');
+            img.dataset.src = `/manga/${manga}/page/${i}`;
+            img.dataset.page = i;
+            container.appendChild(img);
+            imgs.push(img);
+        }
+
+        if (startPage > 0 && imgs[startPage]) {
+            imgs[startPage].scrollIntoView();
+        }
+
+        let currentPage = startPage;
+        counter.textContent = `${startPage + 1} / ${total}`;
+
+        function prefetchWindow(fromPage, before, ahead) {
+            const winStart = Math.max(0, fromPage - before);
+            const winEnd = Math.min(total - 1, fromPage + ahead);
+
+            for (let p = 0; p < total; p++) {
+                const img = imgs[p];
+                if (p >= winStart && p <= winEnd) {
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                        delete img.dataset.src;
+                    }
+                } else {
+                    if (img.src && !img.complete) {
+                        img.dataset.src = img.src;
+                        img.src = '';
+                    }
+                }
+            }
+        }
+
+        let prefetchTimer = null;
+        function schedulePrefetch(fromPage) {
+            clearTimeout(prefetchTimer);
+            prefetchTimer = setTimeout(() => prefetchWindow(fromPage, 5, 5), 250);
+        }
+
+        const pageTracker = new IntersectionObserver((entries) => {
+            for (const entry of entries) {
+                if (entry.intersectionRatio >= 0.5) {
+                    const p = parseInt(entry.target.dataset.page);
+                    if (p !== currentPage) {
+                        currentPage = p;
+                        counter.textContent = `${currentPage + 1} / ${total}`;
+                        window.history.replaceState(null, '', `/reader?manga=${manga}&page=${currentPage}&total=${total}`);
+                        schedulePrefetch(currentPage);
+                        fetch(`/manga/${manga}/progress/${currentPage}`, { method: 'POST' });
+                    }
+                }
+            }
+        }, { threshold: 0.5 });
+
+        imgs.forEach(img => pageTracker.observe(img));
+
+        prefetchWindow(startPage, 5, 5);
+    </script>
+</body>
+
+</html>
