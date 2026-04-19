@@ -3,14 +3,14 @@
     <div class="flex gap-8">
       <div class="flex items-center gap-2">
         <div class="w-1.5 h-1.5 bg-secondary-container animate-pulse"></div>
-        DATABASE_CONNECTED
+        DATABASE_CONNECTION???
       </div>
       <div class="flex items-center gap-2 text-primary-container">
-        UPTIME: 142:55:01
+        UPTIME: ???
       </div>
     </div>
     <div>
-      © 2024 OHARA_SYSTEMS // [SECURE_SHELL_ACTIVE]
+      © 2026 OHARA
     </div>
   </footer>
 </template>

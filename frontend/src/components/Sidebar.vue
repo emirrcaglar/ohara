@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
-import { Library, UploadCloud, Network, Terminal, User } from 'lucide-vue-next';
+import { Library, Network, Terminal, User } from 'lucide-vue-next';
+
+defineOptions({
+  name: 'AppSidebar',
+});
 
 const route = useRoute();
 
 const navItems = [
   { name: 'Library', icon: Library, path: '/library' },
-  { name: 'Uploads', icon: UploadCloud, path: '/uploads' },
   { name: 'Network', icon: Network, path: '/network' },
   { name: 'Logs', icon: Terminal, path: '/logs' },
 ];
@@ -17,9 +20,6 @@ const navItems = [
       <RouterLink to="/" class="p-8 flex flex-col gap-1 group cursor-pointer hover:opacity-80 transition-opacity">
         <span class="text-2xl font-bold tracking-tighter text-primary-container">
           OHARA
-        </span>
-        <span class="uppercase tracking-tight text-xs text-secondary-container">
-          SYSTEM_ACTIVE
         </span>
       </RouterLink>
 

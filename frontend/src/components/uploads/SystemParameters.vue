@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import SystemToggle from './SystemToggle.vue'
 
+defineProps<{
+  autoExtract: boolean
+  verifyHash: boolean
+  overwriteExisting: boolean
+}>()
 </script>
 
 <template>
@@ -16,9 +21,9 @@ import SystemToggle from './SystemToggle.vue'
     </div>
 
     <div class="space-y-6">
-      <SystemToggle label="Auto-Extract Compressed" :isActive="true" />
-      <SystemToggle label="Verify Hash (Checksum)" :isActive="true" />
-      <SystemToggle label="Overwrite Existing" :isActive="false" />
+      <SystemToggle label="Auto-Extract Compressed" :isActive="autoExtract" />
+      <SystemToggle label="Verify Hash (Checksum)" :isActive="verifyHash" />
+      <SystemToggle label="Overwrite Existing" :isActive="overwriteExisting" />
     </div>
   </div>
 </template>

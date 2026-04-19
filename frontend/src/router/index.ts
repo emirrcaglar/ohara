@@ -12,10 +12,6 @@ const routes = [
   {
     path: '/reader',
     component: () => import('../views/ReaderView.vue')
-  },
-  {
-    path: '/uploads',
-    component: () => import('../views/UploadsView.vue')
   }
 ]
 
