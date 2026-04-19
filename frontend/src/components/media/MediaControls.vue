@@ -18,8 +18,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="bg-surface-container-low p-6 flex flex-col gap-6">
-    <div class="space-y-2">
+  <div class="bg-transparent px-2 py-1 flex flex-col gap-3">
+    <div class="space-y-1.5">
       <div class="flex justify-between font-mono text-[10px] uppercase tracking-widest text-secondary">
         <span>{{ currentTime }}</span>
         <span>{{ totalTime }}</span>
@@ -30,8 +30,8 @@ const emit = defineEmits<{
       </div>
     </div>
 
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-8">
+    <div class="flex items-center justify-between gap-4">
+      <div class="flex items-center gap-5">
         <button class="text-white/60 hover:text-secondary"><span class="material-symbols-outlined">shuffle</span></button>
         <button class="text-primary hover:text-primary-container scale-125" @click="emit('previous')"><span class="material-symbols-outlined">skip_previous</span></button>
         <button class="w-14 h-14 bg-primary-container text-on-primary-container flex items-center justify-center hover:bg-primary transition-transform active:scale-95" @click="isPlaying ? emit('pause') : emit('play')">
@@ -41,14 +41,14 @@ const emit = defineEmits<{
         <button class="text-white/60 hover:text-secondary"><span class="material-symbols-outlined">repeat</span></button>
       </div>
 
-      <div class="flex items-center gap-6">
+      <div class="flex items-center gap-4">
         <div class="flex items-center gap-3">
           <span class="material-symbols-outlined text-sm text-secondary">volume_up</span>
-          <div class="w-24 h-1 bg-surface-container-highest">
+          <div class="w-20 h-1 bg-surface-container-highest">
             <div class="h-full bg-secondary" :style="{ width: volume + '%' }"></div>
           </div>
         </div>
-        <button class="px-4 py-2 bg-surface-container-high border border-outline-variant hover:border-primary text-[10px] font-black uppercase tracking-tighter">
+        <button class="px-3 py-1.5 bg-surface-container-high border border-outline-variant hover:border-primary text-[10px] font-black uppercase tracking-tighter">
           Cast Device
         </button>
       </div>

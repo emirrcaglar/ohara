@@ -69,7 +69,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col bg-black overflow-hidden">
+  <div class="relative flex-1 flex flex-col bg-black overflow-hidden">
     <div class="flex-1 flex items-center justify-center overflow-auto p-4">
       <img
         :src="pageUrl"
@@ -78,10 +78,10 @@ onMounted(async () => {
       />
     </div>
 
-    <div class="bg-surface-container-low border-t border-white/10 px-8 py-4">
-      <div class="flex items-center justify-between max-w-4xl mx-auto">
+    <div class="absolute top-6 right-6 z-30 w-[340px] bg-surface-container-low/95 border border-white/10 p-4 backdrop-blur-sm">
+      <div class="flex items-center justify-between gap-3">
         <button
-          class="px-6 py-3 bg-surface-container-high text-on-surface font-bold uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary-container hover:text-on-primary-container transition-colors"
+          class="px-4 py-2 bg-surface-container-high text-on-surface font-bold uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary-container hover:text-on-primary-container transition-colors"
           :disabled="!hasPrev"
           @click="prevPage"
         >
@@ -92,12 +92,12 @@ onMounted(async () => {
         </button>
 
         <div class="text-center">
-          <p class="text-sm font-mono text-secondary uppercase tracking-widest mb-1">Page</p>
-          <p class="text-2xl font-black text-on-surface">{{ progressText }}</p>
+          <p class="text-[10px] font-mono text-secondary uppercase tracking-widest mb-1">Page</p>
+          <p class="text-lg font-black text-on-surface">{{ progressText }}</p>
         </div>
 
         <button
-          class="px-6 py-3 bg-surface-container-high text-on-surface font-bold uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary-container hover:text-on-primary-container transition-colors"
+          class="px-4 py-2 bg-surface-container-high text-on-surface font-bold uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary-container hover:text-on-primary-container transition-colors"
           :disabled="!hasNext"
           @click="nextPage"
         >
@@ -108,11 +108,11 @@ onMounted(async () => {
         </button>
       </div>
 
-      <div class="text-center mt-4">
+      <div class="text-center mt-3">
         <div class="h-1 bg-surface-container-highest rounded-full overflow-hidden">
           <div
             class="h-full bg-primary-container transition-all duration-200"
-            :style="{ width: `${((currentPage + 1) / totalPages) * 100}%` }"
+            :style="{ width: `${totalPages > 0 ? ((currentPage + 1) / totalPages) * 100 : 0}%` }"
           ></div>
         </div>
       </div>

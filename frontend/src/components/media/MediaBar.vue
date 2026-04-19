@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import MediaDisplay from './MediaDisplay.vue'
 import MediaControls from './MediaControls.vue'
 
 defineProps<{
@@ -20,18 +19,15 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="bg-surface-container-low border-t border-white/10 px-6 py-4">
-    <div class="flex items-center gap-6">
-      <MediaDisplay
-        :title="title"
-        :subLabel="subLabel"
-        imageUrl=""
-        :bitrate="bitrate || ''"
-        :isPlaying="isPlaying"
-        @play="emit('play')"
-      />
+  <div class="bg-surface-container-low border-t border-white/10 px-4 py-2">
+    <div class="flex items-center gap-4">
+      <div class="min-w-0 w-56">
+        <p class="text-[10px] font-mono uppercase tracking-widest text-secondary mb-1">Now Playing</p>
+        <p class="truncate text-sm font-black uppercase tracking-tight text-on-surface">{{ title }}</p>
+        <p class="truncate text-[10px] font-mono uppercase tracking-widest text-on-surface-variant">{{ subLabel }}</p>
+      </div>
 
-      <div class="flex-1 flex items-center justify-center">
+      <div class="flex-1 flex items-center justify-center min-w-0">
         <MediaControls
           :currentTime="'0:00'"
           :totalTime="'0:00'"
@@ -46,8 +42,8 @@ const emit = defineEmits<{
         />
       </div>
 
-      <div class="w-48 text-right">
-        <span class="text-xs font-mono text-secondary uppercase tracking-widest">Now Playing</span>
+      <div class="w-36 text-right pr-1">
+        <span class="text-[10px] font-mono text-secondary uppercase tracking-widest">{{ bitrate || 'Audio' }}</span>
       </div>
     </div>
   </div>
