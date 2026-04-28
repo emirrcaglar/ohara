@@ -20,9 +20,9 @@ server: {
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       proxy: {
-        '/api': 'http://localhost:8080',
-        '/manga': 'http://localhost:8080',
-        '/audio': 'http://localhost:8080',
+        '/api': 'http://localhost:3000',
+        '/manga': 'http://localhost:3000',
+        '/audio': 'http://localhost:3000',
       },
     },
   };

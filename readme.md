@@ -4,7 +4,7 @@ Media server for manga and audio content.
 
 ## Architecture
 
-- **Backend**: Go API server (port 8080) - serves JSON API and media files
+- **Backend**: Go API server (port 3000) - serves JSON API and media files
 - **Frontend**: Vue SPA (port 5173 dev, or serve via nginx/cdn) - UI client
 
 ## Quick Start
@@ -17,8 +17,8 @@ cd backend
 # Build
 go build ./...
 
-# Start server (default port 8080)
-go run ./cmd --port 8080 --data ./app-data
+# Start server (default port 3000)
+go run ./cmd --port 3000 --data ./app-data
 ```
 
 ### Frontend (Development)
@@ -29,7 +29,7 @@ cd frontend
 # Install dependencies
 npm install
 
-# Start dev server (proxies /api, /manga, /audio to localhost:8080)
+# Start dev server (proxies /api, /manga, /audio to localhost:3000)
 npm run dev
 ```
 
@@ -38,16 +38,17 @@ Then open http://localhost:5173
 ### Production Build
 
 ```bash
-# 1. Build frontend
+# 1. Build frontend into the backend embed directory
 cd frontend
-npm run build-only
+npm install
+npm run build:embed
 
-# 2. Serve frontend dist with any static file server
-# Example with npx serve:
-npx serve dist
-
-# Backend runs separately on port 8080
+# 2. Build the single deployable backend binary
+cd ../backend
+go build -o ohara ./cmd
 ```
+
+The resulting binary serves both the JSON API and the embedded Vue frontend.
 
 ### Linux VPS Build
 

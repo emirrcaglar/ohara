@@ -15,7 +15,7 @@ import (
 
 func main() {
 	domain := flag.String("domain", "", "Domain for auto-HTTPS (e.g., stream.example.com)")
-	port := flag.String("port", "8080", "Local dev port")
+	port := flag.String("port", "3000", "Local dev port")
 	dataDir := flag.String("data", "./app-data", "Path to store certs and media")
 	scan := flag.String("scan", "", "Scan for media: all, manga, or audio")
 	flag.Parse()

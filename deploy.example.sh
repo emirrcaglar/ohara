@@ -7,7 +7,12 @@ BINARY_NAME=
 SERVICE_NAME=
 
 echo "🚀 Building the binary..."
-GOOS=linux GOARCH=amd64 go build -o $BINARY_NAME src/cmd/main.go
+npm --prefix frontend install
+npm --prefix frontend run build:embed
+
+cd backend
+GOOS=linux GOARCH=amd64 go build -o ../$BINARY_NAME ./cmd
+cd ..
 
 echo "🛑 Stopping the service on the VPS..."
 ssh $SERVER "systemctl stop $SERVICE_NAME"

@@ -5,6 +5,7 @@ import (
 
 	"ohara/src/internal/db"
 	"ohara/src/internal/handler"
+	"ohara/src/ui"
 )
 
 func SetupRoutes(database *db.DB, dataDir string) http.Handler {
@@ -22,6 +23,10 @@ func SetupRoutes(database *db.DB, dataDir string) http.Handler {
 	mux.HandleFunc("GET /api/manga/{id}/info", mangaHandler.HandleMangaInfo)
 
 	mux.HandleFunc("GET /audio/{id}/stream", audioHandler.HandleAudioStream)
+
+	if spaHandler, err := ui.SPAHandler(); err == nil {
+		mux.Handle("/", spaHandler)
+	}
 
 	return mux
 }
