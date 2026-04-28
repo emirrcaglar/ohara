@@ -83,7 +83,7 @@ This was not directly about embedding, but it had to be fixed for the single-bin
 
 File changed:
 
-- `deploy.example.sh`
+- `deploy/deploy.example.sh`
 
 New flow:
 
@@ -171,7 +171,7 @@ In practice:
 - `frontend/src/assets/active-transfers.svg`
 - `backend/ui/file.go`
 - `backend/internal/router/router.go`
-- `deploy.example.sh`
+- `deploy/deploy.example.sh`
 - `readme.md`
 
 ## Summary

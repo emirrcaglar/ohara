@@ -1,0 +1,7 @@
+# Copy this file to .deploy.conf and customize for your environment.
+# The deploy scripts load this file automatically if present.
+
+DEPLOY_SERVER="user@your-vps"
+DEPLOY_DIR="/opt/ohara"
+DEPLOY_BINARY_NAME="ohara"
+DEPLOY_SERVICE_NAME="ohara"

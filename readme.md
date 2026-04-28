@@ -50,6 +50,29 @@ go build -o ohara ./cmd
 
 The resulting binary serves both the JSON API and the embedded Vue frontend.
 
+### Deploy Script (No-Edit Workflow)
+
+The deploy scripts support both a local config file and CLI override, so you do not need to edit the script for each environment.
+
+```bash
+# Option A: one-off deploy target
+./deploy/deploy.sh user@host
+
+# Option B: persistent local config
+cp deploy/deploy.conf.example deploy/deploy.conf
+# edit deploy/deploy.conf once
+./deploy/deploy.sh
+```
+
+Supported config keys in `deploy/deploy.conf`:
+
+- `DEPLOY_SERVER` (example: `user@host`)
+- `DEPLOY_DIR` (default: `/opt/ohara`)
+- `DEPLOY_BINARY_NAME` (default: `ohara`)
+- `DEPLOY_SERVICE_NAME` (default: `ohara`)
+
+Deployment uploads to a temporary binary path and swaps it into place before restarting systemd.
+
 ### Linux VPS Build
 
 Backend only (API server):
