@@ -20,6 +20,7 @@ BINARY_NAME="${DEPLOY_BINARY_NAME:-ohara}"
 SERVICE_NAME="${DEPLOY_SERVICE_NAME:-ohara}"
 DEPLOY_PASSWORD="${DEPLOY_PASSWORD:-}"
 ASKPASS_SCRIPT=""
+INSTALL_SCRIPT_TMP=""
 
 SERVER="${SERVER//$'\r'/}"
 REMOTE_DIR="${REMOTE_DIR//$'\r'/}"
@@ -30,6 +31,9 @@ DEPLOY_PASSWORD="${DEPLOY_PASSWORD//$'\r'/}"
 cleanup() {
 	if [[ -n "$ASKPASS_SCRIPT" && -f "$ASKPASS_SCRIPT" ]]; then
 		rm -f "$ASKPASS_SCRIPT"
+	fi
+	if [[ -n "$INSTALL_SCRIPT_TMP" && -f "$INSTALL_SCRIPT_TMP" ]]; then
+		rm -f "$INSTALL_SCRIPT_TMP"
 	fi
 }
 trap cleanup EXIT
@@ -87,6 +91,7 @@ echo "Step 1: Uploading binary to temporary storage..."
 
 echo "Step 2: Generating and uploading service file..."
 SERVICE_FILE_TMP="/tmp/$SERVICE_NAME.service"
+SERVICE_USER="$("${SSH_CMD[@]}" "$SERVER" "whoami")"
 
 # Generate the service file locally using a Here-Doc
 cat <<EOF > "$SERVICE_FILE_TMP"
@@ -96,7 +101,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=$("${SSH_CMD[@]}" "$SERVER" "whoami")
+User=$SERVICE_USER
 WorkingDirectory=$REMOTE_DIR
 ExecStart=$REMOTE_DIR/$BINARY_NAME
 Restart=always
@@ -110,17 +115,20 @@ EOF
 rm "$SERVICE_FILE_TMP"
 
 echo "Step 3: Running remote installation..."
-if [[ -n "$DEPLOY_PASSWORD" ]]; then
-	ESCAPED_DEPLOY_PASSWORD="${DEPLOY_PASSWORD//\'/\'\"\'\"\'}"
-	REMOTE_DIR_Q=$(printf '%q' "$REMOTE_DIR")
-	SERVICE_REMOTE_TMP_Q=$(printf '%q' "/tmp/$SERVICE_NAME.service.tmp")
-	SERVICE_REMOTE_PATH_Q=$(printf '%q' "/etc/systemd/system/$SERVICE_NAME.service")
-	SERVICE_NAME_Q=$(printf '%q' "$SERVICE_NAME")
-	BINARY_REMOTE_TMP_Q=$(printf '%q' "/tmp/$BINARY_NAME.tmp")
-	BINARY_REMOTE_PATH_Q=$(printf '%q' "$REMOTE_DIR/$BINARY_NAME")
+REMOTE_DIR_Q=$(printf '%q' "$REMOTE_DIR")
+SERVICE_USER_Q=$(printf '%q' "$SERVICE_USER")
+SERVICE_REMOTE_TMP_Q=$(printf '%q' "/tmp/$SERVICE_NAME.service.tmp")
+SERVICE_REMOTE_PATH_Q=$(printf '%q' "/etc/systemd/system/$SERVICE_NAME.service")
+SERVICE_NAME_Q=$(printf '%q' "$SERVICE_NAME")
+BINARY_REMOTE_TMP_Q=$(printf '%q' "/tmp/$BINARY_NAME.tmp")
+BINARY_REMOTE_PATH_Q=$(printf '%q' "$REMOTE_DIR/$BINARY_NAME")
+REMOTE_INSTALL_TMP="/tmp/$SERVICE_NAME.install.sh"
+INSTALL_SCRIPT_TMP="$(mktemp "${TMPDIR:-/tmp}/ohara-install.XXXXXX")"
 
-	"${SSH_CMD[@]}" -t "$SERVER" "printf '%s\n' '$ESCAPED_DEPLOY_PASSWORD' | sudo -S -p '' bash -se" <<EOF
+cat <<EOF > "$INSTALL_SCRIPT_TMP"
+#!/usr/bin/env bash
 set -euo pipefail
+trap 'rm -f "$REMOTE_INSTALL_TMP"' EXIT
 echo "Finalizing deployment as root..."
 mkdir -p $REMOTE_DIR_Q
 mv $SERVICE_REMOTE_TMP_Q $SERVICE_REMOTE_PATH_Q
@@ -129,26 +137,27 @@ systemctl enable $SERVICE_NAME_Q
 systemctl stop $SERVICE_NAME_Q || true
 mv $BINARY_REMOTE_TMP_Q $BINARY_REMOTE_PATH_Q
 chmod +x $BINARY_REMOTE_PATH_Q
+chown -R $SERVICE_USER_Q:$SERVICE_USER_Q $REMOTE_DIR_Q
+systemctl reset-failed $SERVICE_NAME_Q || true
 systemctl start $SERVICE_NAME_Q
+if ! systemctl is-active --quiet $SERVICE_NAME_Q; then
+	echo "Error: $SERVICE_NAME_Q did not stay running."
+	systemctl status --no-pager $SERVICE_NAME_Q || true
+	journalctl -u $SERVICE_NAME_Q --no-pager -n 50 || true
+	exit 1
+fi
 EOF
+
+chmod 700 "$INSTALL_SCRIPT_TMP"
+"${SCP_CMD[@]}" "$INSTALL_SCRIPT_TMP" "$SERVER:$REMOTE_INSTALL_TMP"
+rm -f "$INSTALL_SCRIPT_TMP"
+INSTALL_SCRIPT_TMP=""
+
+if [[ -n "$DEPLOY_PASSWORD" ]]; then
+	ESCAPED_DEPLOY_PASSWORD="${DEPLOY_PASSWORD//\'/\'\"\'\"\'}"
+	"${SSH_CMD[@]}" -t "$SERVER" "printf '%s\n' '$ESCAPED_DEPLOY_PASSWORD' | sudo -S -p '' bash '$REMOTE_INSTALL_TMP'"
 else
-	"${SSH_CMD[@]}" -t "$SERVER" "
-    echo 'Finalizing deployment as root...' && \
-    sudo mkdir -p '$REMOTE_DIR' && \
-
-    # 1. Move and setup the service file
-    sudo mv '/tmp/$SERVICE_NAME.service.tmp' '/etc/systemd/system/$SERVICE_NAME.service' && \
-    sudo systemctl daemon-reload && \
-    sudo systemctl enable '$SERVICE_NAME' && \
-
-    # 2. Update the binary
-    sudo systemctl stop '$SERVICE_NAME' || true && \
-    sudo mv '/tmp/$BINARY_NAME.tmp' '$REMOTE_DIR/$BINARY_NAME' && \
-    sudo chmod +x '$REMOTE_DIR/$BINARY_NAME' && \
-
-    # 3. Start it back up
-    sudo systemctl start '$SERVICE_NAME'
-"
+	"${SSH_CMD[@]}" -t "$SERVER" "sudo bash '$REMOTE_INSTALL_TMP'"
 fi
 
 echo "Deployment complete! Your service is now fully managed by systemd."

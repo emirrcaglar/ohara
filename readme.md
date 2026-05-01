@@ -72,7 +72,7 @@ Supported config keys in `deploy/deploy.conf`:
 - `DEPLOY_BINARY_NAME` (default: `ohara`)
 - `DEPLOY_SERVICE_NAME` (default: `ohara`)
 
-Deployment uploads to a temporary binary path and swaps it into place before restarting systemd.
+Deployment uploads to a temporary binary path, swaps it into place, makes the runtime directory writable for the service user, restarts systemd, and fails if the service does not stay active.
 
 ### Linux VPS Build
 

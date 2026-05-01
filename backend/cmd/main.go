@@ -25,7 +25,8 @@ func main() {
 
 	database, err := db.Init(*dataDir)
 	if err != nil {
-		fmt.Printf("Failed to init database: %v", err)
+		fmt.Printf("Failed to init database: %v\n", err)
+		return
 	}
 	defer database.Close()
 
