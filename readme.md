@@ -67,6 +67,7 @@ cp deploy/deploy.conf.example deploy/deploy.conf
 Supported config keys in `deploy/deploy.conf`:
 
 - `DEPLOY_SERVER` (example: `user@host`)
+- `DEPLOY_PASSWORD` (optional; when set, the deploy script uses it for `ssh`, `scp`, and `sudo`)
 - `DEPLOY_DIR` (default: `/opt/ohara`)
 - `DEPLOY_BINARY_NAME` (default: `ohara`)
 - `DEPLOY_SERVICE_NAME` (default: `ohara`)

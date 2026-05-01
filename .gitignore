@@ -1,3 +1,6 @@
+# IDE
+.zed/
+
 # Environment
 .env
 .env.local
@@ -11,6 +14,7 @@ deploy/deploy.conf
 dist/
 dist-ssr/
 build/
+ohara
 
 # Logs
 logs
@@ -52,3 +56,6 @@ temp/
 *.flv
 *.webm
 *.pdf
+
+# backend
+backend/app-data/
