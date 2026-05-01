@@ -361,7 +361,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <p class="text-[9px] text-secondary uppercase font-bold">Total Bandwidth</p>
-                <p class="text-lg font-black text-primary leading-none mt-1">20.5 MB/s</p>
+                <p class="text-lg font-black text-primary leading-none mt-1">NOT_YET_IMPLEMENTED</p>
               </div>
               <div>
                 <p class="text-[9px] text-secondary uppercase font-bold">Files in Queue</p>

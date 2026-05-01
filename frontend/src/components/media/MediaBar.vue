@@ -29,10 +29,10 @@ const emit = defineEmits<{
 
       <div class="flex-1 flex items-center justify-center min-w-0">
         <MediaControls
-          :currentTime="'0:00'"
-          :totalTime="'0:00'"
+          :currentTime="'NOT_YET_IMPLEMENTED'"
+          :totalTime="'NOT_YET_IMPLEMENTED'"
           :progress="0"
-          :volume="75"
+          :volume="0"
           :isPlaying="isPlaying"
           @play="emit('play')"
           @pause="emit('pause')"

@@ -3,10 +3,10 @@
     <div class="flex gap-8">
       <div class="flex items-center gap-2">
         <div class="w-1.5 h-1.5 bg-secondary-container animate-pulse"></div>
-        DATABASE_CONNECTION???
+        DATABASE_CONNECTION: NOT_YET_IMPLEMENTED
       </div>
       <div class="flex items-center gap-2 text-primary-container">
-        UPTIME: ???
+        UPTIME: NOT_YET_IMPLEMENTED
       </div>
     </div>
     <div>

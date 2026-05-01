@@ -1,10 +1,6 @@
 <script setup lang="ts">
 const logs = [
-  { timestamp: '12:43:55', source: 'MEDIA_FLUX_A8', status: 'COMPLETE', checksum: '0x88AF...22' },
-  { timestamp: '12:40:12', source: 'NODE_ORBIT_01', status: 'COMPLETE', checksum: '0x12CC...B4' },
-  { timestamp: '12:35:44', source: 'LOCAL_CACHE_U', status: 'PENDING', checksum: '----' },
-  { timestamp: '12:32:01', source: 'SATELLITE_LINK', status: 'COMPLETE', checksum: '0xDD09...1A' },
-  { timestamp: '12:28:19', source: 'CORE_ROOT_SRV', status: 'COMPLETE', checksum: '0x55E2...9F' },
+  { timestamp: 'NOT_YET_IMPLEMENTED', source: 'NOT_YET_IMPLEMENTED', status: 'NOT_YET_IMPLEMENTED', checksum: 'NOT_YET_IMPLEMENTED' },
 ];
 </script>
 
@@ -12,7 +8,7 @@ const logs = [
   <div class="bg-surface-container-low flex flex-col flex-1 overflow-hidden">
     <div class="p-6 border-b border-surface-container-highest flex justify-between items-center">
       <h2 class="text-xs font-black uppercase tracking-[0.2em] text-on-surface-variant">Ingest_Logs</h2>
-      <span class="text-[10px] text-white/40 tracking-widest uppercase">Last Update: 12:44:01</span>
+      <span class="text-[10px] text-white/40 tracking-widest uppercase">Last Update: NOT_YET_IMPLEMENTED</span>
     </div>
     <div class="overflow-y-auto">
       <table class="w-full text-left text-xs">

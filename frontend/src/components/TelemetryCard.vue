@@ -2,9 +2,9 @@
 import { AlertTriangle } from 'lucide-vue-next';
 
 const metrics = [
-  { label: 'CPU_LOAD', value: '64.2%', progress: 64.2 },
-  { label: 'RAM_USAGE', value: '12.8 GB', progress: 82 },
-  { label: 'NET_THROUGHPUT', value: '450 MB/s', progress: 35 },
+  { label: 'CPU_LOAD', value: 'NOT_YET_IMPLEMENTED', progress: 0 },
+  { label: 'RAM_USAGE', value: 'NOT_YET_IMPLEMENTED', progress: 0 },
+  { label: 'NET_THROUGHPUT', value: 'NOT_YET_IMPLEMENTED', progress: 0 },
 ];
 </script>
 

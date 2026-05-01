@@ -7,7 +7,7 @@ import { Settings, Power } from 'lucide-vue-next';
     <div class="flex items-center gap-4">
       <span class="text-xl font-black text-primary-container px-4 uppercase tracking-tighter">OHARA_MEDIA</span>
       <div class="h-4 w-[2px] bg-surface-container-highest"></div>
-      <span class="text-[10px] tracking-[0.3em] text-white/40 uppercase">DASHBOARD_V2.0.4</span>
+      <span class="text-[10px] tracking-[0.3em] text-white/40 uppercase">DASHBOARD_NOT_YET_IMPLEMENTED</span>
     </div>
 
     <div class="flex items-center gap-6">

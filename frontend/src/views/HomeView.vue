@@ -18,11 +18,18 @@ import StatusBar from '../components/StatusBar.vue';
     <div class="col-span-12 lg:col-span-8 flex flex-col gap-6">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <MediaCard
-              title="NEON_ARCHIVE.MKV"
-              subtitle="Featured_Stream"
-              image="https://lh3.googleusercontent.com/aida-public/AB6AXuCzbM5EfiXX_i2YMYhHeBu6bid3tfm1hsCGos4Dip9sbVnLkUfCpz2woFiQGyrVAYpdSCP_RmeSWwVW7UvFxVCqxIaarle5bSK3z6SdrfrceouEvz_onyGZ54tAf-RbK_oeL6szQsk_0zUOJDyp1j1D59R5PkesgyyD8qhbwAYj4hiVWiy0VnM4VYAq9r-OOdGOz6klrAN6LIBCWPlkYkX5o3urEIrH8PbrykRIVeZzF1q4R6ZtqpgaZnLPFSL9BTcwn8Bg_eCGvSs"
-              badge="4K_HDR"
+              title="NOT_YET_IMPLEMENTED"
+              subtitle="NOT_YET_IMPLEMENTED"
+              image=""
+              badge="NOT_YET_IMPLEMENTED"
               badge-type="primary"
+            />
+            <MediaCard
+              title="NOT_YET_IMPLEMENTED"
+              subtitle="NOT_YET_IMPLEMENTED"
+              image=""
+              badge="NOT_YET_IMPLEMENTED"
+              badge-type="secondary"
             />
             <MediaCard
               title="VOYAGER_EXP.RAW"

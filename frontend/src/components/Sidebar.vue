@@ -44,8 +44,8 @@ const navItems = [
           <User class="text-on-primary-container w-6 h-6" />
         </div>
         <div class="flex flex-col">
-          <span class="text-xs font-bold uppercase tracking-widest text-on-surface">Admin_01</span>
-          <span class="text-[10px] text-secondary">ROOT_ACCESS</span>
+          <span class="text-xs font-bold uppercase tracking-widest text-on-surface">NOT_YET_IMPLEMENTED</span>
+          <span class="text-[10px] text-secondary">NOT_YET_IMPLEMENTED</span>
         </div>
       </div>
     </div>

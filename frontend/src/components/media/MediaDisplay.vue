@@ -25,7 +25,7 @@ const emit = defineEmits<{
 
     <div class="absolute bottom-8 right-8 text-right font-mono">
       <p class="text-primary text-sm font-bold">BITRATE: {{ bitrate }}</p>
-      <p class="text-white/40 text-[10px]">BUFFERING_OPTIMIZED</p>
+      <p class="text-white/40 text-[10px]">NOT_YET_IMPLEMENTED</p>
     </div>
 
     <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
