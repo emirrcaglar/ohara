@@ -10,15 +10,15 @@ import (
 	"time"
 
 	"ohara/src/internal/db"
-	"ohara/src/internal/utils/imgutil"
-
 	"ohara/src/internal/media/cbz"
+	"ohara/src/internal/utils/imgutil"
 )
 
 type MangaHandler struct {
-	DB       *db.DB
-	Cache    *PageCache
-	Inflight *Inflight
+	DB         *db.DB
+	Cache      *PageCache
+	Inflight   *Inflight
+	CBZService cbz.ICBZService
 }
 
 func (h *MangaHandler) mangaByID(idStr string) (*db.MangaRow, int, error) {
@@ -87,7 +87,7 @@ func (h *MangaHandler) compressPage(m *db.MangaRow, pageIdx int) ([]byte, bool, 
 		}
 
 		t := time.Now()
-		manga, err := cbz.Open(m.Path)
+		manga, err := h.CBZService.Open(m.Path)
 		if err != nil {
 			return nil, err
 		}

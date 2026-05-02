@@ -12,6 +12,7 @@ import { useMangaStore } from '../stores/manga'
 import { useAudioStore } from '../stores/audio'
 import { usePlayerStore } from '../stores/player'
 import { getMangaPageUrl } from '../api/manga'
+import { uploadFile } from '../api/upload'
 import type { MangaRow, AudioRow } from '../types/api'
 
 const router = useRouter()
@@ -20,7 +21,6 @@ const audioStore = useAudioStore()
 const playerStore = usePlayerStore()
 
 const selectedTab = ref<'ALL' | 'CBZ' | 'AUDIO'>('ALL')
-const destinationPath = ref('/mnt/storage/media/unprocessed/')
 const metadataProfile = ref('AUTO_DETECT_SCRAPER_V2')
 const autoExtract = ref(true)
 const verifyHash = ref(true)
@@ -37,6 +37,7 @@ interface UploadQueueItem {
   ext: string
   progress: number
   status: UploadStatus
+  file: File
 }
 
 interface TransferItemData {
@@ -120,13 +121,19 @@ function closeTransfersPanel() {
 }
 
 function handleFilesSelected(files: File[]) {
+  const allowedExtensions = ['.cbz', '.mp3', '.wav']
+  const filtered = files.filter(file => {
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase()
+    return allowedExtensions.includes(ext)
+  })
   const nextIdBase = queuedItems.value.length + 1
-  const newItems: UploadQueueItem[] = files.map((file, index) => ({
+  const newItems: UploadQueueItem[] = filtered.map((file, index) => ({
     id: nextIdBase + index,
     name: file.name,
     ext: file.name.split('.').pop()?.toUpperCase() ?? 'FILE',
     progress: 0,
-    status: 'active'
+    status: 'active' as const,
+    file
   }))
 
   queuedItems.value = [...newItems, ...queuedItems.value]
@@ -136,22 +143,52 @@ function clearQueue() {
   queuedItems.value = []
 }
 
-function processAll() {
+async function processAll() {
+  const itemsToUpload = [...queuedItems.value]
   const nextTransferId = transfers.value.length + 1
-  const mapped = queuedItems.value.map((item, index) => ({
+  const newTransfers: TransferItemData[] = itemsToUpload.map((item, index) => ({
     id: nextTransferId + index,
     name: item.name,
     progress: 0,
-    sizeInfo: 'Queued',
+    sizeInfo: formatFileSize(item.file.size),
     status: 'active' as const,
     eta: '--',
     speed: '--'
   }))
 
-  transfers.value = [...mapped, ...transfers.value]
+  transfers.value = [...newTransfers, ...transfers.value]
   queuedItems.value = []
   closeUploadDialog()
   openTransfersPanel()
+
+  for (let i = 0; i < itemsToUpload.length; i++) {
+    const queueItem = itemsToUpload[i]
+    const transfer = newTransfers[i]
+    if (!transfer) continue
+
+    try {
+      await uploadFile(
+        queueItem.file,
+        metadataProfile.value,
+        (progress) => {
+          const t = transfers.value.find(t => t.id === transfer.id)
+          if (t) t.progress = progress
+        }
+      )
+      const t = transfers.value.find(t => t.id === transfer.id)
+      if (t) t.status = 'complete'
+    } catch {
+      const t = transfers.value.find(t => t.id === transfer.id)
+      if (t) t.status = 'complete'
+    }
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
 }
 
 function handleGlobalKeydown(event: KeyboardEvent) {
@@ -253,16 +290,10 @@ function handleGlobalKeydown(event: KeyboardEvent) {
           <div class="space-y-8">
             <DropZone @filesSelected="handleFilesSelected" />
 
-            <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
-              <SystemInput
-                label="Destination_Path"
-                :value="destinationPath"
-                icon="folder_open"
-              />
-
-              <SystemInput
-                label="Metadata_Profile"
-                :value="metadataProfile"
+              <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
+                <SystemInput
+                  label="Metadata_Profile"
+                  :value="metadataProfile"
                 icon="expand_more"
               />
             </div>

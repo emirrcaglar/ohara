@@ -4,17 +4,26 @@ import (
 	"archive/zip"
 	"fmt"
 	"io"
+	"ohara/src/internal/db"
 	"path/filepath"
 	"sort"
 	"strings"
 )
 
-type Page struct {
-	Index    int    `json:"index"`
-	FileName string `json:"file_name"`
-	Size     uint64 `json:"size"`
+type CBZService struct {
+	db  *db.DB
+	CBZ *CBZ
+}
 
-	source *zip.File
+type ICBZService interface {
+	SaveCBZ(cbz *CBZ) error
+	GetPageReader(pageIndex int) (io.ReadCloser, error)
+	Open(path string) (*CBZ, error)
+	Close() error
+}
+
+func NewCBZService(db *db.DB) *CBZService {
+	return &CBZService{db: db}
 }
 
 type CBZ struct {
@@ -26,19 +35,28 @@ type CBZ struct {
 	closer *zip.ReadCloser
 }
 
-func (c *CBZ) GetPageReader(pageIndex int) (io.ReadCloser, error) {
-	if pageIndex < 0 || pageIndex >= len(c.Pages) {
-		return nil, fmt.Errorf("page index out of bounds")
+type Page struct {
+	Index    int    `json:"index"`
+	FileName string `json:"file_name"`
+	Size     uint64 `json:"size"`
+
+	source *zip.File
+}
+
+func (s *CBZService) GetPageReader(pageIndex int) (io.ReadCloser, error) {
+	return s.CBZ.GetPageReader(pageIndex)
+}
+
+func (s *CBZService) Close() error {
+	if s.CBZ == nil {
+		return nil
 	}
-
-	return c.Pages[pageIndex].source.Open()
+	err := s.CBZ.Close()
+	s.CBZ = nil
+	return err
 }
 
-func (c *CBZ) Close() error {
-	return c.closer.Close()
-}
-
-func Open(path string) (*CBZ, error) {
+func (s *CBZService) Open(path string) (*CBZ, error) {
 	r, err := zip.OpenReader(path)
 	if err != nil {
 		return nil, err
@@ -50,6 +68,7 @@ func Open(path string) (*CBZ, error) {
 		closer:   r,
 		Pages:    make([]*Page, 0),
 	}
+	s.CBZ = cbz
 	var validFiles []*zip.File
 	for _, f := range r.File {
 		if isImageFile(f.Name) {
@@ -70,6 +89,25 @@ func Open(path string) (*CBZ, error) {
 
 	cbz.PageCount = len(cbz.Pages)
 	return cbz, nil
+}
+
+func (s *CBZService) SaveCBZ(cbz *CBZ) error {
+	return nil
+}
+
+func (cbz *CBZ) GetPageReader(pageIndex int) (io.ReadCloser, error) {
+	if pageIndex < 0 || pageIndex >= len(cbz.Pages) {
+		return nil, fmt.Errorf("page index out of bounds")
+	}
+
+	return cbz.Pages[pageIndex].source.Open()
+}
+
+func (cbz *CBZ) Close() error {
+	if cbz == nil || cbz.closer == nil {
+		return nil
+	}
+	return cbz.closer.Close()
 }
 
 func isImageFile(filename string) bool {

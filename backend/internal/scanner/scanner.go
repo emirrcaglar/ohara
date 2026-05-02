@@ -13,7 +13,11 @@ type Scanner struct {
 	db       *db.DB
 	scanDir  string
 	scanType ScanType
+
+	CBZService cbz.ICBZService
 }
+
+type ScannerOption func(*Scanner)
 
 type ScanType string
 
@@ -23,12 +27,45 @@ var (
 	ScanTypeAudio ScanType = "audio"
 )
 
-func NewScanner(db *db.DB, scanDir string, scanType ScanType) Scanner {
-	return Scanner{
-		db:       db,
-		scanDir:  scanDir,
-		scanType: scanType,
+func WithScanDir(scanDir string) ScannerOption {
+	return func(s *Scanner) {
+		s.scanDir = scanDir
 	}
+}
+
+func WithScanType(scanType ScanType) ScannerOption {
+	return func(s *Scanner) {
+		s.scanType = scanType
+	}
+}
+
+func NewScanner(db *db.DB, cbzService cbz.ICBZService, opts ...ScannerOption) *Scanner {
+	scanner := &Scanner{
+		db:         db,
+		CBZService: cbzService,
+		scanDir:    ".",
+		scanType:   ScanTypeAll,
+	}
+
+	for _, opt := range opts {
+		opt(scanner)
+	}
+
+	return scanner
+}
+
+func (s *Scanner) Index(targetPath string) error {
+	fileType := filepath.Ext(targetPath)
+
+	switch fileType {
+	case ".cbz":
+		s.indexManga(targetPath)
+
+	default:
+		return fmt.Errorf("unsupported file type: %s", fileType)
+	}
+
+	return nil
 }
 
 func (s *Scanner) Run() (int, error) {
@@ -115,11 +152,12 @@ func (s *Scanner) scanAudio() (int, error) {
 }
 
 func (s *Scanner) indexManga(absPath string) error {
-	manga, err := cbz.Open(absPath)
+	fmt.Printf("indexer: indexing %s\n", absPath)
+	manga, err := s.CBZService.Open(absPath)
 	if err != nil {
 		return fmt.Errorf("indexer: skipping %s: %v", absPath, err)
 	}
-	manga.Close()
+	s.CBZService.Close()
 
 	if err := s.db.InsertManga(absPath, manga.Title, manga.PageCount); err != nil {
 		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)

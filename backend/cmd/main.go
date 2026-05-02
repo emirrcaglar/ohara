@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ohara/src/internal/db"
+	"ohara/src/internal/media/cbz"
 	"ohara/src/internal/router"
 	"ohara/src/internal/scanner"
 	"ohara/src/internal/server"
@@ -36,7 +37,7 @@ func main() {
 			return
 		}
 		dir := flag.Arg(0)
-		s := scanner.NewScanner(database, dir, scanner.ScanType(*scan))
+		s := scanner.NewScanner(database, cbz.NewCBZService(database), scanner.WithScanDir(dir), scanner.WithScanType(scanner.ScanType(*scan)))
 		scannedCount, err := s.Run()
 		if err != nil {
 			fmt.Printf("Scan failed: %v", err)
