@@ -49,6 +49,8 @@ interface TransferItemData {
   eta?: string
   speed?: string
   storagePath?: string
+  startedAt: number
+  bytesPerSecond: number
 }
 
 const queuedItems = ref<UploadQueueItem[]>([])
@@ -70,6 +72,14 @@ const filteredAudio = computed(() => {
 
 const floatingButtonsBottomClass = computed(() => {
   return playerStore.currentTrack ? 'bottom-28' : 'bottom-6'
+})
+
+const totalBandwidth = computed(() => {
+  const activeBytesPerSecond = transfers.value
+    .filter(transfer => transfer.status === 'active')
+    .reduce((sum, transfer) => sum + transfer.bytesPerSecond, 0)
+
+  return `${((activeBytesPerSecond * 8) / (1024 * 1024)).toFixed(2)} Mbps`
 })
 
 onMounted(() => {
@@ -153,7 +163,9 @@ async function processAll() {
     sizeInfo: formatFileSize(item.file.size),
     status: 'active' as const,
     eta: '--',
-    speed: '--'
+    speed: '--',
+    startedAt: performance.now(),
+    bytesPerSecond: 0
   }))
 
   transfers.value = [...newTransfers, ...transfers.value]
@@ -172,11 +184,18 @@ async function processAll() {
         metadataProfile.value,
         (progress) => {
           const t = transfers.value.find(t => t.id === transfer.id)
-          if (t) t.progress = progress
+          if (t) {
+            t.progress = progress
+            updateTransferStats(t, queueItem.file.size, progress)
+          }
         }
       )
       const t = transfers.value.find(t => t.id === transfer.id)
-      if (t) t.status = 'complete'
+      if (t) {
+        t.progress = 100
+        t.status = 'complete'
+        updateTransferStats(t, queueItem.file.size, 100)
+      }
     } catch {
       const t = transfers.value.find(t => t.id === transfer.id)
       if (t) t.status = 'complete'
@@ -184,11 +203,55 @@ async function processAll() {
   }
 }
 
+function updateTransferStats(transfer: TransferItemData, fileSize: number, progress: number) {
+  if (progress <= 0 || transfer.startedAt <= 0) {
+    transfer.speed = '--'
+    transfer.eta = '--'
+    return
+  }
+
+  const elapsedSeconds = (performance.now() - transfer.startedAt) / 1000
+  if (elapsedSeconds <= 0) {
+    transfer.speed = '--'
+    transfer.eta = '--'
+    return
+  }
+
+  const uploadedBytes = fileSize * (progress / 100)
+  const remainingBytes = Math.max(fileSize - uploadedBytes, 0)
+  const bytesPerSecond = uploadedBytes / elapsedSeconds
+
+  if (bytesPerSecond <= 0) {
+    transfer.speed = '--'
+    transfer.eta = '--'
+    transfer.bytesPerSecond = 0
+    return
+  }
+
+  const etaSeconds = Math.ceil(remainingBytes / bytesPerSecond)
+
+  transfer.bytesPerSecond = bytesPerSecond
+  transfer.speed = `${(bytesPerSecond / (1024 * 1024)).toFixed(2)} MB/s`
+  transfer.eta = formatEta(etaSeconds)
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
   if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
   return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
+}
+
+function formatEta(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return '--'
+  if (seconds === 0) return '00:00'
+
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (minutes === 0) {
+    return `00:${String(remainingSeconds).padStart(2, '0')}`
+  }
+  return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
 }
 
 function handleGlobalKeydown(event: KeyboardEvent) {
@@ -392,7 +455,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <p class="text-[9px] text-secondary uppercase font-bold">Total Bandwidth</p>
-                <p class="text-lg font-black text-primary leading-none mt-1">NOT_YET_IMPLEMENTED</p>
+                <p class="text-lg font-black text-primary leading-none mt-1">{{ totalBandwidth }}</p>
               </div>
               <div>
                 <p class="text-[9px] text-secondary uppercase font-bold">Files in Queue</p>

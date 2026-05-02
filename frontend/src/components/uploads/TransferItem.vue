@@ -29,7 +29,7 @@ defineProps<{
         class="material-symbols-outlined text-[14px] text-secondary"
         :style="status === 'complete' ? 'font-variation-settings: \'FILL\' 1;' : ''"
       >
-        {{ status === 'complete' ? 'check_circle' : 'pause' }}
+        {{ status === 'complete' ? 'check_circle' : 'cloud_upload' }}
       </span>
     </div>
 
