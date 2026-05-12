@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMangaStore } from '../stores/manga'
 import { API_BASE } from '../api/client'
@@ -48,6 +48,26 @@ function navigate() {
   saveProgress()
 }
 
+const PREFETCH_COUNT = 5
+
+function prefetchPages() {
+  for (let i = 1; i <= PREFETCH_COUNT; i++) {
+    const ahead = currentPage.value + i
+    if (ahead < totalPages.value) {
+      const img = new Image()
+      img.src = `${API_BASE}/manga/${mangaId.value}/page/${ahead}`
+    }
+
+    const behind = currentPage.value - i
+    if (behind >= 0) {
+      const img = new Image()
+      img.src = `${API_BASE}/manga/${mangaId.value}/page/${behind}`
+    }
+  }
+}
+
+watch(currentPage, prefetchPages)
+
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'ArrowLeft' || e.key === 'a') {
     prevPage()
@@ -65,6 +85,8 @@ onMounted(async () => {
       totalPages.value = info.pageCount
     }
   }
+
+  prefetchPages()
 })
 </script>
 
