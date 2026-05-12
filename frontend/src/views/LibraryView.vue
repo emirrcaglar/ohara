@@ -11,8 +11,8 @@ import activeTransfersIcon from '../assets/active-transfers.svg'
 import { useMangaStore } from '../stores/manga'
 import { useAudioStore } from '../stores/audio'
 import { usePlayerStore } from '../stores/player'
+import { useUploadStore } from '../stores/upload'
 import { getMangaPageUrl } from '../api/manga'
-import { uploadFile } from '../api/upload'
 import type { MangaRow, AudioRow } from '../types/api'
 
 const router = useRouter()
@@ -20,41 +20,11 @@ const mangaStore = useMangaStore()
 const audioStore = useAudioStore()
 const playerStore = usePlayerStore()
 
+const uploadStore = useUploadStore()
+
 const selectedTab = ref<'ALL' | 'CBZ' | 'AUDIO'>('ALL')
-const metadataProfile = ref('AUTO_DETECT_SCRAPER_V2')
-const autoExtract = ref(true)
-const verifyHash = ref(true)
-const overwriteExisting = ref(false)
-const metadataFetch = ref(true)
 const showUploadDialog = ref(false)
 const showTransfersPanel = ref(false)
-
-type UploadStatus = 'active' | 'complete'
-
-interface UploadQueueItem {
-  id: number
-  name: string
-  ext: string
-  progress: number
-  status: UploadStatus
-  file: File
-}
-
-interface TransferItemData {
-  id: number
-  name: string
-  progress: number
-  sizeInfo?: string
-  status: 'active' | 'complete' | 'paused'
-  eta?: string
-  speed?: string
-  storagePath?: string
-  startedAt: number
-  bytesPerSecond: number
-}
-
-const queuedItems = ref<UploadQueueItem[]>([])
-const transfers = ref<TransferItemData[]>([])
 
 const filteredManga = computed(() => {
   if (selectedTab.value === 'ALL' || selectedTab.value === 'CBZ') {
@@ -74,13 +44,7 @@ const floatingButtonsBottomClass = computed(() => {
   return playerStore.currentTrack ? 'bottom-28' : 'bottom-6'
 })
 
-const totalBandwidth = computed(() => {
-  const activeBytesPerSecond = transfers.value
-    .filter(transfer => transfer.status === 'active')
-    .reduce((sum, transfer) => sum + transfer.bytesPerSecond, 0)
 
-  return `${((activeBytesPerSecond * 8) / (1024 * 1024)).toFixed(2)} Mbps`
-})
 
 onMounted(() => {
   mangaStore.fetchLibrary()
@@ -131,127 +95,17 @@ function closeTransfersPanel() {
 }
 
 function handleFilesSelected(files: File[]) {
-  const allowedExtensions = ['.cbz', '.mp3', '.wav']
-  const filtered = files.filter(file => {
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase()
-    return allowedExtensions.includes(ext)
-  })
-  const nextIdBase = queuedItems.value.length + 1
-  const newItems: UploadQueueItem[] = filtered.map((file, index) => ({
-    id: nextIdBase + index,
-    name: file.name,
-    ext: file.name.split('.').pop()?.toUpperCase() ?? 'FILE',
-    progress: 0,
-    status: 'active' as const,
-    file
-  }))
-
-  queuedItems.value = [...newItems, ...queuedItems.value]
+  uploadStore.enqueue(files)
 }
 
 function clearQueue() {
-  queuedItems.value = []
+  uploadStore.clearQueue()
 }
 
 async function processAll() {
-  const itemsToUpload = [...queuedItems.value]
-  const nextTransferId = transfers.value.length + 1
-  const newTransfers: TransferItemData[] = itemsToUpload.map((item, index) => ({
-    id: nextTransferId + index,
-    name: item.name,
-    progress: 0,
-    sizeInfo: formatFileSize(item.file.size),
-    status: 'active' as const,
-    eta: '--',
-    speed: '--',
-    startedAt: performance.now(),
-    bytesPerSecond: 0
-  }))
-
-  transfers.value = [...newTransfers, ...transfers.value]
-  queuedItems.value = []
   closeUploadDialog()
   openTransfersPanel()
-
-  for (let i = 0; i < itemsToUpload.length; i++) {
-    const queueItem = itemsToUpload[i]
-    const transfer = newTransfers[i]
-    if (!transfer) continue
-
-    try {
-      await uploadFile(
-        queueItem.file,
-        metadataProfile.value,
-        (progress) => {
-          const t = transfers.value.find(t => t.id === transfer.id)
-          if (t) {
-            t.progress = progress
-            updateTransferStats(t, queueItem.file.size, progress)
-          }
-        }
-      )
-      const t = transfers.value.find(t => t.id === transfer.id)
-      if (t) {
-        t.progress = 100
-        t.status = 'complete'
-        updateTransferStats(t, queueItem.file.size, 100)
-      }
-    } catch {
-      const t = transfers.value.find(t => t.id === transfer.id)
-      if (t) t.status = 'complete'
-    }
-  }
-}
-
-function updateTransferStats(transfer: TransferItemData, fileSize: number, progress: number) {
-  if (progress <= 0 || transfer.startedAt <= 0) {
-    transfer.speed = '--'
-    transfer.eta = '--'
-    return
-  }
-
-  const elapsedSeconds = (performance.now() - transfer.startedAt) / 1000
-  if (elapsedSeconds <= 0) {
-    transfer.speed = '--'
-    transfer.eta = '--'
-    return
-  }
-
-  const uploadedBytes = fileSize * (progress / 100)
-  const remainingBytes = Math.max(fileSize - uploadedBytes, 0)
-  const bytesPerSecond = uploadedBytes / elapsedSeconds
-
-  if (bytesPerSecond <= 0) {
-    transfer.speed = '--'
-    transfer.eta = '--'
-    transfer.bytesPerSecond = 0
-    return
-  }
-
-  const etaSeconds = Math.ceil(remainingBytes / bytesPerSecond)
-
-  transfer.bytesPerSecond = bytesPerSecond
-  transfer.speed = `${(bytesPerSecond / (1024 * 1024)).toFixed(2)} MB/s`
-  transfer.eta = formatEta(etaSeconds)
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
-}
-
-function formatEta(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return '--'
-  if (seconds === 0) return '00:00'
-
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  if (minutes === 0) {
-    return `00:${String(remainingSeconds).padStart(2, '0')}`
-  }
-  return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
+  await uploadStore.processAll()
 }
 
 function handleGlobalKeydown(event: KeyboardEvent) {
@@ -356,22 +210,22 @@ function handleGlobalKeydown(event: KeyboardEvent) {
               <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
                 <SystemInput
                   label="Metadata_Profile"
-                  :value="metadataProfile"
+                  :value="uploadStore.metadataProfile"
                 icon="expand_more"
               />
             </div>
 
             <SystemParameters
-              :autoExtract="autoExtract"
-              :verifyHash="verifyHash"
-              :overwriteExisting="overwriteExisting"
+              :autoExtract="uploadStore.autoExtract"
+              :verifyHash="uploadStore.verifyHash"
+              :overwriteExisting="uploadStore.overwriteExisting"
             />
 
             <section class="space-y-4">
               <p class="text-[10px] font-bold uppercase tracking-widest text-secondary">Queued_Operations</p>
 
               <article
-                v-for="item in queuedItems"
+                v-for="item in uploadStore.queuedItems"
                 :key="item.id"
                 class="flex flex-col gap-2 bg-surface-container-high p-3"
               >
@@ -392,7 +246,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
             <footer class="flex flex-col gap-4 border-t border-surface-container-highest pt-4 md:flex-row md:items-center md:justify-between">
               <label class="group flex cursor-pointer items-center gap-3">
                 <div class="relative">
-                  <input v-model="metadataFetch" class="peer sr-only" type="checkbox" />
+                  <input v-model="uploadStore.metadataFetch" class="peer sr-only" type="checkbox" />
                   <div class="h-5 w-10 bg-surface-container-highest transition-colors peer-checked:bg-secondary-container"></div>
                   <div class="absolute left-1 top-1 h-3 w-3 bg-white transition-transform peer-checked:translate-x-5"></div>
                 </div>
@@ -437,9 +291,9 @@ function handleGlobalKeydown(event: KeyboardEvent) {
           </div>
 
           <div class="flex-1 overflow-y-auto p-6 space-y-6">
-            <p v-if="transfers.length === 0" class="text-xs text-on-surface-variant uppercase tracking-widest">No active transfers</p>
+            <p v-if="uploadStore.transfers.length === 0" class="text-xs text-on-surface-variant uppercase tracking-widest">No active transfers</p>
             <TransferItem
-              v-for="transfer in transfers"
+              v-for="transfer in uploadStore.transfers"
               :key="transfer.id"
               :name="transfer.name"
               :progress="transfer.progress"
@@ -455,11 +309,11 @@ function handleGlobalKeydown(event: KeyboardEvent) {
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <p class="text-[9px] text-secondary uppercase font-bold">Total Bandwidth</p>
-                <p class="text-lg font-black text-primary leading-none mt-1">{{ totalBandwidth }}</p>
+                <p class="text-lg font-black text-primary leading-none mt-1">{{ uploadStore.totalBandwidth }}</p>
               </div>
               <div>
                 <p class="text-[9px] text-secondary uppercase font-bold">Files in Queue</p>
-                <p class="text-lg font-black text-on-surface leading-none mt-1">{{ transfers.length }}</p>
+                <p class="text-lg font-black text-on-surface leading-none mt-1">{{ uploadStore.transfers.length }}</p>
               </div>
             </div>
           </div>
