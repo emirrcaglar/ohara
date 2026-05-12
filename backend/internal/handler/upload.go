@@ -9,6 +9,7 @@ import (
 	"ohara/src/internal/scanner"
 	"os"
 	"path/filepath"
+	"slices"
 )
 
 type UploadHandler struct {
@@ -23,10 +24,30 @@ func NewUploadHandler(db *db.DB, sc *scanner.Scanner) *UploadHandler {
 type FileExtension string
 
 const (
-	FileExtensionCBZ FileExtension = ".cbz"
-	FileExtensionMP3 FileExtension = ".mp3"
-	FileExtensionMP4 FileExtension = ".mp4"
+	FileExtensionCBZ  FileExtension = ".cbz"
+	FileExtensionMP3  FileExtension = ".mp3"
+	FileExtensionFLAC FileExtension = ".flac"
+	FileExtensionOGG  FileExtension = ".ogg"
+	FileExtensionM4A  FileExtension = ".m4a"
+	FileExtensionWAV  FileExtension = ".wav"
+	FileExtensionAAC  FileExtension = ".aac"
+	FileExtensionMP4  FileExtension = ".mp4"
 )
+
+// AudioExtensions lists every audio format the server accepts.
+var AudioExtensions = []FileExtension{
+	FileExtensionMP3,
+	FileExtensionFLAC,
+	FileExtensionOGG,
+	FileExtensionM4A,
+	FileExtensionWAV,
+	FileExtensionAAC,
+}
+
+// IsAudio reports whether the extension belongs to a supported audio format.
+func (f FileExtension) IsAudio() bool {
+	return slices.Contains(AudioExtensions, f)
+}
 
 type UploadRequest struct {
 	File        io.ReadCloser
@@ -47,15 +68,11 @@ func (h *UploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 
 	fileType := detectFileType(req.FileName)
 	fmt.Printf("fileType: %s\n", fileType)
-	switch fileType {
-	case FileExtensionCBZ:
+	switch {
+	case fileType == FileExtensionCBZ:
 		h.saveCBZ(w, req)
-
-	case FileExtensionMP3:
-		h.saveMP3(w, req)
-	case FileExtensionMP4:
-		h.saveMP4(w, req)
-
+	case fileType.IsAudio():
+		h.saveAudio(w, req)
 	default:
 		http.Error(w, "Unsupported file type", http.StatusUnsupportedMediaType)
 	}
@@ -120,12 +137,34 @@ func (h *UploadHandler) saveCBZ(w http.ResponseWriter, req *UploadRequest) {
 	h.sc.Index(targetPath)
 }
 
-func (h *UploadHandler) saveMP3(w http.ResponseWriter, req *UploadRequest) {
+func (h *UploadHandler) saveAudio(w http.ResponseWriter, req *UploadRequest) {
+	destination := req.Destination
+	if destination == "" {
+		destination = media.DefaultAudioDir
+	}
 
-}
+	targetPath := filepath.Join(destination, req.FileName)
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-func (h *UploadHandler) saveMP4(w http.ResponseWriter, req *UploadRequest) {
+	fmt.Printf("Uploading %s to %s\n", req.FileName, targetPath)
 
+	dst, err := os.Create(targetPath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+	fmt.Printf("Created file at %s\n", targetPath)
+
+	if _, err := io.Copy(dst, req.File); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.sc.Index(targetPath)
 }
 
 func detectFileType(file string) FileExtension {

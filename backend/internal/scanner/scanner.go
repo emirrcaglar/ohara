@@ -60,7 +60,8 @@ func (s *Scanner) Index(targetPath string) error {
 	switch fileType {
 	case ".cbz":
 		s.indexManga(targetPath)
-
+	case ".mp3", ".flac", ".ogg", ".m4a", ".wav", ".aac":
+		s.indexAudio(targetPath)
 	default:
 		return fmt.Errorf("unsupported file type: %s", fileType)
 	}
