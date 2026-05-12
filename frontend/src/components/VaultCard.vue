@@ -1,5 +1,11 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { MangaRow, AudioRow } from '../types/api'
+import audioCover1 from '../assets/audio-cover-1.png'
+import audioCover2 from '../assets/audio-cover-2.png'
+import audioCover3 from '../assets/audio-cover-3.png'
+
+const AUDIO_COVERS = [audioCover1, audioCover2, audioCover3]
 
 const props = defineProps<{
   manga?: MangaRow
@@ -12,6 +18,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   click: [item: MangaRow | AudioRow]
 }>()
+
+const audioCover = computed(() => {
+  if (!props.audio) return null
+  return AUDIO_COVERS[props.audio.id % AUDIO_COVERS.length]
+})
 
 function handleClick() {
   if (props.manga) {
@@ -35,8 +46,7 @@ function handleClick() {
         <img :src="coverUrl" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0" />
       </template>
       <template v-else>
-        <div class="w-full h-full absolute top-0 left-0 bg-gradient-to-br from-surface-container-lowest to-surface-container-high"></div>
-        <span class="material-symbols-outlined text-6xl text-outline-variant group-hover:text-secondary-container transition-colors">graphic_eq</span>
+        <img :src="audioCover!" class="w-full h-full object-cover opacity-60 group-hover:opacity-90 transition-opacity grayscale group-hover:grayscale-0" />
       </template>
 
       <div class="absolute top-0 right-0 p-2">

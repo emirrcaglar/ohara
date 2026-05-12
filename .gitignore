@@ -42,19 +42,6 @@ tmp/
 temp/
 *.tmp
 
-# media files
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.mp4
-*.mp3
-*.avi
-*.mov
-*.wmv
-*.flv
-*.webm
-*.pdf
 
 # backend
 backend/app-data/
