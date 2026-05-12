@@ -44,11 +44,11 @@ function handleClick() {
       </div>
     </div>
 
-    <div class="p-4 relative">
-      <p class="text-[9px] text-secondary font-bold tracking-widest uppercase mb-1">{{ category }}</p>
-      <h3 class="font-bold text-lg leading-tight mb-2 tracking-tight group-hover:text-primary transition-colors uppercase">{{ manga?.title || audio?.title }}</h3>
-      <div class="flex justify-between items-center pt-2 border-t border-outline-variant/15">
-        <span class="text-[10px] font-mono text-outline">{{ stats }}</span>
+    <div class="p-2 md:p-4 relative">
+      <p class="hidden md:block text-[9px] text-secondary font-bold tracking-widest uppercase mb-1">{{ category }}</p>
+      <h3 class="font-bold text-xs md:text-lg leading-tight mb-1 md:mb-2 tracking-tight group-hover:text-primary transition-colors uppercase">{{ manga?.title || audio?.title }}</h3>
+      <div class="flex justify-between items-center pt-1 md:pt-2 border-t border-outline-variant/15">
+        <span class="text-[9px] md:text-[10px] font-mono text-outline">{{ stats }}</span>
         <span class="material-symbols-outlined text-sm text-primary">arrow_forward</span>
       </div>
     </div>

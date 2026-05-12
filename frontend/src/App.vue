@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import Sidebar from './components/Sidebar.vue';
 import TopBar from './components/TopBar.vue';
 import TelemetryCard from './components/TelemetryCard.vue';
@@ -12,6 +13,20 @@ import { usePlayerStore } from './stores/player';
 
 const playerStore = usePlayerStore();
 const audioRef = ref<HTMLAudioElement | null>(null);
+const sidebarOpen = ref(false);
+const route = useRoute();
+
+const VIEWPORT_LOCKED   = 'width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no';
+const VIEWPORT_ZOOMABLE = 'width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5.0, user-scalable=yes';
+
+watch(
+  () => route.path,
+  (path) => {
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (meta) meta.setAttribute('content', path === '/reader' ? VIEWPORT_ZOOMABLE : VIEWPORT_LOCKED);
+  },
+  { immediate: true }
+);
 
 watch(() => playerStore.currentTrackUrl, (url) => {
   if (audioRef.value && url) {
@@ -74,18 +89,25 @@ function handleEnded() {
 
     <div class="digital-grain"></div>
 
-    <Sidebar />
+    <div
+      v-if="sidebarOpen"
+      class="md:hidden fixed inset-0 bg-black/50 z-30"
+      @click="sidebarOpen = false"
+    ></div>
 
-    <main class="ml-64 flex flex-col h-screen">
-      <TopBar />
+    <Sidebar :open="sidebarOpen" @close="sidebarOpen = false" />
 
-      <RouterView />
+    <main class="md:ml-64 flex flex-col h-dvh">
+      <TopBar @toggleSidebar="sidebarOpen = !sidebarOpen" />
+
+      <div class="flex-1 min-h-0 flex flex-col overflow-clip">
+        <RouterView />
+      </div>
 
       <MediaBar
         v-if="playerStore.currentTrack"
         :title="playerStore.currentTrack.title"
         :subLabel="playerStore.currentTrack.album || 'Unknown Album'"
-        bitrate="44.1KHZ / 24BIT"
         :isPlaying="playerStore.isPlaying"
         @play="playerStore.play()"
         @pause="playerStore.pause()"
@@ -114,4 +136,3 @@ function handleEnded() {
   background: #primary-container;
 }
 </style>
-

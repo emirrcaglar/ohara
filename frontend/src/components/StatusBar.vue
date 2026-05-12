@@ -1,12 +1,12 @@
 <template>
-  <footer class="h-8 bg-surface-container-lowest px-8 flex items-center justify-between text-[9px] uppercase tracking-[0.3em] font-bold text-white/20">
-    <div class="flex gap-8">
+  <footer class="hidden md:flex h-8 bg-surface-container-lowest px-8 items-center justify-between text-[9px] uppercase tracking-[0.3em] font-bold text-white/20 overflow-hidden">
+    <div class="hidden md:flex gap-8">
       <div class="flex items-center gap-2">
         <div class="w-1.5 h-1.5 bg-secondary-container animate-pulse"></div>
-        DATABASE_CONNECTION: NOT_YET_IMPLEMENTED
+        NOT_YET_IMPLEMENTED
       </div>
       <div class="flex items-center gap-2 text-primary-container">
-        UPTIME: NOT_YET_IMPLEMENTED
+        NOT_YET_IMPLEMENTED
       </div>
     </div>
     <div>
@@ -14,4 +14,3 @@
     </div>
   </footer>
 </template>
-

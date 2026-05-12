@@ -6,6 +6,9 @@ defineOptions({
   name: 'AppSidebar',
 });
 
+const props = defineProps<{ open?: boolean }>();
+const emit = defineEmits(['close']);
+
 const route = useRoute();
 
 const navItems = [
@@ -16,7 +19,10 @@ const navItems = [
 </script>
 
 <template>
-  <aside class="fixed left-0 top-0 h-full flex flex-col bg-surface-container-low z-40 w-64 border-0 rounded-0">
+  <aside
+    class="fixed left-0 top-0 h-full flex flex-col bg-surface-container-low z-40 w-64 border-0 rounded-0 transition-transform duration-200"
+    :class="props.open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'"
+  >
       <RouterLink to="/" class="p-8 flex flex-col gap-1 group cursor-pointer hover:opacity-80 transition-opacity">
         <span class="text-2xl font-bold tracking-tighter text-primary-container">
           OHARA

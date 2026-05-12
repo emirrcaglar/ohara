@@ -5,6 +5,7 @@ defineProps<{
   progress: number
   volume: number
   isPlaying: boolean
+  expanded?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -18,8 +19,8 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="bg-transparent px-2 py-1 flex flex-col gap-3">
-    <div class="space-y-1.5">
+  <div class="bg-transparent px-2 py-1 flex flex-col gap-2 md:gap-3 w-full">
+    <div :class="expanded ? '' : 'hidden md:block'" class="space-y-1.5">
       <div class="flex justify-between font-mono text-[10px] uppercase tracking-widest text-secondary">
         <span>{{ currentTime }}</span>
         <span>{{ totalTime }}</span>
@@ -30,18 +31,18 @@ const emit = defineEmits<{
       </div>
     </div>
 
-    <div class="flex items-center justify-between gap-4">
-      <div class="flex items-center gap-5">
-        <button class="text-white/60 hover:text-secondary"><span class="material-symbols-outlined">shuffle</span></button>
+    <div class="flex items-center justify-between gap-2 md:gap-4">
+      <div class="flex items-center gap-2 md:gap-5">
+        <button :class="expanded ? '' : 'hidden md:block'" class="text-white/60 hover:text-secondary"><span class="material-symbols-outlined">shuffle</span></button>
         <button class="text-primary hover:text-primary-container scale-125" @click="emit('previous')"><span class="material-symbols-outlined">skip_previous</span></button>
-        <button class="w-14 h-14 bg-primary-container text-on-primary-container flex items-center justify-center hover:bg-primary transition-transform active:scale-95" @click="isPlaying ? emit('pause') : emit('play')">
-          <span class="material-symbols-outlined text-3xl" style="font-variation-settings: 'FILL' 1;">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
+        <button class="w-10 h-10 md:w-14 md:h-14 bg-primary-container text-on-primary-container flex items-center justify-center hover:bg-primary transition-transform active:scale-95" @click="isPlaying ? emit('pause') : emit('play')">
+          <span class="material-symbols-outlined text-2xl md:text-3xl" style="font-variation-settings: 'FILL' 1;">{{ isPlaying ? 'pause' : 'play_arrow' }}</span>
         </button>
         <button class="text-primary hover:text-primary-container scale-125" @click="emit('next')"><span class="material-symbols-outlined">skip_next</span></button>
-        <button class="text-white/60 hover:text-secondary"><span class="material-symbols-outlined">repeat</span></button>
+        <button :class="expanded ? '' : 'hidden md:block'" class="text-white/60 hover:text-secondary"><span class="material-symbols-outlined">repeat</span></button>
       </div>
 
-      <div class="flex items-center gap-4">
+      <div :class="expanded ? 'flex' : 'hidden md:flex'" class="items-center gap-4">
         <div class="flex items-center gap-3">
           <span class="material-symbols-outlined text-sm text-secondary">volume_up</span>
           <div class="w-20 h-1 bg-surface-container-highest">

@@ -91,16 +91,21 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="relative flex-1 flex flex-col bg-black overflow-hidden">
-    <div class="flex-1 flex items-center justify-center overflow-auto p-4">
-      <img
-        :src="pageUrl"
-        :alt="`Page ${currentPage + 1}`"
-        class="max-w-none max-h-full w-auto h-auto object-contain"
-      />
+  <div class="relative flex-1 flex flex-col bg-black overflow-clip overscroll-none">
+    <div class="flex-1 min-h-0 p-2 md:p-4">
+      <div class="relative w-full h-full">
+        <img
+          :src="pageUrl"
+          :alt="`Page ${currentPage + 1}`"
+          class="absolute inset-0 w-full h-full object-contain"
+        />
+      </div>
     </div>
 
-    <div class="absolute top-6 right-6 z-30 w-[340px] bg-surface-container-low/95 border border-white/10 p-4 backdrop-blur-sm">
+    <div
+      class="md:absolute md:top-6 md:right-6 md:w-[340px] z-30 bg-surface-container-low/95 border-t md:border border-white/10 p-3 md:p-4 backdrop-blur-sm"
+      :style="{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }"
+    >
       <div class="flex items-center justify-between gap-3">
         <button
           class="px-4 py-2 bg-surface-container-high text-on-surface font-bold uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary-container hover:text-on-primary-container transition-colors"

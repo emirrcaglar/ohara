@@ -270,14 +270,14 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 <template>
   <div class="h-full flex flex-col">
     <main class="flex-1 overflow-y-auto">
-      <section class="p-8 flex-1 bg-surface">
+      <section class="p-4 md:p-8 flex-1 bg-surface">
         <VaultHeader v-model="selectedTab" :totalManga="mangaStore.total + audioStore.total" />
 
         <div v-if="mangaStore.loading || audioStore.loading" class="text-secondary">Loading...</div>
         <div v-else-if="mangaStore.error" class="text-error">{{ mangaStore.error }}</div>
         <div v-else-if="audioStore.error" class="text-error">{{ audioStore.error }}</div>
 
-        <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6">
           <VaultCard
             v-for="manga in filteredManga"
             :key="`manga-${manga.id}`"
