@@ -5,8 +5,7 @@ import VaultHeader from '../components/VaultHeader.vue'
 import VaultCard from '../components/VaultCard.vue'
 import DropZone from '../components/uploads/DropZone.vue'
 import TransferItem from '../components/uploads/TransferItem.vue'
-import SystemInput from '../components/uploads/SystemInput.vue'
-import SystemParameters from '../components/uploads/SystemParameters.vue'
+
 import activeTransfersIcon from '../assets/active-transfers.svg'
 import { useMangaStore } from '../stores/manga'
 import { useAudioStore } from '../stores/audio'
@@ -105,6 +104,10 @@ function clearQueue() {
 async function processAll() {
   closeUploadDialog()
   openTransfersPanel()
+  uploadStore.setOnComplete(() => {
+    mangaStore.fetchLibrary()
+    audioStore.fetchLibrary()
+  })
   await uploadStore.processAll()
 }
 
@@ -207,20 +210,6 @@ function handleGlobalKeydown(event: KeyboardEvent) {
           <div class="space-y-8">
             <DropZone @filesSelected="handleFilesSelected" />
 
-              <div class="grid grid-cols-1 gap-8 md:grid-cols-2">
-                <SystemInput
-                  label="Metadata_Profile"
-                  :value="uploadStore.metadataProfile"
-                icon="expand_more"
-              />
-            </div>
-
-            <SystemParameters
-              :autoExtract="uploadStore.autoExtract"
-              :verifyHash="uploadStore.verifyHash"
-              :overwriteExisting="uploadStore.overwriteExisting"
-            />
-
             <section class="space-y-4">
               <p class="text-[10px] font-bold uppercase tracking-widest text-secondary">Queued_Operations</p>
 
@@ -243,32 +232,21 @@ function handleGlobalKeydown(event: KeyboardEvent) {
               </article>
             </section>
 
-            <footer class="flex flex-col gap-4 border-t border-surface-container-highest pt-4 md:flex-row md:items-center md:justify-between">
-              <label class="group flex cursor-pointer items-center gap-3">
-                <div class="relative">
-                  <input v-model="uploadStore.metadataFetch" class="peer sr-only" type="checkbox" />
-                  <div class="h-5 w-10 bg-surface-container-highest transition-colors peer-checked:bg-secondary-container"></div>
-                  <div class="absolute left-1 top-1 h-3 w-3 bg-white transition-transform peer-checked:translate-x-5"></div>
-                </div>
-                <span class="text-xs font-bold uppercase tracking-tighter text-on-surface-variant transition-colors group-hover:text-secondary">Metadata Fetch</span>
-              </label>
-
-              <div class="flex gap-4">
-                <button
-                  class="px-4 py-2 text-xs font-bold uppercase text-on-surface-variant transition-colors hover:text-on-surface"
-                  type="button"
-                  @click="clearQueue"
-                >
-                  Clear Queue
-                </button>
-                <button
-                  class="bg-primary-container px-6 py-2 text-xs font-bold uppercase text-on-primary-container transition-colors hover:bg-primary"
-                  type="button"
-                  @click="processAll"
-                >
-                  Commit Upload
-                </button>
-              </div>
+            <footer class="flex justify-end gap-4 pt-4 border-t border-surface-container-highest">
+              <button
+                class="px-4 py-2 text-xs font-bold uppercase text-on-surface-variant transition-colors hover:text-on-surface"
+                type="button"
+                @click="clearQueue"
+              >
+                Clear Queue
+              </button>
+              <button
+                class="bg-primary-container px-6 py-2 text-xs font-bold uppercase text-on-primary-container transition-colors hover:bg-primary"
+                type="button"
+                @click="processAll"
+              >
+                Commit Upload
+              </button>
             </footer>
           </div>
         </div>

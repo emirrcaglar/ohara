@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { MangaRow, AudioRow } from '../types/api'
-import audioCover1 from '../assets/audio-cover-1.png'
-import audioCover2 from '../assets/audio-cover-2.png'
-import audioCover3 from '../assets/audio-cover-3.png'
-
-const AUDIO_COVERS = [audioCover1, audioCover2, audioCover3]
+const AUDIO_COVERS = Object.values(
+  import.meta.glob('../assets/audio-cover/*.png', { eager: true, query: '?url', import: 'default' })
+) as string[]
 
 const props = defineProps<{
   manga?: MangaRow

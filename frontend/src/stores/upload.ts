@@ -29,26 +29,24 @@ export interface TransferItemData {
 export const useUploadStore = defineStore('upload', () => {
   const queuedItems = ref<UploadQueueItem[]>([])
   const transfers = ref<TransferItemData[]>([])
-  const metadataProfile = ref('AUTO_DETECT_SCRAPER_V2')
-  const autoExtract = ref(true)
-  const verifyHash = ref(true)
-  const overwriteExisting = ref(false)
-  const metadataFetch = ref(true)
+  let onCompleteCallback: (() => void) | null = null
 
   const totalBandwidth = computed(() => {
     const bps = transfers.value
-      .filter(t => t.status === 'active')
+      .filter((t) => t.status === 'active')
       .reduce((sum, t) => sum + t.bytesPerSecond, 0)
     return `${((bps * 8) / (1024 * 1024)).toFixed(2)} Mbps`
   })
 
-  const hasActiveTransfers = computed(() =>
-    transfers.value.some(t => t.status === 'active')
-  )
+  const hasActiveTransfers = computed(() => transfers.value.some((t) => t.status === 'active'))
+
+  function setOnComplete(fn: (() => void) | null) {
+    onCompleteCallback = fn
+  }
 
   function enqueue(files: File[]) {
     const allowedExtensions = ['.cbz', '.mp3', '.flac', '.ogg', '.m4a', '.wav', '.aac']
-    const filtered = files.filter(file => {
+    const filtered = files.filter((file) => {
       const ext = '.' + file.name.split('.').pop()?.toLowerCase()
       return allowedExtensions.includes(ext)
     })
@@ -92,24 +90,26 @@ export const useUploadStore = defineStore('upload', () => {
       if (!transfer) continue
 
       try {
-        await uploadFile(queueItem.file, metadataProfile.value, (progress) => {
-          const t = transfers.value.find(t => t.id === transfer.id)
+        await uploadFile(queueItem.file, '', (progress) => {
+          const t = transfers.value.find((t) => t.id === transfer.id)
           if (t) {
             t.progress = progress
             updateTransferStats(t, queueItem.file.size, progress)
           }
         })
-        const t = transfers.value.find(t => t.id === transfer.id)
+        const t = transfers.value.find((t) => t.id === transfer.id)
         if (t) {
           t.progress = 100
           t.status = 'complete'
           updateTransferStats(t, queueItem.file.size, 100)
         }
       } catch {
-        const t = transfers.value.find(t => t.id === transfer.id)
+        const t = transfers.value.find((t) => t.id === transfer.id)
         if (t) t.status = 'complete'
       }
     }
+
+    onCompleteCallback?.()
   }
 
   function updateTransferStats(transfer: TransferItemData, fileSize: number, progress: number) {
@@ -157,15 +157,11 @@ export const useUploadStore = defineStore('upload', () => {
   return {
     queuedItems,
     transfers,
-    metadataProfile,
-    autoExtract,
-    verifyHash,
-    overwriteExisting,
-    metadataFetch,
     totalBandwidth,
     hasActiveTransfers,
     enqueue,
     clearQueue,
     processAll,
+    setOnComplete,
   }
 })
