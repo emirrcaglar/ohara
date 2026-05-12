@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router';
 import { Library, Network, Terminal, User } from 'lucide-vue-next';
+import StatusBar from './StatusBar.vue';
 
 defineOptions({
   name: 'AppSidebar',
@@ -55,6 +56,8 @@ const navItems = [
         </div>
       </div>
     </div>
+
+    <StatusBar />
   </aside>
 </template>
 

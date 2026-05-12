@@ -12,10 +12,7 @@ const emit = defineEmits(['toggleSidebar']);
       </button>
       <span class="text-xl font-black text-primary-container uppercase tracking-tighter">
         <span class="md:hidden">OHARA</span>
-        <span class="hidden md:inline">OHARA_MEDIA</span>
       </span>
-      <div class="hidden md:block h-4 w-[2px] bg-surface-container-highest"></div>
-      <span class="hidden md:block text-[10px] tracking-[0.3em] text-white/40 uppercase">DASHBOARD_NOT_YET_IMPLEMENTED</span>
     </div>
 
     <div class="flex items-center gap-3 md:gap-6">
@@ -37,4 +34,3 @@ const emit = defineEmits(['toggleSidebar']);
     </div>
   </header>
 </template>
-

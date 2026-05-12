@@ -116,7 +116,6 @@ function handleEnded() {
         @volumeChange="playerStore.setVolume"
       />
 
-      <StatusBar />
     </main>
   </div>
 </template>
