@@ -71,8 +71,16 @@ if [[ -n "$DEPLOY_PASSWORD" ]]; then
 printf '%s\n' '$PASSWORD_ESCAPED'
 EOF
 	chmod 700 "$ASKPASS_SCRIPT"
-	SSH_CMD=(env SSH_ASKPASS="$ASKPASS_SCRIPT" SSH_ASKPASS_REQUIRE=force DISPLAY=none setsid -w ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no)
-	SCP_CMD=(env SSH_ASKPASS="$ASKPASS_SCRIPT" SSH_ASKPASS_REQUIRE=force DISPLAY=none setsid -w scp -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no)
+	SSH_ASKPASS_ENV=(env SSH_ASKPASS="$ASKPASS_SCRIPT" SSH_ASKPASS_REQUIRE=force DISPLAY=none)
+	SSH_OPTS=(-o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no)
+	if command -v setsid >/dev/null 2>&1; then
+		SSH_CMD=("${SSH_ASKPASS_ENV[@]}" setsid -w ssh "${SSH_OPTS[@]}")
+		SCP_CMD=("${SSH_ASKPASS_ENV[@]}" setsid -w scp "${SSH_OPTS[@]}")
+	else
+		# SSH_ASKPASS_REQUIRE=force (OpenSSH >= 8.4) is sufficient without setsid.
+		SSH_CMD=("${SSH_ASKPASS_ENV[@]}" ssh "${SSH_OPTS[@]}")
+		SCP_CMD=("${SSH_ASKPASS_ENV[@]}" scp "${SSH_OPTS[@]}")
+	fi
 fi
 
 echo "Building the binary..."
