@@ -19,8 +19,8 @@ REMOTE_DIR="${DEPLOY_DIR:-/opt/ohara}"
 BINARY_NAME="${DEPLOY_BINARY_NAME:-ohara}"
 SERVICE_NAME="${DEPLOY_SERVICE_NAME:-ohara}"
 DEPLOY_PASSWORD="${DEPLOY_PASSWORD:-}"
-ASKPASS_SCRIPT=""
 INSTALL_SCRIPT_TMP=""
+DEPLOY_START_SECONDS=$SECONDS
 
 SERVER="${SERVER//$'\r'/}"
 REMOTE_DIR="${REMOTE_DIR//$'\r'/}"
@@ -29,14 +29,19 @@ SERVICE_NAME="${SERVICE_NAME//$'\r'/}"
 DEPLOY_PASSWORD="${DEPLOY_PASSWORD//$'\r'/}"
 
 cleanup() {
-	if [[ -n "$ASKPASS_SCRIPT" && -f "$ASKPASS_SCRIPT" ]]; then
-		rm -f "$ASKPASS_SCRIPT"
-	fi
 	if [[ -n "$INSTALL_SCRIPT_TMP" && -f "$INSTALL_SCRIPT_TMP" ]]; then
 		rm -f "$INSTALL_SCRIPT_TMP"
 	fi
 }
 trap cleanup EXIT
+
+format_duration() {
+	local total_seconds=$1
+	local minutes=$((total_seconds / 60))
+	local seconds=$((total_seconds % 60))
+
+	printf '%dm %02ds' "$minutes" "$seconds"
+}
 
 if [[ -z "$SERVER" ]]; then
 	echo "Error: No deploy target specified."
@@ -53,38 +58,26 @@ fi
 
 cd "$REPO_ROOT"
 
-for cmd in npm go ssh scp; do
+for cmd in npm go ssh scp sshpass; do
 	if ! command -v "$cmd" >/dev/null 2>&1; then
-		echo "Error: '$cmd' is required but not installed in this shell."
+		echo "Error: '$cmd' is required but not installed."
+		[[ "$cmd" == "sshpass" ]] && echo "Install it with: sudo apt install sshpass"
 		exit 1
 	fi
 done
 
-SSH_CMD=(ssh)
-SCP_CMD=(scp)
-
-if [[ -n "$DEPLOY_PASSWORD" ]]; then
-	PASSWORD_ESCAPED="${DEPLOY_PASSWORD//\'/\'\"\'\"\'}"
-	ASKPASS_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/ohara-askpass.XXXXXX")"
-	cat <<EOF > "$ASKPASS_SCRIPT"
-#!/usr/bin/env bash
-printf '%s\n' '$PASSWORD_ESCAPED'
-EOF
-	chmod 700 "$ASKPASS_SCRIPT"
-	SSH_ASKPASS_ENV=(env SSH_ASKPASS="$ASKPASS_SCRIPT" SSH_ASKPASS_REQUIRE=force DISPLAY=none)
-	SSH_OPTS=(-o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no)
-	if command -v setsid >/dev/null 2>&1; then
-		SSH_CMD=("${SSH_ASKPASS_ENV[@]}" setsid -w ssh "${SSH_OPTS[@]}")
-		SCP_CMD=("${SSH_ASKPASS_ENV[@]}" setsid -w scp "${SSH_OPTS[@]}")
-	else
-		# SSH_ASKPASS_REQUIRE=force (OpenSSH >= 8.4) is sufficient without setsid.
-		SSH_CMD=("${SSH_ASKPASS_ENV[@]}" ssh "${SSH_OPTS[@]}")
-		SCP_CMD=("${SSH_ASKPASS_ENV[@]}" scp "${SSH_OPTS[@]}")
-	fi
+if [[ -z "$DEPLOY_PASSWORD" ]]; then
+	echo "Error: DEPLOY_PASSWORD is not set in $CONFIG_FILE"
+	exit 1
 fi
 
+SSH_OPTS=(-o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new)
+SSH_CMD=(sshpass -p "$DEPLOY_PASSWORD" ssh "${SSH_OPTS[@]}")
+SCP_CMD=(sshpass -p "$DEPLOY_PASSWORD" scp "${SSH_OPTS[@]}")
+
 echo "Building the binary..."
-if [[ ! -d "frontend/node_modules" ]]; then
+if [[ ! -x "frontend/node_modules/.bin/vite" ]]; then
+	echo "Installing frontend dependencies..."
 	npm --prefix frontend install
 fi
 npm --prefix frontend run build:embed
@@ -93,11 +86,11 @@ cd backend
 GOOS=linux GOARCH=amd64 go build -o "../$BINARY_NAME" ./cmd
 cd ..
 
-echo "Step 1: Uploading binary to temporary storage..."
-# We upload to /tmp because the user 'emirc' always has permission there.
+echo "Step 1/3: Uploading binary to temporary storage..."
+# We upload to /tmp because the non-root users always have permission there.
 "${SCP_CMD[@]}" "./$BINARY_NAME" "$SERVER:/tmp/$BINARY_NAME.tmp"
 
-echo "Step 2: Generating and uploading service file..."
+echo "Step 2/3: Generating and uploading service file..."
 SERVICE_FILE_TMP="/tmp/$SERVICE_NAME.service"
 SERVICE_USER="$("${SSH_CMD[@]}" "$SERVER" "whoami")"
 
@@ -122,7 +115,7 @@ EOF
 "${SCP_CMD[@]}" "$SERVICE_FILE_TMP" "$SERVER:/tmp/$SERVICE_NAME.service.tmp"
 rm "$SERVICE_FILE_TMP"
 
-echo "Step 3: Running remote installation..."
+echo "Step 3/3: Running remote installation..."
 REMOTE_DIR_Q=$(printf '%q' "$REMOTE_DIR")
 SERVICE_USER_Q=$(printf '%q' "$SERVICE_USER")
 SERVICE_REMOTE_TMP_Q=$(printf '%q' "/tmp/$SERVICE_NAME.service.tmp")
@@ -161,11 +154,7 @@ chmod 700 "$INSTALL_SCRIPT_TMP"
 rm -f "$INSTALL_SCRIPT_TMP"
 INSTALL_SCRIPT_TMP=""
 
-if [[ -n "$DEPLOY_PASSWORD" ]]; then
-	ESCAPED_DEPLOY_PASSWORD="${DEPLOY_PASSWORD//\'/\'\"\'\"\'}"
-	"${SSH_CMD[@]}" -t "$SERVER" "printf '%s\n' '$ESCAPED_DEPLOY_PASSWORD' | sudo -S -p '' bash '$REMOTE_INSTALL_TMP'"
-else
-	"${SSH_CMD[@]}" -t "$SERVER" "sudo bash '$REMOTE_INSTALL_TMP'"
-fi
+"${SSH_CMD[@]}" -t "$SERVER" "echo '$DEPLOY_PASSWORD' | sudo -S -p '' bash '$REMOTE_INSTALL_TMP'"
 
-echo "Deployment complete! Your service is now fully managed by systemd."
+elapsed_seconds=$((SECONDS - DEPLOY_START_SECONDS))
+echo "Deployment complete in $(format_duration "$elapsed_seconds")! Your service is now fully managed by systemd."

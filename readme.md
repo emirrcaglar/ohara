@@ -2,169 +2,53 @@
 
 Media server for manga and audio content.
 
-## Architecture
+## Deploy
 
-- **Backend**: Go API server (port 3000) - serves JSON API and media files
-- **Frontend**: Vue SPA (port 5173 dev, or serve via nginx/cdn) - UI client
+### Prerequisites
 
-## Quick Start
-
-### Backend
-
+**Ubuntu / Debian**
 ```bash
-cd backend
-
-# Build
-go build ./...
-
-# Start server (default port 3000)
-go run ./cmd --port 3000 --data ./app-data
+sudo apt install sshpass nodejs npm golang-go
 ```
 
-### Frontend (Development)
-
+**Arch / Manjaro**
 ```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start dev server (proxies /api, /manga, /audio to localhost:3000)
-npm run dev
+sudo pacman -S sshpass nodejs npm go
 ```
 
-Then open http://localhost:5173
-
-### Production Build
-
+**Fedora / RHEL**
 ```bash
-# 1. Build frontend into the backend embed directory
-cd frontend
-npm install
-npm run build:embed
-
-# 2. Build the single deployable backend binary
-cd ../backend
-go build -o ohara ./cmd
+sudo dnf install sshpass nodejs npm golang
 ```
 
-The resulting binary serves both the JSON API and the embedded Vue frontend.
+**macOS**
+```bash
+brew install sshpass node go
+```
 
-### Deploy Script (No-Edit Workflow)
-
-The deploy scripts support both a local config file and CLI override, so you do not need to edit the script for each environment.
+### 1. Create your config
 
 ```bash
-# Option A: one-off deploy target
-./deploy/deploy.sh user@host
-
-# Option B: persistent local config
 cp deploy/deploy.conf.example deploy/deploy.conf
-# edit deploy/deploy.conf once
+```
+
+Edit `deploy/deploy.conf`:
+
+```bash
+DEPLOY_SERVER="you@your-server"
+DEPLOY_PASSWORD="yourpassword"
+```
+
+### 2. Run
+
+```bash
 ./deploy/deploy.sh
 ```
 
-Supported config keys in `deploy/deploy.conf`:
+The script builds the frontend, compiles the Go binary for Linux, uploads both to the server, and registers/restarts the systemd service — no further prompts.
 
-- `DEPLOY_SERVER` (example: `user@host`)
-- `DEPLOY_PASSWORD` (optional; when set, the deploy script uses it for `ssh`, `scp`, and `sudo`)
-- `DEPLOY_DIR` (default: `/opt/ohara`)
-- `DEPLOY_BINARY_NAME` (default: `ohara`)
-- `DEPLOY_SERVICE_NAME` (default: `ohara`)
+`deploy.conf` is gitignored. See `deploy/deploy.conf.example` for all available config keys.
 
-Deployment uploads to a temporary binary path, swaps it into place, makes the runtime directory writable for the service user, restarts systemd, and fails if the service does not stay active.
+---
 
-### Linux VPS Build
-
-Backend only (API server):
-```powershell
-$env:CGO_ENABLED="0"
-$env:GOOS="linux"
-$env:GOARCH="amd64"
-go build -ldflags="-w -s" -o ohara ./cmd
-```
-
-## Adding Media
-
-### Using the Scanner
-
-```bash
-# Scan a directory for all media types
-go run ./cmd --scan all /path/to/media
-
-# Scan only manga (CBZ files)
-go run ./cmd --scan manga /path/to/media
-
-# Scan only audio (mp3, flac, ogg, m4a, wav, aac)
-go run ./cmd --scan audio /path/to/music
-```
-
-### Media Requirements
-
-**Manga:**
-- Must be `.cbz` (ZIP archive containing images)
-- Images inside should be jpg/png/webp
-- Title is extracted from the CBZ filename
-
-**Audio:**
-- Supported formats: `*.mp3`, `*.flac`, `*.ogg`, `*.m4a`, `*.wav`, `*.aac`
-- Metadata (title, artist, album) is read from file tags
-- Duration is extracted via ffprobe
-
-### Database Location
-
-SQLite DB is stored at: `{dataDir}/ohara.db` (default: `./app-data/ohara.db`)
-
-## API Endpoints
-
-### Manga
-
-| Method | Path | Returns |
-|--------|------|---------|
-| GET | `/api/manga` | JSON list of manga |
-| GET | `/api/manga/{id}` | JSON manga details |
-| GET | `/manga/{id}/page/{page}` | JPEG page image |
-| GET | `/manga/{id}/resume` | Redirect to reader |
-| POST | `/manga/{id}/progress/{page}` | Save reading progress |
-
-### Audio
-
-| Method | Path | Returns |
-|--------|------|---------|
-| GET | `/api/audio` | JSON list of tracks |
-| GET | `/audio/{id}/stream` | Audio file stream |
-
-### Frontend Routes
-
-| Path | View |
-|------|------|
-| `/` | Redirects to `/library` |
-| `/library` | Manga library grid |
-| `/media` | Audio player with queue |
-| `/reader` | Manga reader (prev/next navigation) |
-| `/uploads` | Upload management |
-
-## Project Structure
-
-```
-ohara/
-├── backend/
-│   ├── cmd/main.go           # Entry point
-│   └── internal/
-│       ├── db/               # SQLite database
-│       ├── handler/          # HTTP handlers
-│       ├── media/            # Media parsers (CBZ, audio)
-│       ├── router/           # Route definitions
-│       ├── scanner/          # Media file indexer
-│       ├── server/           # HTTP/HTTPS server
-│       └── worker/           # Background tasks
-├── frontend/
-│   ├── src/
-│   │   ├── api/              # API client functions
-│   │   ├── components/       # Vue components
-│   │   ├── stores/           # Pinia stores
-│   │   ├── types/            # TypeScript interfaces
-│   │   └── views/            # Page components
-│   └── vite.config.ts        # Vite config with API proxy
-└── docs/                     # Documentation
-```
+For development setup, architecture, API reference, and project structure see [docs/](docs/).
