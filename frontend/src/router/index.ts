@@ -18,6 +18,15 @@ const routes: RouteRecordRaw[] = [
     path: '/logs',
     component: () => import('../views/LogsView.vue'),
   },
+  {
+    path: '/login',
+    component: () => import('../views/LoginView.vue'),
+    meta: { fullscreen: true },
+  },
+  {
+    path: '/network',
+    component: () => import('../views/LibraryView.vue'),
+  },
 ]
 
 const router = createRouter({
