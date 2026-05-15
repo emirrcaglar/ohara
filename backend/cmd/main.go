@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ohara/src/internal/db"
+	"ohara/src/internal/logger"
 	"ohara/src/internal/media/cbz"
 	"ohara/src/internal/router"
 	"ohara/src/internal/scanner"
@@ -21,12 +22,14 @@ func main() {
 	scan := flag.String("scan", "", "Scan for media: all, manga, or audio")
 	flag.Parse()
 
+	log := logger.New(500)
+
 	cacheDir := filepath.Join(*dataDir, "cache")
-	go worker.StartCacheCleaner(cacheDir, 1000, 15*time.Minute) // 1 GB
+	go worker.StartCacheCleaner(cacheDir, 1000, 15*time.Minute, log) // 1 GB
 
 	database, err := db.Init(*dataDir)
 	if err != nil {
-		fmt.Printf("Failed to init database: %v\n", err)
+		log.Error("Failed to init database: %v", err)
 		return
 	}
 	defer database.Close()
@@ -46,11 +49,11 @@ func main() {
 		return
 	}
 
-	r := router.SetupRoutes(database, *dataDir)
+	r := router.SetupRoutes(database, *dataDir, log)
 
-	fmt.Printf("Ohara port: %s\n", *port)
+	log.Info("Ohara listening on port %s", *port)
 
 	if err := server.Start(server.Config{Domain: *domain, Port: *port, DataDir: *dataDir}, r); err != nil {
-		fmt.Printf("Server crashed: %v", err)
+		log.Error("Server crashed: %v", err)
 	}
 }

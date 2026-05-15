@@ -1,16 +1,17 @@
 package worker
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
+
+	"ohara/src/internal/logger"
 )
 
 // interval: cache dir polling interval
 // maxSizeMB: max size for cache dir
-func StartCacheCleaner(cacheDir string, maxSizeMB int64, interval time.Duration) {
+func StartCacheCleaner(cacheDir string, maxSizeMB int64, interval time.Duration, log *logger.Logger) {
 	maxSizeBytes := maxSizeMB * 1024 * 1024
 
 	go func() {
@@ -19,14 +20,14 @@ func StartCacheCleaner(cacheDir string, maxSizeMB int64, interval time.Duration)
 
 		for {
 			<-ticker.C
-			if err := enforceCacheSize(cacheDir, maxSizeBytes); err != nil {
-				fmt.Printf("[worker] Cache cleanup failed: %v", err)
+			if err := enforceCacheSize(cacheDir, maxSizeBytes, log); err != nil {
+				log.Error("[worker] Cache cleanup failed: %v", err)
 			}
 		}
 	}()
 }
 
-func enforceCacheSize(cacheDir string, maxBytes int64) error {
+func enforceCacheSize(cacheDir string, maxBytes int64, log *logger.Logger) error {
 	entries, err := os.ReadDir(cacheDir)
 	if err != nil {
 		return err
@@ -83,7 +84,7 @@ func enforceCacheSize(cacheDir string, maxBytes int64) error {
 	}
 
 	if deletedCount > 0 {
-		fmt.Printf("[worker] Cache cleaned: removed %d old files\n", deletedCount)
+		log.Info("[worker] Cache cleaned: removed %d old files", deletedCount)
 	}
 
 	return nil

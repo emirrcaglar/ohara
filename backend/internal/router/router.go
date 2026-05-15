@@ -5,12 +5,13 @@ import (
 
 	"ohara/src/internal/db"
 	"ohara/src/internal/handler"
+	"ohara/src/internal/logger"
 	"ohara/src/internal/media/cbz"
 	"ohara/src/internal/scanner"
 	"ohara/src/ui"
 )
 
-func SetupRoutes(database *db.DB, dataDir string) http.Handler {
+func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handler {
 	mux := http.NewServeMux()
 
 	cbzService := cbz.NewCBZService(database)
@@ -18,6 +19,7 @@ func SetupRoutes(database *db.DB, dataDir string) http.Handler {
 	mangaHandler := &handler.MangaHandler{DB: database, Cache: handler.NewPageCache(dataDir), Inflight: handler.NewInflight(), CBZService: cbzService}
 	audioHandler := &handler.AudioHandler{DB: database}
 	uploadHandler := handler.NewUploadHandler(database, scanner)
+	logHandler := &handler.LogHandler{Logger: log}
 
 	mux.HandleFunc("GET /api/manga", mangaHandler.HandleMangaList)
 	mux.HandleFunc("GET /api/audio", audioHandler.HandleAudioList)
@@ -30,6 +32,9 @@ func SetupRoutes(database *db.DB, dataDir string) http.Handler {
 	mux.HandleFunc("GET /audio/{id}/stream", audioHandler.HandleAudioStream)
 
 	mux.HandleFunc("POST /api/upload", uploadHandler.HandleUpload)
+
+	mux.HandleFunc("GET /api/logs", logHandler.HandleSnapshot)
+	mux.HandleFunc("GET /api/logs/stream", logHandler.HandleStream)
 
 	if spaHandler, err := ui.SPAHandler(); err == nil {
 		mux.Handle("/", spaHandler)

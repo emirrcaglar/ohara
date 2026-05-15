@@ -42,6 +42,12 @@ export interface MangaLibraryResponse {
   total: number
 }
 
+export interface LogEntry {
+  time: string
+  level: string
+  message: string
+}
+
 export interface PlayerState {
   currentTrack: AudioRow | null
   isPlaying: boolean
