@@ -9,7 +9,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const error: ApiError = {
       message: response.statusText || 'Request failed',
-      status: response.status
+      status: response.status,
     }
     throw error
   }
@@ -21,8 +21,9 @@ export async function fetchJson<T>(url: string, options?: RequestInit): Promise<
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...options?.headers
-    }
+      ...options?.headers,
+    },
+    credentials: 'include',
   })
   return handleResponse<T>(response)
 }

@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useAuthStore } from '../stores/auth'
+import { useRouter } from 'vue-router'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
+
+const authStore = useAuthStore()
+const router = useRouter()
 
 const currentTime = ref('')
 let clockInterval: ReturnType<typeof setInterval> | null = null
@@ -13,6 +18,12 @@ function updateTime() {
   const mm = String(now.getUTCMinutes()).padStart(2, '0')
   const ss = String(now.getUTCSeconds()).padStart(2, '0')
   currentTime.value = `${hh}:${mm}:${ss} UTC`
+}
+
+async function handleLogout() {
+  await authStore.logout()
+  emit('close')
+  router.push('/login')
 }
 
 onMounted(() => {
@@ -47,7 +58,7 @@ onUnmounted(() => {
               TERMINATING_SESSION
             </div>
             <div class="text-lg font-black leading-none text-on-surface tracking-tighter">
-              ADMIN_KINETIC_01
+              {{ authStore.user?.username || 'GUEST' }}
             </div>
           </div>
         </div>
@@ -67,14 +78,16 @@ onUnmounted(() => {
           <button
             type="button"
             class="w-full bg-primary-container text-on-primary-container font-black py-4 flex items-center justify-center gap-3 active:scale-95 transition-transform"
-            @click="emit('close')"
+            @click="handleLogout"
           >
             <span class="material-symbols-outlined">logout</span>
             <span class="tracking-widest">LOGOUT</span>
           </button>
         </div>
 
-        <div class="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-primary-container"></div>
+        <div
+          class="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-primary-container"
+        ></div>
         <div class="absolute -top-1 -right-1 w-2 h-2 bg-primary-container"></div>
         <div class="absolute bottom-0 right-0 p-1">
           <div class="text-[8px] opacity-20 font-mono">OHARA_SYS_EXIT</div>

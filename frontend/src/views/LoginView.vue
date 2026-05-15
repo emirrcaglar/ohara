@@ -1,14 +1,27 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const systemId = ref('')
 const accessKey = ref('')
+const error = ref('')
+const isLoading = ref(false)
 
-function handleSubmit() {
-  router.push('/library')
+async function handleSubmit() {
+  error.value = ''
+  isLoading.value = true
+  try {
+    await authStore.login(systemId.value, accessKey.value)
+    router.push('/')
+  } catch (err: any) {
+    error.value = err.message || 'Authentication failed'
+  } finally {
+    isLoading.value = false
+  }
 }
 </script>
 
@@ -45,6 +58,13 @@ function handleSubmit() {
           </span>
         </div>
 
+        <div
+          v-if="error"
+          class="mb-6 p-4 bg-error-container text-on-error-container text-xs font-bold uppercase border-l-4 border-error"
+        >
+          {{ error }}
+        </div>
+
         <form class="space-y-8" @submit.prevent="handleSubmit">
           <div class="relative group">
             <label
@@ -64,6 +84,8 @@ function handleSubmit() {
                 name="system-id"
                 placeholder="USERNAME"
                 type="text"
+                required
+                :disabled="isLoading"
               />
             </div>
           </div>
@@ -86,6 +108,8 @@ function handleSubmit() {
                 name="access-key"
                 placeholder="••••••••••••"
                 type="password"
+                required
+                :disabled="isLoading"
               />
             </div>
           </div>
@@ -93,10 +117,17 @@ function handleSubmit() {
           <div class="pt-4 flex flex-col gap-4">
             <button
               type="submit"
-              class="w-full bg-primary-container text-on-primary-container font-black py-4 uppercase tracking-tighter text-lg hover:bg-primary transition-all active:scale-[0.98] flex items-center justify-center gap-3"
+              :disabled="isLoading"
+              class="w-full bg-primary-container text-on-primary-container font-black py-4 uppercase tracking-tighter text-lg hover:bg-primary transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              AUTHENTICATE
-              <span class="material-symbols-outlined text-xl">login</span>
+              <template v-if="isLoading">
+                AUTHENTICATING...
+                <span class="material-symbols-outlined text-xl animate-spin">refresh</span>
+              </template>
+              <template v-else>
+                AUTHENTICATE
+                <span class="material-symbols-outlined text-xl">login</span>
+              </template>
             </button>
             <div
               class="flex justify-between items-center text-[10px] font-bold uppercase tracking-tighter"
@@ -108,25 +139,23 @@ function handleSubmit() {
             </div>
           </div>
         </form>
-      </div>
 
-      <div class="mt-12 grid grid-cols-2 gap-4">
-        <div
-          class="bg-surface-container-low p-4 flex flex-col gap-1 border-t-2 border-outline-variant/20"
-        >
-          <span class="text-[8px] font-bold text-surface-variant uppercase">Server Status</span>
-          <div class="flex items-center gap-2">
-            <span class="w-1.5 h-1.5 bg-secondary animate-pulse"></span>
-            <span class="text-[10px] font-mono text-on-surface">SYNC_ACTIVE</span>
+        <div class="mt-12 grid grid-cols-2 gap-4 border-t-2 border-outline-variant/10 pt-8">
+          <div class="bg-surface-container-low p-4 flex flex-col gap-1">
+            <span class="text-[8px] font-bold text-surface-variant uppercase">Server Status</span>
+            <div class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 bg-secondary animate-pulse"></span>
+              <span class="text-[10px] font-mono text-on-surface uppercase tracking-tighter"
+                >SYNC_ACTIVE</span
+              >
+            </div>
           </div>
-        </div>
-        <div
-          class="bg-surface-container-low p-4 flex flex-col gap-1 border-t-2 border-outline-variant/20"
-        >
-          <span class="text-[8px] font-bold text-surface-variant uppercase">Node Location</span>
-          <div class="flex items-center gap-2 text-on-surface">
-            <span class="material-symbols-outlined text-[14px]">language</span>
-            <span class="text-[10px] font-mono">EDGE_TOKYO_09</span>
+          <div class="bg-surface-container-low p-4 flex flex-col gap-1">
+            <span class="text-[8px] font-bold text-surface-variant uppercase">Node Location</span>
+            <div class="flex items-center gap-2 text-on-surface">
+              <span class="material-symbols-outlined text-[14px]">language</span>
+              <span class="text-[10px] font-mono uppercase tracking-tighter">EDGE_TOKYO_09</span>
+            </div>
           </div>
         </div>
       </div>

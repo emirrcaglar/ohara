@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -21,17 +22,42 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/login',
     component: () => import('../views/LoginView.vue'),
-    meta: { fullscreen: true },
+    meta: { fullscreen: true, public: true },
   },
   {
     path: '/network',
     component: () => import('../views/LibraryView.vue'),
+  },
+  {
+    path: '/admin/approvals',
+    component: () => import('../views/AdminView.vue'),
+    meta: { requiresAdmin: true },
   },
 ]
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
+})
+
+router.beforeEach(async (to) => {
+  const authStore = useAuthStore()
+
+  if (authStore.isInitializing) {
+    await authStore.checkAuth()
+  }
+
+  if (!to.meta.public && !authStore.isAuthenticated) {
+    return '/login'
+  }
+
+  if (to.meta.requiresAdmin && authStore.user?.role !== 'admin') {
+    return '/'
+  }
+
+  if (to.path === '/login' && authStore.isAuthenticated) {
+    return '/'
+  }
 })
 
 export default router

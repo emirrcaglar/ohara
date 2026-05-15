@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Library, Network, Terminal } from 'lucide-vue-next'
+import { Library, Network, Terminal, ShieldCheck } from 'lucide-vue-next'
+import { useAuthStore } from '../stores/auth'
 import StatusBar from './StatusBar.vue'
 import LogoutModal from './LogoutModal.vue'
 
@@ -13,6 +14,7 @@ const props = defineProps<{ open?: boolean }>()
 const emit = defineEmits(['close'])
 
 const route = useRoute()
+const authStore = useAuthStore()
 
 const navItems = [
   { name: 'Library', icon: Library, path: '/library' },
@@ -50,6 +52,21 @@ const showLogoutModal = ref(false)
         <component :is="item.icon" class="w-5 h-5" />
         <span class="uppercase tracking-tight text-sm">{{ item.name }}</span>
       </RouterLink>
+
+      <div v-if="authStore.user?.role === 'admin'" class="mt-8 px-4">
+        <RouterLink
+          to="/admin/approvals"
+          class="w-full py-4 px-4 bg-secondary-container text-on-secondary-container font-bold uppercase tracking-tighter text-sm text-left flex justify-between items-center group transition-transform active:translate-x-1"
+        >
+          <div class="flex items-center gap-3">
+            <ShieldCheck class="w-4 h-4" />
+            USER_APPROVALS
+          </div>
+          <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">
+            chevron_right
+          </span>
+        </RouterLink>
+      </div>
     </nav>
 
     <button
@@ -62,9 +79,11 @@ const showLogoutModal = ref(false)
       </div>
       <div class="flex-1 overflow-hidden">
         <div class="truncate font-bold text-[10px] text-on-surface uppercase tracking-widest">
-          ADMIN_KINETIC_01
+          {{ authStore.user?.username || 'GUEST_USER' }}
         </div>
-        <div class="text-[9px] text-secondary opacity-80 uppercase">CONNECTED</div>
+        <div class="text-[9px] text-secondary opacity-80 uppercase">
+          {{ authStore.user?.role || 'CONNECTED' }}
+        </div>
       </div>
     </button>
 
