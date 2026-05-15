@@ -105,6 +105,8 @@ Type=simple
 User=$SERVICE_USER
 WorkingDirectory=$REMOTE_DIR
 ExecStart=$REMOTE_DIR/$BINARY_NAME
+Environment="OHARA_ADMIN_USER=${ADMIN_USERNAME:-admin}"
+Environment="OHARA_ADMIN_PASS=${ADMIN_PASSWORD:-}"
 Restart=always
 RestartSec=3
 

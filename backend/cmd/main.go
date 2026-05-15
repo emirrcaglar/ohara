@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -33,6 +34,17 @@ func main() {
 		return
 	}
 	defer database.Close()
+
+	// Bootstrap admin user from environment variables
+	adminUser := os.Getenv("OHARA_ADMIN_USER")
+	adminPass := os.Getenv("OHARA_ADMIN_PASS")
+	if adminUser != "" && adminPass != "" {
+		if err := database.EnsureAdmin(adminUser, adminPass); err != nil {
+			log.Error("Failed to bootstrap admin user: %v", err)
+		} else {
+			log.Info("Admin user '%s' ensured", adminUser)
+		}
+	}
 
 	if *scan != "" {
 		if flag.NArg() == 0 {

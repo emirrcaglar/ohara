@@ -37,13 +37,13 @@ func Init(dataDir string) (*DB, error) {
 func migrate(conn *sql.DB) error {
 	_, err := conn.Exec(`
 		CREATE TABLE IF NOT EXISTS user (
-			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
-			username   TEXT     NOT NULL UNIQUE,
-			role       TEXT     NOT NULL DEFAULT 'user',
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			id            INTEGER  PRIMARY KEY AUTOINCREMENT,
+			username      TEXT     NOT NULL UNIQUE,
+			password_hash TEXT     NOT NULL,
+			role          TEXT     NOT NULL DEFAULT 'user',
+			is_approved   BOOLEAN  NOT NULL DEFAULT 0,
+			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
-
-		INSERT OR IGNORE INTO user (id, username, role) VALUES (1, 'admin', 'admin');
 
 		CREATE TABLE IF NOT EXISTS manga (
 			id         INTEGER  PRIMARY KEY AUTOINCREMENT,

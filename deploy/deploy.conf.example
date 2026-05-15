@@ -6,3 +6,7 @@ DEPLOY_PASSWORD=""
 DEPLOY_DIR="/opt/ohara"
 DEPLOY_BINARY_NAME="ohara"
 DEPLOY_SERVICE_NAME="ohara"
+
+# Initial admin credentials (used to bootstrap the system)
+ADMIN_USERNAME="admin"
+ADMIN_PASSWORD="change-me-immediately"

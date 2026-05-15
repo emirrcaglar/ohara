@@ -37,7 +37,8 @@ func (h *MangaHandler) mangaByID(idStr string) (*db.MangaRow, int, error) {
 }
 
 func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
-	mangas, err := h.DB.ListManga(1)
+	user := GetUser(r.Context())
+	mangas, err := h.DB.ListManga(user.ID)
 	if err != nil {
 		http.Error(w, "Failed to load library", http.StatusInternalServerError)
 		return
@@ -187,7 +188,8 @@ func (h *MangaHandler) HandleMangaProgress(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := h.DB.UpsertProgress(1, m.ID, pageIdx); err != nil {
+	user := GetUser(r.Context())
+	if err := h.DB.UpsertProgress(user.ID, m.ID, pageIdx); err != nil {
 		fmt.Printf("[progress] save error manga=%d page=%d: %v\n", m.ID, pageIdx, err)
 		http.Error(w, "Failed to save progress", http.StatusInternalServerError)
 		return
@@ -228,7 +230,8 @@ func (h *MangaHandler) HandleMangaResume(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	page, err := h.DB.GetProgress(1, m.ID)
+	user := GetUser(r.Context())
+	page, err := h.DB.GetProgress(user.ID, m.ID)
 	if err != nil {
 		http.Error(w, "Failed to fetch progress", http.StatusInternalServerError)
 		return
