@@ -33,7 +33,6 @@ func Init(dataDir string) (*DB, error) {
 
 	return &DB{conn}, nil
 }
-
 func migrate(conn *sql.DB) error {
 	_, err := conn.Exec(`
 		CREATE TABLE IF NOT EXISTS user (
@@ -44,7 +43,12 @@ func migrate(conn *sql.DB) error {
 			is_approved   BOOLEAN  NOT NULL DEFAULT 0,
 			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
+	`)
+	if err != nil {
+		return err
+	}
 
+	_, err = conn.Exec(`
 		CREATE TABLE IF NOT EXISTS manga (
 			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
 			path       TEXT     NOT NULL UNIQUE,

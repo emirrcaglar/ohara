@@ -94,25 +94,29 @@ echo "Step 2/3: Generating and uploading service file..."
 SERVICE_FILE_TMP="/tmp/$SERVICE_NAME.service"
 SERVICE_USER="$("${SSH_CMD[@]}" "$SERVER" "whoami")"
 
-# Generate the service file locally using a Here-Doc
-cat <<EOF > "$SERVICE_FILE_TMP"
-[Unit]
-Description=Ohara Backend Service
-After=network.target
+# Escape $ for systemd (needs $$)
+ESC_ADMIN_USER=$(echo "${ADMIN_USERNAME:-admin}" | sed 's/\$/$$/g')
+ESC_ADMIN_PASS=$(echo "${ADMIN_PASSWORD:-}" | sed 's/\$/$$/g')
 
-[Service]
-Type=simple
-User=$SERVICE_USER
-WorkingDirectory=$REMOTE_DIR
-ExecStart=$REMOTE_DIR/$BINARY_NAME
-Environment="OHARA_ADMIN_USER=${ADMIN_USERNAME:-admin}"
-Environment="OHARA_ADMIN_PASS=${ADMIN_PASSWORD:-}"
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-EOF
+# Generate the service file using printf to avoid shell expansion issues in heredoc
+{
+	echo "[Unit]"
+	echo "Description=Ohara Backend Service"
+	echo "After=network.target"
+	echo ""
+	echo "[Service]"
+	echo "Type=simple"
+	echo "User=$SERVICE_USER"
+	echo "WorkingDirectory=$REMOTE_DIR"
+	echo "ExecStart=$REMOTE_DIR/$BINARY_NAME"
+	echo "Environment=\"OHARA_ADMIN_USER=$ESC_ADMIN_USER\""
+	echo "Environment=\"OHARA_ADMIN_PASS=$ESC_ADMIN_PASS\""
+	echo "Restart=always"
+	echo "RestartSec=3"
+	echo ""
+	echo "[Install]"
+	echo "WantedBy=multi-user.target"
+} > "$SERVICE_FILE_TMP"
 
 "${SCP_CMD[@]}" "$SERVICE_FILE_TMP" "$SERVER:/tmp/$SERVICE_NAME.service.tmp"
 rm "$SERVICE_FILE_TMP"

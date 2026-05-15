@@ -34,7 +34,7 @@ func (db *DB) EnsureAdmin(username, password string) error {
 	`, username, string(hash))
 
 	if err != nil {
-		return fmt.Errorf("failed to ensure admin user: %w", err)
+		return fmt.Errorf("failed to ensure admin user '%s': %w", username, err)
 	}
 
 	return nil

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"path"

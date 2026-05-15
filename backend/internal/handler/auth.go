@@ -47,14 +47,13 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For simplicity, we'll use a session cookie with the username.
-	// In a production app, use a proper session store or JWT.
+	// TODO: JWT will be used
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
 		Value:    user.Username,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true, // Should be true in production
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Now().Add(24 * time.Hour),
 	})

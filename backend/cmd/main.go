@@ -41,8 +41,6 @@ func main() {
 	if adminUser != "" && adminPass != "" {
 		if err := database.EnsureAdmin(adminUser, adminPass); err != nil {
 			log.Error("Failed to bootstrap admin user: %v", err)
-		} else {
-			log.Info("Admin user '%s' ensured", adminUser)
 		}
 	}
 
