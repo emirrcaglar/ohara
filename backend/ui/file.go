@@ -2,14 +2,13 @@ package ui
 
 import (
 	"embed"
-	"fmt"
 	"io/fs"
 	"net/http"
 	"path"
 	"strings"
 )
 
-//go:embed *
+//go:embed all:dist
 var Files embed.FS
 
 func SPAHandler() (http.Handler, error) {
@@ -29,12 +28,40 @@ func SPAHandler() (http.Handler, error) {
 		file, err := distFS.Open(requestPath)
 		if err == nil {
 			file.Close()
+			setStaticCacheHeaders(w, requestPath)
 			fileServer.ServeHTTP(w, r)
 			return
 		}
 
+		if isStaticAssetRequest(requestPath) {
+			w.Header().Set("Cache-Control", "no-store")
+			http.NotFound(w, r)
+			return
+		}
+
+		setIndexCacheHeaders(w)
 		fallbackRequest := r.Clone(r.Context())
 		fallbackRequest.URL.Path = "/"
 		fileServer.ServeHTTP(w, fallbackRequest)
 	}), nil
+}
+
+func isStaticAssetRequest(requestPath string) bool {
+	return strings.HasPrefix(requestPath, "assets/") || strings.Contains(path.Base(requestPath), ".")
+}
+
+func setStaticCacheHeaders(w http.ResponseWriter, requestPath string) {
+	if requestPath == "index.html" {
+		setIndexCacheHeaders(w)
+		return
+	}
+
+	if strings.HasPrefix(requestPath, "assets/") {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	}
+}
+
+func setIndexCacheHeaders(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Clear-Site-Data", `"cache"`)
 }
