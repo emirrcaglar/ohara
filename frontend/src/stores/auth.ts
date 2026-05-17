@@ -35,6 +35,13 @@ export const useAuthStore = defineStore('auth', () => {
     await checkAuth()
   }
 
+  async function register(username: string, password: string) {
+    await fetchJson('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    })
+  }
+
   async function logout() {
     await fetchJson('/api/auth/logout', { method: 'POST' })
     user.value = null
@@ -47,6 +54,7 @@ export const useAuthStore = defineStore('auth', () => {
     isInitializing,
     checkAuth,
     login,
+    register,
     logout,
   }
 })

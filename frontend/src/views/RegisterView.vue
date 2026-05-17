@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
@@ -15,10 +15,10 @@ async function handleSubmit() {
   error.value = ''
   isLoading.value = true
   try {
-    await authStore.login(systemId.value, accessKey.value)
-    router.push('/')
+    await authStore.register(systemId.value, accessKey.value)
+    router.push('/login')
   } catch (err: unknown) {
-    error.value = err instanceof Error ? err.message : 'Authentication failed'
+    error.value = err instanceof Error ? err.message : 'Registration failed'
   } finally {
     isLoading.value = false
   }
@@ -43,9 +43,9 @@ async function handleSubmit() {
             OHARA
           </span>
           <span
-            class="mt-2 w-full translate-x-[1.075em] text-center text-lg font-bold tracking-[2.15em] text-secondary-container"
+            class="mt-2 w-full translate-x-[0.475em] text-center text-lg font-bold tracking-[0.95em] text-secondary-container"
           >
-            LOGIN
+            REGISTER
           </span>
         </h1>
       </div>
@@ -55,9 +55,7 @@ async function handleSubmit() {
       >
         <div class="flex justify-between items-start mb-10">
           <div>
-            <h2 class="text-xs font-bold uppercase tracking-tighter text-on-surface">
-              System Authorization
-            </h2>
+            <h2 class="text-xs font-bold uppercase tracking-tighter text-on-surface">New User</h2>
             <div class="h-[2px] w-8 bg-secondary-container mt-1"></div>
           </div>
           <span class="text-[9px] font-mono text-secondary-fixed-dim bg-on-secondary py-0.5 px-1.5">
@@ -128,12 +126,12 @@ async function handleSubmit() {
               class="w-full bg-primary-container text-on-primary-container font-black py-4 uppercase tracking-tighter text-lg hover:bg-primary transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <template v-if="isLoading">
-                AUTHENTICATING...
+                REGISTERING...
                 <span class="material-symbols-outlined text-xl animate-spin">refresh</span>
               </template>
               <template v-else>
-                LOGIN
-                <span class="material-symbols-outlined text-xl">login</span>
+                REGISTER
+                <span class="material-symbols-outlined text-xl">person_add</span>
               </template>
             </button>
             <div
@@ -141,9 +139,9 @@ async function handleSubmit() {
             >
               <RouterLink
                 class="text-secondary hover:text-secondary-fixed-dim transition-colors"
-                to="/register"
+                to="/login"
               >
-                NEW_USER
+                LOGIN
               </RouterLink>
             </div>
           </div>

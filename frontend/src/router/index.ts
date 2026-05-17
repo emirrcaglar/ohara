@@ -26,6 +26,11 @@ const routes: RouteRecordRaw[] = [
     meta: { fullscreen: true, public: true },
   },
   {
+    path: '/register',
+    component: () => import('../views/RegisterView.vue'),
+    meta: { fullscreen: true, public: true },
+  },
+  {
     path: '/network',
     component: () => import('../views/LibraryView.vue'),
     meta: { requiresAdmin: true },
@@ -57,7 +62,7 @@ router.beforeEach(async (to) => {
     return '/'
   }
 
-  if (to.path === '/login' && authStore.isAuthenticated) {
+  if ((to.path === '/login' || to.path === '/register') && authStore.isAuthenticated) {
     return '/'
   }
 })
