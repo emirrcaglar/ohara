@@ -17,8 +17,6 @@ const pageUrl = computed(() => `${API_BASE}/manga/${mangaId.value}/page/${curren
 const hasPrev = computed(() => currentPage.value > 0)
 const hasNext = computed(() => currentPage.value < totalPages.value - 1)
 
-const progressText = computed(() => `${currentPage.value + 1} / ${totalPages.value}`)
-
 async function saveProgress() {
   await mangaStore.updateProgress(mangaId.value, currentPage.value)
 }
@@ -42,8 +40,8 @@ function navigate() {
     query: {
       manga: mangaId.value,
       page: currentPage.value,
-      total: totalPages.value
-    }
+      total: totalPages.value,
+    },
   })
   saveProgress()
 }
@@ -103,45 +101,48 @@ onMounted(async () => {
     </div>
 
     <div
-      class="md:absolute md:top-6 md:right-6 md:w-[340px] z-30 bg-surface-container-low/95 border-t md:border border-white/10 p-3 md:p-4 backdrop-blur-sm"
-      :style="{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }"
+      class="fixed right-2 top-16 z-60 flex items-center bg-surface-container-lowest border-2 border-primary-container p-0.5 shadow-[0_0_40px_rgba(0,0,0,0.8)] sm:right-3 md:right-6 md:top-20"
+      :style="{ marginTop: 'env(safe-area-inset-top)' }"
     >
-      <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center gap-0.5 sm:gap-1">
         <button
-          class="px-4 py-2 bg-surface-container-high text-on-surface font-bold uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary-container hover:text-on-primary-container transition-colors"
+          class="flex min-h-9 items-center bg-primary-container px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-on-primary-container transition-all hover:bg-primary disabled:opacity-30 disabled:cursor-not-allowed sm:min-h-10 sm:px-3 sm:text-[10px] md:px-4 md:text-xs md:tracking-[0.16em]"
           :disabled="!hasPrev"
           @click="prevPage"
         >
-          <span class="flex items-center gap-2">
-            <span class="material-symbols-outlined">arrow_back</span>
-            Prev
-          </span>
+          <span class="material-symbols-outlined mr-0.5 text-[13px] sm:mr-1 sm:text-sm"
+            >chevron_left</span
+          >
+          PREV
         </button>
 
-        <div class="text-center">
-          <p class="text-[10px] font-mono text-secondary uppercase tracking-widest mb-1">Page</p>
-          <p class="text-lg font-black text-on-surface">{{ progressText }}</p>
+        <div
+          class="flex min-h-9 items-center gap-1.5 bg-surface px-2 py-1.5 font-mono sm:min-h-10 sm:gap-2 sm:px-3 md:gap-3 md:px-4"
+        >
+          <span
+            class="text-[8px] font-bold uppercase tracking-widest text-outline sm:text-[9px] md:text-[10px]"
+          >
+            PAGE
+          </span>
+          <span class="text-[11px] font-bold tracking-tighter text-primary sm:text-xs">
+            {{ currentPage + 1 }}
+          </span>
+          <span class="text-outline-variant">/</span>
+          <span class="text-[11px] font-bold tracking-tighter text-on-surface sm:text-xs">{{
+            totalPages
+          }}</span>
         </div>
 
         <button
-          class="px-4 py-2 bg-surface-container-high text-on-surface font-bold uppercase tracking-wider disabled:opacity-30 disabled:cursor-not-allowed hover:bg-primary-container hover:text-on-primary-container transition-colors"
+          class="flex min-h-9 items-center bg-primary-container px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-on-primary-container transition-all hover:bg-primary disabled:opacity-30 disabled:cursor-not-allowed sm:min-h-10 sm:px-3 sm:text-[10px] md:px-4 md:text-xs md:tracking-[0.16em]"
           :disabled="!hasNext"
           @click="nextPage"
         >
-          <span class="flex items-center gap-2">
-            Next
-            <span class="material-symbols-outlined">arrow_forward</span>
-          </span>
+          NEXT
+          <span class="material-symbols-outlined ml-0.5 text-[13px] sm:ml-1 sm:text-sm"
+            >chevron_right</span
+          >
         </button>
-      </div>
-
-      <div class="text-center mt-3">
-        <div class="h-1 bg-surface-container-highest rounded-full overflow-hidden">
-          <div
-            class="h-full bg-primary-container transition-all duration-200"
-            :style="{ width: `${totalPages > 0 ? ((currentPage + 1) / totalPages) * 100 : 0}%` }"
-          ></div>
-        </div>
       </div>
     </div>
   </div>

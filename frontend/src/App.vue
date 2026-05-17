@@ -116,6 +116,18 @@ function handlePrevious() {
 function handleEnded() {
   playerStore.next()
 }
+
+function handleCloseMediaBar() {
+  previousFromStart.value = false
+
+  if (audioRef.value) {
+    audioRef.value.pause()
+    audioRef.value.removeAttribute('src')
+    audioRef.value.load()
+  }
+
+  playerStore.clearCurrentTrack()
+}
 </script>
 
 <template>
@@ -170,6 +182,7 @@ function handleEnded() {
           @next="playerStore.next()"
           @previous="handlePrevious"
           @volumeChange="playerStore.setVolume"
+          @close="handleCloseMediaBar"
         />
       </main>
     </template>

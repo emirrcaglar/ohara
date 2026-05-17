@@ -21,9 +21,15 @@ const emit = defineEmits<{
   previous: []
   seek: [time: number]
   volumeChange: [volume: number]
+  close: []
 }>()
 
 const expanded = ref(false)
+
+function handleClose() {
+  expanded.value = false
+  emit('close')
+}
 </script>
 
 <template>
@@ -33,13 +39,21 @@ const expanded = ref(false)
       v-if="expanded"
       class="md:hidden fixed inset-x-0 bottom-0 z-50 bg-surface-container-low border-t-2 border-primary-container"
     >
-      <div class="flex justify-center pt-2 pb-1">
+      <div class="flex items-center justify-between px-3 pt-2 pb-1">
         <button
-          class="text-on-surface-variant hover:text-on-surface p-1"
+          class="bg-surface-container-highest text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high px-3 py-2 flex items-center justify-center"
           aria-label="Collapse player"
           @click="expanded = false"
         >
           <span class="material-symbols-outlined">expand_more</span>
+        </button>
+
+        <button
+          class="bg-surface-container-highest text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high px-3 py-2 flex items-center justify-center"
+          aria-label="Close player"
+          @click="handleClose"
+        >
+          <span class="material-symbols-outlined">close</span>
         </button>
       </div>
 
@@ -125,6 +139,14 @@ const expanded = ref(false)
           @volumeChange="(v) => emit('volumeChange', v)"
         />
       </div>
+
+      <button
+        class="bg-surface-container-highest text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high w-10 h-10 md:w-12 md:h-12 flex items-center justify-center"
+        aria-label="Close player"
+        @click="handleClose"
+      >
+        <span class="material-symbols-outlined text-lg md:text-xl">close</span>
+      </button>
     </div>
   </div>
 </template>

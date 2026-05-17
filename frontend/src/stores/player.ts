@@ -60,6 +60,13 @@ export const usePlayerStore = defineStore('player', () => {
     volume.value = Math.max(0, Math.min(100, v))
   }
 
+  function clearCurrentTrack() {
+    currentTrack.value = null
+    isPlaying.value = false
+    currentTime.value = 0
+    duration.value = 0
+  }
+
   function next() {
     if (!currentTrack.value || queue.value.length === 0) return
     const currentIndex = queue.value.findIndex((t) => t.id === currentTrack.value?.id)
@@ -113,6 +120,7 @@ export const usePlayerStore = defineStore('player', () => {
     togglePlay,
     seek,
     setVolume,
+    clearCurrentTrack,
     next,
     previous,
     addToQueue,
