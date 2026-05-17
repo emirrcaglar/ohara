@@ -6,14 +6,21 @@ interface ApiError {
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
+  const text = await response.text()
+
   if (!response.ok) {
     const error: ApiError = {
-      message: response.statusText || 'Request failed',
+      message: text || response.statusText || 'Request failed',
       status: response.status,
     }
     throw error
   }
-  return response.json()
+
+  if (!text) {
+    return undefined as T
+  }
+
+  return JSON.parse(text) as T
 }
 
 export async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {

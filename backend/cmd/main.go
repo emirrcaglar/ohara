@@ -35,12 +35,18 @@ func main() {
 	}
 	defer database.Close()
 
-	// Bootstrap admin user from environment variables
-	adminUser := os.Getenv("OHARA_ADMIN_USER")
-	adminPass := os.Getenv("OHARA_ADMIN_PASS")
-	if adminUser != "" && adminPass != "" {
-		if err := database.EnsureAdmin(adminUser, adminPass); err != nil {
-			log.Error("Failed to bootstrap admin user: %v", err)
+	// Bootstrap admin user
+	if *domain == "" {
+		if err := database.EnsureAdmin("admin", "admin"); err != nil {
+			log.Error("Failed to bootstrap local admin user: %v", err)
+		}
+	} else {
+		adminUser := os.Getenv("OHARA_ADMIN_USER")
+		adminPass := os.Getenv("OHARA_ADMIN_PASS")
+		if adminUser != "" && adminPass != "" {
+			if err := database.EnsureAdmin(adminUser, adminPass); err != nil {
+				log.Error("Failed to bootstrap admin user: %v", err)
+			}
 		}
 	}
 
