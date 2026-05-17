@@ -87,7 +87,11 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 
 	mux.HandleFunc("GET /audio/{id}/stream", WithAuth(database, log, audioHandler.HandleAudioStream))
 
-	mux.HandleFunc("POST /api/upload", WithAuth(database, log, uploadHandler.HandleUpload))
+	mux.HandleFunc("POST /api/uploads/init", WithAuth(database, log, uploadHandler.HandleChunkedUploadInit))
+	mux.HandleFunc("PUT /api/uploads/{id}/chunk", WithAuth(database, log, uploadHandler.HandleChunkedUploadChunk))
+	mux.HandleFunc("POST /api/uploads/{id}/complete", WithAuth(database, log, uploadHandler.HandleChunkedUploadComplete))
+	mux.HandleFunc("GET /api/uploads/{id}/status", WithAuth(database, log, uploadHandler.HandleChunkedUploadStatus))
+	mux.HandleFunc("DELETE /api/uploads/{id}", WithAuth(database, log, uploadHandler.HandleChunkedUploadCancel))
 
 	mux.HandleFunc("GET /api/logs", WithAuth(database, log, logHandler.HandleSnapshot))
 	mux.HandleFunc("GET /api/logs/stream", WithAuth(database, log, logHandler.HandleStream))

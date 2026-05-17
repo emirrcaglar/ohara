@@ -105,7 +105,12 @@ export const useUploadStore = defineStore('upload', () => {
         }
       } catch {
         const t = transfers.value.find((t) => t.id === transfer.id)
-        if (t) t.status = 'complete'
+        if (t) {
+          t.status = 'paused'
+          t.speed = '--'
+          t.eta = '--'
+          t.bytesPerSecond = 0
+        }
       }
     }
 
