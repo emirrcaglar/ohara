@@ -23,7 +23,7 @@ func (h *AdminHandler) HandleListPendingUsers(w http.ResponseWriter, r *http.Req
 	}
 	defer rows.Close()
 
-	var users []map[string]interface{}
+	users := make([]map[string]interface{}, 0)
 	for rows.Next() {
 		var id int64
 		var username, role, createdAt string

@@ -15,9 +15,11 @@ const isLoading = ref(true)
 async function fetchPendingUsers() {
   isLoading.value = true
   try {
-    pendingUsers.value = await fetchJson<PendingUser[]>('/api/admin/users/pending')
+    const users = await fetchJson<PendingUser[] | null>('/api/admin/users/pending')
+    pendingUsers.value = Array.isArray(users) ? users : []
   } catch (error) {
     console.error('Failed to fetch pending users:', error)
+    pendingUsers.value = []
   } finally {
     isLoading.value = false
   }
@@ -45,7 +47,9 @@ onMounted(() => {
     <section class="flex-1 space-y-6">
       <div class="flex justify-between items-end border-b-0">
         <div>
-          <h1 class="font-display text-4xl font-black text-on-surface tracking-tighter uppercase leading-none">
+          <h1
+            class="font-display text-4xl font-black text-on-surface tracking-tighter uppercase leading-none"
+          >
             REGISTRATION_QUEUE
           </h1>
           <p class="font-body text-secondary text-xs font-bold tracking-[0.2em] mt-2 uppercase">
@@ -57,7 +61,9 @@ onMounted(() => {
       <div class="bg-surface border-0 shadow-none overflow-hidden">
         <table class="w-full text-left font-body">
           <thead>
-            <tr class="bg-surface-container-high text-on-surface-variant text-[10px] uppercase tracking-widest">
+            <tr
+              class="bg-surface-container-high text-on-surface-variant text-[10px] uppercase tracking-widest"
+            >
               <th class="p-4 font-normal">USER_ID</th>
               <th class="p-4 font-normal">ROLE</th>
               <th class="p-4 font-normal">TIMESTAMP</th>
@@ -66,12 +72,18 @@ onMounted(() => {
           </thead>
           <tbody class="divide-y divide-surface-container-highest/20">
             <tr v-if="isLoading" class="animate-pulse">
-              <td colspan="4" class="p-8 text-center text-on-surface-variant text-xs uppercase tracking-widest">
+              <td
+                colspan="4"
+                class="p-8 text-center text-on-surface-variant text-xs uppercase tracking-widest"
+              >
                 Loading_Queue...
               </td>
             </tr>
             <tr v-else-if="pendingUsers.length === 0">
-              <td colspan="4" class="p-8 text-center text-on-surface-variant text-xs uppercase tracking-widest">
+              <td
+                colspan="4"
+                class="p-8 text-center text-on-surface-variant text-xs uppercase tracking-widest"
+              >
                 No_Pending_Authorizations
               </td>
             </tr>
@@ -84,7 +96,9 @@ onMounted(() => {
                 {{ user.username }}
               </td>
               <td class="p-4">
-                <span class="text-secondary-container text-[10px] font-bold px-2 py-0.5 border border-secondary-container uppercase">
+                <span
+                  class="text-secondary-container text-[10px] font-bold px-2 py-0.5 border border-secondary-container uppercase"
+                >
                   {{ user.role }}
                 </span>
               </td>
