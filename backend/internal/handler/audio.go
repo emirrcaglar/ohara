@@ -2,17 +2,18 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	"ohara/src/internal/db"
+	"ohara/src/internal/logger"
 )
 
 type AudioHandler struct {
-	DB *db.DB
+	DB  *db.DB
+	Log *logger.Logger
 }
 
 func (h *AudioHandler) HandleAudioList(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +78,9 @@ func (h *AudioHandler) HandleAudioStream(w http.ResponseWriter, r *http.Request)
 
 	file, err := os.Open(track.Path)
 	if err != nil {
-		fmt.Printf("[audio] failed to open file %s: %v\n", track.Path, err)
+		if h.Log != nil {
+			h.Log.Error("[audio] failed to open file path=%s err=%v", track.Path, err)
+		}
 		http.Error(w, "File not found on disk", http.StatusNotFound)
 		return
 	}

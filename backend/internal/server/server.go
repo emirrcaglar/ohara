@@ -3,8 +3,9 @@ package server
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net/http"
+
+	"ohara/src/internal/logger"
 
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -15,9 +16,11 @@ type Config struct {
 	DataDir string
 }
 
-func Start(cfg Config, handler http.Handler) error {
+func Start(cfg Config, handler http.Handler, log *logger.Logger) error {
 	if cfg.Domain == "" {
-		fmt.Printf("Starting local server on http://localhost:%s\n", cfg.Port)
+		if log != nil {
+			log.Info("[server] starting local server url=http://localhost:%s", cfg.Port)
+		}
 		return http.ListenAndServe(":"+cfg.Port, handler)
 	}
 
@@ -36,13 +39,17 @@ func Start(cfg Config, handler http.Handler) error {
 	}
 
 	go func() {
-		fmt.Printf("Starting HTTP-to-HTTPS redirect on port 80...")
+		if log != nil {
+			log.Info("[server] starting HTTP-to-HTTPS redirect port=80")
+		}
 		err := http.ListenAndServe(":http", certManager.HTTPHandler(nil))
-		if err != nil {
-			fmt.Printf("HTTP challenge server failed: %v", err)
+		if err != nil && log != nil {
+			log.Error("[server] HTTP challenge server failed err=%v", err)
 		}
 	}()
 
-	fmt.Printf("Starting secure server on https://%s\n", cfg.Domain)
+	if log != nil {
+		log.Info("[server] starting secure server url=https://%s", cfg.Domain)
+	}
 	return srv.ListenAndServeTLS("", "")
 }

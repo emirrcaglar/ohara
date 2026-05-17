@@ -5,16 +5,19 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"ohara/src/internal/logger"
 )
 
 type DiskCache struct {
 	Dir string
+	Log *logger.Logger
 }
 
-func NewDiskCache(dataDir string) *DiskCache {
+func NewDiskCache(dataDir string, log *logger.Logger) *DiskCache {
 	cacheDir := filepath.Join(dataDir, "cache")
 	os.MkdirAll(cacheDir, 0o755)
-	return &DiskCache{Dir: cacheDir}
+	return &DiskCache{Dir: cacheDir, Log: log}
 }
 
 func (c *DiskCache) cachePath(mangaID int64, page int) string {
@@ -31,7 +34,9 @@ func (c *DiskCache) Get(mangaID int64, page int) ([]byte, bool) {
 	currentTime := time.Now()
 	os.Chtimes(c.cachePath(mangaID, page), currentTime, currentTime)
 
-	fmt.Printf("[cache] Found file in cache: %d_%d", mangaID, page)
+	if c.Log != nil {
+		c.Log.Info("[cache] hit manga=%d page=%d", mangaID, page)
+	}
 	return data, true
 }
 
@@ -40,5 +45,7 @@ func (c *DiskCache) Set(mangaID int64, page int, data []byte) {
 	tempPath := c.cachePath(mangaID, page) + ".tmp"
 	os.WriteFile(tempPath, data, 0o644)
 	os.Rename(tempPath, c.cachePath(mangaID, page))
-	fmt.Printf("[cache] Created file in cache: %d_%d", mangaID, page)
+	if c.Log != nil {
+		c.Log.Info("[cache] stored manga=%d page=%d", mangaID, page)
+	}
 }

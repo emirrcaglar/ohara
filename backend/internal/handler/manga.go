@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ohara/src/internal/db"
+	"ohara/src/internal/logger"
 	"ohara/src/internal/media/cbz"
 	"ohara/src/internal/utils/imgutil"
 )
@@ -19,6 +20,7 @@ type MangaHandler struct {
 	Cache      *PageCache
 	Inflight   *Inflight
 	CBZService cbz.ICBZService
+	Log        *logger.Logger
 }
 
 func (h *MangaHandler) mangaByID(idStr string) (*db.MangaRow, int, error) {
@@ -111,8 +113,9 @@ func (h *MangaHandler) compressPage(m *db.MangaRow, pageIdx int) ([]byte, bool, 
 		data := buf.Bytes()
 		h.Cache.Set(m.ID, pageIdx, data)
 
-		fmt.Printf("[compress] manga=%d page=%d size=%dKB open=%v compress=%v\n",
-			m.ID, pageIdx, len(data)/1024, openDur, compressDur)
+		if h.Log != nil {
+			h.Log.Info("[manga] compressed page manga=%d page=%d size_kb=%d open=%v compress=%v", m.ID, pageIdx, len(data)/1024, openDur, compressDur)
+		}
 
 		return data, nil
 	})
@@ -130,9 +133,11 @@ func (h *MangaHandler) prefetchAhead(m *db.MangaRow, fromPage, count int) {
 			if _, ok := h.Cache.Get(m.ID, p); ok {
 				continue
 			}
-			fmt.Printf("[prefetch] manga=%d page=%d compressing...\n", m.ID, p)
-			if _, _, err := h.compressPage(m, p); err != nil {
-				fmt.Printf("[prefetch] manga=%d page=%d error: %v\n", m.ID, p, err)
+			if h.Log != nil {
+				h.Log.Info("[manga] prefetching page manga=%d page=%d", m.ID, p)
+			}
+			if _, _, err := h.compressPage(m, p); err != nil && h.Log != nil {
+				h.Log.Warn("[manga] prefetch failed manga=%d page=%d err=%v", m.ID, p, err)
 			}
 		}
 	}()
@@ -166,8 +171,9 @@ func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 
 	go h.prefetchAhead(m, pageIdx, 15)
 
-	fmt.Printf("[page] manga=%d page=%d size=%dKB source=%s total=%v\n",
-		m.ID, pageIdx, len(data)/1024, source, time.Since(t0))
+	if h.Log != nil {
+		h.Log.Info("[manga] served page manga=%d page=%d size_kb=%d source=%s total=%v", m.ID, pageIdx, len(data)/1024, source, time.Since(t0))
+	}
 
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
@@ -190,7 +196,9 @@ func (h *MangaHandler) HandleMangaProgress(w http.ResponseWriter, r *http.Reques
 
 	user := GetUser(r.Context())
 	if err := h.DB.UpsertProgress(user.ID, m.ID, pageIdx); err != nil {
-		fmt.Printf("[progress] save error manga=%d page=%d: %v\n", m.ID, pageIdx, err)
+		if h.Log != nil {
+			h.Log.Error("[manga] progress save failed manga=%d page=%d err=%v", m.ID, pageIdx, err)
+		}
 		http.Error(w, "Failed to save progress", http.StatusInternalServerError)
 		return
 	}

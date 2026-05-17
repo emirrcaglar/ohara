@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -30,46 +29,53 @@ func main() {
 
 	database, err := db.Init(*dataDir)
 	if err != nil {
-		log.Error("Failed to init database: %v", err)
+		log.Error("[main] failed to init database err=%v", err)
 		return
 	}
+	log.Info("[main] database initialized data_dir=%s", *dataDir)
 	defer database.Close()
 
 	// Bootstrap admin user
 	if *domain == "" {
 		if err := database.EnsureAdmin("admin", "admin"); err != nil {
-			log.Error("Failed to bootstrap local admin user: %v", err)
+			log.Error("[main] failed to bootstrap local admin user err=%v", err)
+		} else {
+			log.Info("[main] local admin bootstrap complete username=admin")
 		}
 	} else {
 		adminUser := os.Getenv("OHARA_ADMIN_USER")
 		adminPass := os.Getenv("OHARA_ADMIN_PASS")
 		if adminUser != "" && adminPass != "" {
 			if err := database.EnsureAdmin(adminUser, adminPass); err != nil {
-				log.Error("Failed to bootstrap admin user: %v", err)
+				log.Error("[main] failed to bootstrap admin user err=%v", err)
+			} else {
+				log.Info("[main] admin bootstrap complete username=%s", adminUser)
 			}
 		}
 	}
 
 	if *scan != "" {
 		if flag.NArg() == 0 {
-			fmt.Println("Usage: --scan <type> <directory>")
+			log.Warn("[scan] missing directory for type=%s", *scan)
 			return
 		}
 		dir := flag.Arg(0)
-		s := scanner.NewScanner(database, cbz.NewCBZService(database), scanner.WithScanDir(dir), scanner.WithScanType(scanner.ScanType(*scan)))
+		log.Info("[scan] requested type=%s dir=%s", *scan, dir)
+		s := scanner.NewScanner(database, cbz.NewCBZService(database), log, scanner.WithScanDir(dir), scanner.WithScanType(scanner.ScanType(*scan)))
 		scannedCount, err := s.Run()
 		if err != nil {
-			fmt.Printf("Scan failed: %v", err)
+			log.Error("[scan] failed type=%s dir=%s err=%v", *scan, dir, err)
+			return
 		}
-		fmt.Printf("Indexed %d new %s from %s\n", scannedCount, *scan, dir)
+		log.Info("[scan] indexed count=%d type=%s dir=%s", scannedCount, *scan, dir)
 		return
 	}
 
 	r := router.SetupRoutes(database, *dataDir, log)
 
-	log.Info("Ohara listening on port %s", *port)
+	log.Info("[main] Ohara listening on port %s", *port)
 
-	if err := server.Start(server.Config{Domain: *domain, Port: *port, DataDir: *dataDir}, r); err != nil {
+	if err := server.Start(server.Config{Domain: *domain, Port: *port, DataDir: *dataDir}, r, log); err != nil {
 		log.Error("Server crashed: %v", err)
 	}
 }

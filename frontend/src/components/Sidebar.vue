@@ -18,8 +18,8 @@ const authStore = useAuthStore()
 
 const navItems = [
   { name: 'Library', icon: Library, path: '/library' },
-  { name: 'Network', icon: Network, path: '/network' },
-  { name: 'Logs', icon: Terminal, path: '/logs' },
+  { name: 'Network', icon: Network, path: '/network', adminOnly: true },
+  { name: 'Logs', icon: Terminal, path: '/logs', adminOnly: true },
 ]
 
 const showLogoutModal = ref(false)
@@ -40,6 +40,7 @@ const showLogoutModal = ref(false)
     <nav class="flex-1 mt-4">
       <RouterLink
         v-for="item in navItems"
+        v-show="!item.adminOnly || authStore.user?.role === 'admin'"
         :key="item.name"
         :to="item.path"
         class="flex items-center gap-4 px-6 py-4 transition-none"

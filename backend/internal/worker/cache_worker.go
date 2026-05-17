@@ -14,6 +14,10 @@ import (
 func StartCacheCleaner(cacheDir string, maxSizeMB int64, interval time.Duration, log *logger.Logger) {
 	maxSizeBytes := maxSizeMB * 1024 * 1024
 
+	if log != nil {
+		log.Info("[worker] cache cleaner started dir=%s max_mb=%d interval=%s", cacheDir, maxSizeMB, interval)
+	}
+
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()

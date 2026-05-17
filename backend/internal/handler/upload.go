@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"ohara/src/internal/db"
+	"ohara/src/internal/logger"
 	"ohara/src/internal/media"
 	"ohara/src/internal/scanner"
 	"os"
@@ -13,12 +13,13 @@ import (
 )
 
 type UploadHandler struct {
-	DB *db.DB
-	sc *scanner.Scanner
+	DB  *db.DB
+	sc  *scanner.Scanner
+	Log *logger.Logger
 }
 
-func NewUploadHandler(db *db.DB, sc *scanner.Scanner) *UploadHandler {
-	return &UploadHandler{DB: db, sc: sc}
+func NewUploadHandler(db *db.DB, sc *scanner.Scanner, log *logger.Logger) *UploadHandler {
+	return &UploadHandler{DB: db, sc: sc, Log: log}
 }
 
 type FileExtension string
@@ -57,7 +58,9 @@ type UploadRequest struct {
 }
 
 func (h *UploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("HandleUpload called")
+	if h.Log != nil {
+		h.Log.Info("[upload] request received")
+	}
 
 	req, err := parseUploadRequest(r)
 	if err != nil {
@@ -67,7 +70,9 @@ func (h *UploadHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 	defer req.File.Close()
 
 	fileType := detectFileType(req.FileName)
-	fmt.Printf("fileType: %s\n", fileType)
+	if h.Log != nil {
+		h.Log.Info("[upload] detected file type=%s name=%s", fileType, req.FileName)
+	}
 	switch {
 	case fileType == FileExtensionCBZ:
 		h.saveCBZ(w, req)
@@ -98,21 +103,19 @@ func parseUploadRequest(r *http.Request) (*UploadRequest, error) {
 }
 
 func (h *UploadHandler) saveCBZ(w http.ResponseWriter, req *UploadRequest) {
-	fmt.Printf("saveCBZ called\n")
+	if h.Log != nil {
+		h.Log.Info("[upload] handling cbz name=%s", req.FileName)
+	}
 	destination := req.Destination
 	if destination == "" {
 		destination = media.DefaultMangaDir
 	}
-
-	fmt.Printf("destination: %s\n", destination)
 
 	targetPath := filepath.Join(destination, req.FileName)
 	if err := os.MkdirAll(destination, 0o755); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	fmt.Printf("targetPath: %s\n", targetPath)
 
 	dst, err := os.Create(targetPath)
 	if err != nil {
@@ -121,7 +124,9 @@ func (h *UploadHandler) saveCBZ(w http.ResponseWriter, req *UploadRequest) {
 	}
 	defer dst.Close()
 
-	fmt.Printf("Uploading %s to %s\n", req.FileName, targetPath)
+	if h.Log != nil {
+		h.Log.Info("[upload] storing file name=%s destination=%s path=%s", req.FileName, destination, targetPath)
+	}
 
 	buffer := make([]byte, 32*1024) // 32KB buffer
 
@@ -131,13 +136,19 @@ func (h *UploadHandler) saveCBZ(w http.ResponseWriter, req *UploadRequest) {
 		return
 	}
 
-	fmt.Printf("Uploaded %d KB\n", bytes/1024)
-	fmt.Printf("buffer use count: %d\n", bytes/1024/32)
+	if h.Log != nil {
+		h.Log.Info("[upload] cbz upload complete name=%s size_kb=%d", req.FileName, bytes/1024)
+	}
 
-	h.sc.Index(targetPath)
+	if err := h.sc.Index(targetPath); err != nil && h.Log != nil {
+		h.Log.Error("[upload] index failed path=%s err=%v", targetPath, err)
+	}
 }
 
 func (h *UploadHandler) saveAudio(w http.ResponseWriter, req *UploadRequest) {
+	if h.Log != nil {
+		h.Log.Info("[upload] handling audio name=%s", req.FileName)
+	}
 	destination := req.Destination
 	if destination == "" {
 		destination = media.DefaultAudioDir
@@ -149,7 +160,9 @@ func (h *UploadHandler) saveAudio(w http.ResponseWriter, req *UploadRequest) {
 		return
 	}
 
-	fmt.Printf("Uploading %s to %s\n", req.FileName, targetPath)
+	if h.Log != nil {
+		h.Log.Info("[upload] storing file name=%s destination=%s path=%s", req.FileName, destination, targetPath)
+	}
 
 	dst, err := os.Create(targetPath)
 	if err != nil {
@@ -157,14 +170,18 @@ func (h *UploadHandler) saveAudio(w http.ResponseWriter, req *UploadRequest) {
 		return
 	}
 	defer dst.Close()
-	fmt.Printf("Created file at %s\n", targetPath)
 
 	if _, err := io.Copy(dst, req.File); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	h.sc.Index(targetPath)
+	if h.Log != nil {
+		h.Log.Info("[upload] audio upload complete name=%s path=%s", req.FileName, targetPath)
+	}
+	if err := h.sc.Index(targetPath); err != nil && h.Log != nil {
+		h.Log.Error("[upload] index failed path=%s err=%v", targetPath, err)
+	}
 }
 
 func detectFileType(file string) FileExtension {

@@ -18,6 +18,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/logs',
     component: () => import('../views/LogsView.vue'),
+    meta: { requiresAdmin: true },
   },
   {
     path: '/login',
@@ -27,6 +28,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/network',
     component: () => import('../views/LibraryView.vue'),
+    meta: { requiresAdmin: true },
   },
   {
     path: '/admin/approvals',
