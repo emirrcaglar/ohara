@@ -3,17 +3,13 @@ import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import TopBar from './components/TopBar.vue'
-import TelemetryCard from './components/TelemetryCard.vue'
-import OperationsCard from './components/OperationsCard.vue'
-import MediaCard from './components/MediaCard.vue'
-import LogsTable from './components/LogsTable.vue'
 import MediaBar from './components/media/MediaBar.vue'
-import StatusBar from './components/StatusBar.vue'
 import { usePlayerStore } from './stores/player'
 
 const playerStore = usePlayerStore()
 const audioRef = ref<HTMLAudioElement | null>(null)
 const sidebarOpen = ref(false)
+const previousFromStart = ref(false)
 const route = useRoute()
 
 const VIEWPORT_LOCKED =
@@ -33,9 +29,15 @@ watch(
 watch(
   () => playerStore.currentTrackUrl,
   (url) => {
+    previousFromStart.value = false
+
     if (audioRef.value && url) {
       audioRef.value.src = url
       audioRef.value.load()
+
+      if (playerStore.isPlaying) {
+        void audioRef.value.play().catch(() => {})
+      }
     }
   },
 )
@@ -71,6 +73,10 @@ function handleTimeUpdate() {
 function handleLoadedMetadata() {
   if (audioRef.value) {
     playerStore.updateDuration(audioRef.value.duration)
+
+    if (playerStore.isPlaying) {
+      void audioRef.value.play().catch(() => {})
+    }
   }
 }
 
@@ -80,6 +86,31 @@ function handlePlay() {
 
 function handlePause() {
   playerStore.pause()
+}
+
+function handleSeek(time: number) {
+  playerStore.seek(time)
+  if (audioRef.value) {
+    audioRef.value.currentTime = time
+  }
+}
+
+function handlePrevious() {
+  if (previousFromStart.value) {
+    previousFromStart.value = false
+    playerStore.previous()
+    return
+  }
+
+  if (playerStore.currentTime < 10 && audioRef.value) {
+    previousFromStart.value = true
+    playerStore.seek(0)
+    audioRef.value.currentTime = 0
+    return
+  }
+
+  previousFromStart.value = false
+  playerStore.previous()
 }
 
 function handleEnded() {
@@ -126,11 +157,18 @@ function handleEnded() {
           v-if="playerStore.currentTrack"
           :title="playerStore.currentTrack.title"
           :subLabel="playerStore.currentTrack.album || 'Unknown Album'"
+          :currentTime="playerStore.formattedCurrentTime"
+          :totalTime="playerStore.formattedDuration"
+          :progress="playerStore.progress"
+          :volume="playerStore.volume"
+          :duration="playerStore.duration"
+          :canSkip="playerStore.canSkip"
           :isPlaying="playerStore.isPlaying"
           @play="playerStore.play()"
           @pause="playerStore.pause()"
+          @seek="handleSeek"
           @next="playerStore.next()"
-          @previous="playerStore.previous()"
+          @previous="handlePrevious"
           @volumeChange="playerStore.setVolume"
         />
       </main>
@@ -144,12 +182,12 @@ function handleEnded() {
   width: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: surface-dim;
+  background: var(--surface-dim);
 }
 ::-webkit-scrollbar-thumb {
-  background: surface-variant;
+  background: var(--surface-variant);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #primary-container;
+  background: var(--primary-container);
 }
 </style>

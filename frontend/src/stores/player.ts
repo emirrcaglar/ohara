@@ -23,6 +23,7 @@ export const usePlayerStore = defineStore('player', () => {
 
   const formattedCurrentTime = computed(() => formatTime(currentTime.value))
   const formattedDuration = computed(() => formatTime(duration.value))
+  const canSkip = computed(() => queue.value.length > 1)
 
   function formatTime(seconds: number): string {
     const m = Math.floor(seconds / 60)
@@ -61,20 +62,20 @@ export const usePlayerStore = defineStore('player', () => {
 
   function next() {
     if (!currentTrack.value || queue.value.length === 0) return
-    const currentIndex = queue.value.findIndex(t => t.id === currentTrack.value?.id)
+    const currentIndex = queue.value.findIndex((t) => t.id === currentTrack.value?.id)
     const nextIndex = (currentIndex + 1) % queue.value.length
     play(queue.value[nextIndex])
   }
 
   function previous() {
     if (!currentTrack.value || queue.value.length === 0) return
-    const currentIndex = queue.value.findIndex(t => t.id === currentTrack.value?.id)
+    const currentIndex = queue.value.findIndex((t) => t.id === currentTrack.value?.id)
     const prevIndex = currentIndex <= 0 ? queue.value.length - 1 : currentIndex - 1
     play(queue.value[prevIndex])
   }
 
   function addToQueue(track: AudioRow) {
-    if (!queue.value.find(t => t.id === track.id)) {
+    if (!queue.value.find((t) => t.id === track.id)) {
       queue.value.push(track)
     }
   }
@@ -106,6 +107,7 @@ export const usePlayerStore = defineStore('player', () => {
     progress,
     formattedCurrentTime,
     formattedDuration,
+    canSkip,
     play,
     pause,
     togglePlay,
@@ -117,6 +119,6 @@ export const usePlayerStore = defineStore('player', () => {
     setQueue,
     clearQueue,
     updateCurrentTime,
-    updateDuration
+    updateDuration,
   }
 })

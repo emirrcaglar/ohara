@@ -5,6 +5,12 @@ import MediaControls from './MediaControls.vue'
 defineProps<{
   title: string
   subLabel: string
+  currentTime: string
+  totalTime: string
+  progress: number
+  volume: number
+  duration: number
+  canSkip: boolean
   isPlaying: boolean
 }>()
 
@@ -38,21 +44,30 @@ const expanded = ref(false)
       </div>
 
       <div class="px-6 py-3 border-b border-white/10">
-        <p class="text-[10px] font-mono uppercase tracking-widest text-secondary mb-1">Now Playing</p>
-        <p class="text-xl font-black uppercase tracking-tight text-on-surface truncate">{{ title }}</p>
-        <p class="text-xs font-mono uppercase tracking-widest text-on-surface-variant truncate">{{ subLabel }}</p>
+        <p class="text-[10px] font-mono uppercase tracking-widest text-secondary mb-1">
+          Now Playing
+        </p>
+        <p class="text-xl font-black uppercase tracking-tight text-on-surface truncate">
+          {{ title }}
+        </p>
+        <p class="text-xs font-mono uppercase tracking-widest text-on-surface-variant truncate">
+          {{ subLabel }}
+        </p>
       </div>
 
       <div class="px-4 py-4">
         <MediaControls
-          :currentTime="'NOT_YET_IMPLEMENTED'"
-          :totalTime="'NOT_YET_IMPLEMENTED'"
-          :progress="0"
-          :volume="0"
+          :currentTime="currentTime"
+          :totalTime="totalTime"
+          :progress="progress"
+          :volume="volume"
+          :duration="duration"
+          :canSkip="canSkip"
           :isPlaying="isPlaying"
           :expanded="true"
           @play="emit('play')"
           @pause="emit('pause')"
+          @seek="(time) => emit('seek', time)"
           @next="emit('next')"
           @previous="emit('previous')"
           @volumeChange="(v) => emit('volumeChange', v)"
@@ -64,7 +79,6 @@ const expanded = ref(false)
   <!-- Compact bar -->
   <div class="bg-surface-container-low border-t border-white/10 px-4 py-2">
     <div class="flex items-center gap-4">
-
       <!-- Track info — tappable on mobile to expand -->
       <button
         class="min-w-0 w-32 md:w-56 text-left flex items-center gap-2 group md:cursor-default"
@@ -72,25 +86,40 @@ const expanded = ref(false)
         aria-label="Expand player"
       >
         <div class="min-w-0 flex-1">
-          <p class="hidden md:block text-[10px] font-mono uppercase tracking-widest text-secondary mb-1">Now Playing</p>
-          <p class="truncate text-sm font-black uppercase tracking-tight text-on-surface">{{ title }}</p>
-          <p class="hidden md:block truncate text-[10px] font-mono uppercase tracking-widest text-on-surface-variant">{{ subLabel }}</p>
+          <p
+            class="hidden md:block text-[10px] font-mono uppercase tracking-widest text-secondary mb-1"
+          >
+            Now Playing
+          </p>
+          <p class="truncate text-sm font-black uppercase tracking-tight text-on-surface">
+            {{ title }}
+          </p>
+          <p
+            class="hidden md:block truncate text-[10px] font-mono uppercase tracking-widest text-on-surface-variant"
+          >
+            {{ subLabel }}
+          </p>
         </div>
-        <span class="md:hidden material-symbols-outlined text-base text-secondary group-hover:text-on-surface transition-colors">
+        <span
+          class="md:hidden material-symbols-outlined text-base text-secondary group-hover:text-on-surface transition-colors"
+        >
           expand_less
         </span>
       </button>
 
       <div class="flex-1 flex items-center justify-center min-w-0">
         <MediaControls
-          :currentTime="'NOT_YET_IMPLEMENTED'"
-          :totalTime="'NOT_YET_IMPLEMENTED'"
-          :progress="0"
-          :volume="0"
+          :currentTime="currentTime"
+          :totalTime="totalTime"
+          :progress="progress"
+          :volume="volume"
+          :duration="duration"
+          :canSkip="canSkip"
           :isPlaying="isPlaying"
           :expanded="false"
           @play="emit('play')"
           @pause="emit('pause')"
+          @seek="(time) => emit('seek', time)"
           @next="emit('next')"
           @previous="emit('previous')"
           @volumeChange="(v) => emit('volumeChange', v)"

@@ -43,8 +43,6 @@ const floatingButtonsBottomClass = computed(() => {
   return playerStore.currentTrack ? 'bottom-28' : 'bottom-6'
 })
 
-
-
 onMounted(() => {
   mangaStore.fetchLibrary()
   audioStore.fetchLibrary()
@@ -61,13 +59,13 @@ function openManga(manga: MangaRow) {
     query: {
       manga: manga.id,
       page: manga.currentPage || 0,
-      total: manga.pageCount
-    }
+      total: manga.pageCount,
+    },
   })
 }
 
 function playAudio(audio: AudioRow) {
-  playerStore.clearQueue()
+  playerStore.setQueue(audioStore.items)
   playerStore.play(audio)
 }
 
@@ -156,10 +154,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
         </div>
       </section>
 
-      <div
-        class="fixed right-6 z-40 flex flex-col gap-3"
-        :class="floatingButtonsBottomClass"
-      >
+      <div class="fixed right-6 z-40 flex flex-col gap-3" :class="floatingButtonsBottomClass">
         <button
           class="relative h-14 w-14 rounded-full bg-surface-container-high border border-white/10 flex items-center justify-center overflow-hidden hover:border-primary-container hover:bg-surface-container-highest transition-colors shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
           type="button"
@@ -183,7 +178,10 @@ function handleGlobalKeydown(event: KeyboardEvent) {
         </button>
       </div>
 
-      <section v-if="showUploadDialog" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <section
+        v-if="showUploadDialog"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      >
         <button
           class="absolute inset-0 bg-surface-container-lowest/60 backdrop-blur-sm"
           type="button"
@@ -191,11 +189,19 @@ function handleGlobalKeydown(event: KeyboardEvent) {
           @click="closeUploadDialog"
         ></button>
 
-        <div class="relative w-full max-w-4xl max-h-[90vh] overflow-auto border-t-4 border-primary-container bg-surface-container-low p-6 md:p-8">
+        <div
+          class="relative w-full max-w-4xl max-h-[90vh] overflow-auto border-t-4 border-primary-container bg-surface-container-low p-6 md:p-8"
+        >
           <header class="mb-8 flex items-start justify-between">
             <div>
-              <h2 class="text-2xl font-bold uppercase tracking-tighter text-primary-container leading-none">Upload_Media</h2>
-              <p class="mt-2 text-xs font-mono uppercase tracking-widest text-on-surface-variant">Awaiting local stream...</p>
+              <h2
+                class="text-2xl font-bold uppercase tracking-tighter text-primary-container leading-none"
+              >
+                Upload_Media
+              </h2>
+              <p class="mt-2 text-xs font-mono uppercase tracking-widest text-on-surface-variant">
+                Awaiting local stream...
+              </p>
             </div>
             <button
               class="text-on-surface-variant transition-colors hover:text-on-surface"
@@ -211,7 +217,9 @@ function handleGlobalKeydown(event: KeyboardEvent) {
             <DropZone @filesSelected="handleFilesSelected" />
 
             <section class="space-y-4">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-secondary">Queued_Operations</p>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-secondary">
+                Queued_Operations
+              </p>
 
               <article
                 v-for="item in uploadStore.queuedItems"
@@ -220,14 +228,22 @@ function handleGlobalKeydown(event: KeyboardEvent) {
               >
                 <div class="flex items-center justify-between">
                   <div class="flex min-w-0 items-center gap-3">
-                    <span class="bg-secondary-container px-1 text-[10px] font-bold text-on-secondary-container">{{ item.ext }}</span>
-                    <span class="max-w-[200px] truncate text-sm font-medium tracking-tight">{{ item.name }}</span>
+                    <span
+                      class="bg-secondary-container px-1 text-[10px] font-bold text-on-secondary-container"
+                      >{{ item.ext }}</span
+                    >
+                    <span class="max-w-[200px] truncate text-sm font-medium tracking-tight">{{
+                      item.name
+                    }}</span>
                   </div>
                   <span class="text-xs font-mono text-primary-container">{{ item.progress }}%</span>
                 </div>
 
                 <div class="h-1 w-full bg-surface">
-                  <div class="h-full bg-primary-container" :style="{ width: `${item.progress}%` }"></div>
+                  <div
+                    class="h-full bg-primary-container"
+                    :style="{ width: `${item.progress}%` }"
+                  ></div>
                 </div>
               </article>
             </section>
@@ -260,16 +276,29 @@ function handleGlobalKeydown(event: KeyboardEvent) {
           @click="closeTransfersPanel"
         ></button>
 
-        <aside class="relative h-full w-full max-w-md bg-surface-container-low border-l border-white/10 flex flex-col">
+        <aside
+          class="relative h-full w-full max-w-md bg-surface-container-low border-l border-white/10 flex flex-col"
+        >
           <div class="p-6 border-b border-white/10 flex items-center justify-between">
-            <h3 class="text-xs font-black uppercase tracking-widest text-primary">Active_Transfers</h3>
-            <button class="text-on-surface-variant hover:text-on-surface" type="button" @click="closeTransfersPanel">
+            <h3 class="text-xs font-black uppercase tracking-widest text-primary">
+              Active_Transfers
+            </h3>
+            <button
+              class="text-on-surface-variant hover:text-on-surface"
+              type="button"
+              @click="closeTransfersPanel"
+            >
               <span class="material-symbols-outlined">close</span>
             </button>
           </div>
 
           <div class="flex-1 overflow-y-auto p-6 space-y-6">
-            <p v-if="uploadStore.transfers.length === 0" class="text-xs text-on-surface-variant uppercase tracking-widest">No active transfers</p>
+            <p
+              v-if="uploadStore.transfers.length === 0"
+              class="text-xs text-on-surface-variant uppercase tracking-widest"
+            >
+              No active transfers
+            </p>
             <TransferItem
               v-for="transfer in uploadStore.transfers"
               :key="transfer.id"
@@ -287,11 +316,15 @@ function handleGlobalKeydown(event: KeyboardEvent) {
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <p class="text-[9px] text-secondary uppercase font-bold">Total Bandwidth</p>
-                <p class="text-lg font-black text-primary leading-none mt-1">{{ uploadStore.totalBandwidth }}</p>
+                <p class="text-lg font-black text-primary leading-none mt-1">
+                  {{ uploadStore.totalBandwidth }}
+                </p>
               </div>
               <div>
                 <p class="text-[9px] text-secondary uppercase font-bold">Files in Queue</p>
-                <p class="text-lg font-black text-on-surface leading-none mt-1">{{ uploadStore.transfers.length }}</p>
+                <p class="text-lg font-black text-on-surface leading-none mt-1">
+                  {{ uploadStore.transfers.length }}
+                </p>
               </div>
             </div>
           </div>
