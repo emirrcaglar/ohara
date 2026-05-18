@@ -15,9 +15,6 @@ type AdminHandler struct {
 }
 
 func (h *AdminHandler) HandleListPendingUsers(w http.ResponseWriter, r *http.Request) {
-	if h.Log != nil {
-		h.Log.Info("[admin] list pending users")
-	}
 	rows, err := h.DB.Query(`
 		SELECT id, username, role, is_approved, created_at
 		FROM user WHERE is_approved = 0

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"ohara/src/internal/db"
 	"ohara/src/internal/logger"
@@ -89,15 +88,12 @@ func (h *MangaHandler) compressPage(m *db.MangaRow, pageIdx int) ([]byte, bool, 
 			return data, nil
 		}
 
-		t := time.Now()
 		manga, err := h.CBZService.Open(m.Path)
 		if err != nil {
 			return nil, err
 		}
 		defer manga.Close()
-		openDur := time.Since(t)
 
-		t = time.Now()
 		rc, err := manga.GetPageReader(pageIdx)
 		if err != nil {
 			return nil, err
@@ -108,14 +104,9 @@ func (h *MangaHandler) compressPage(m *db.MangaRow, pageIdx int) ([]byte, bool, 
 		if err := imgutil.Compress(rc, &buf, 1200, 70); err != nil {
 			return nil, err
 		}
-		compressDur := time.Since(t)
 
 		data := buf.Bytes()
 		h.Cache.Set(m.ID, pageIdx, data)
-
-		if h.Log != nil {
-			h.Log.Info("[manga] compressed page manga=%d page=%d size_kb=%d open=%v compress=%v", m.ID, pageIdx, len(data)/1024, openDur, compressDur)
-		}
 
 		return data, nil
 	})
@@ -133,9 +124,6 @@ func (h *MangaHandler) prefetchAhead(m *db.MangaRow, fromPage, count int) {
 			if _, ok := h.Cache.Get(m.ID, p); ok {
 				continue
 			}
-			if h.Log != nil {
-				h.Log.Info("[manga] prefetching page manga=%d page=%d", m.ID, p)
-			}
 			if _, _, err := h.compressPage(m, p); err != nil && h.Log != nil {
 				h.Log.Warn("[manga] prefetch failed manga=%d page=%d err=%v", m.ID, p, err)
 			}
@@ -144,7 +132,6 @@ func (h *MangaHandler) prefetchAhead(m *db.MangaRow, fromPage, count int) {
 }
 
 func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
-	t0 := time.Now()
 
 	m, status, err := h.mangaByID(r.PathValue("id"))
 	if err != nil {
@@ -158,22 +145,13 @@ func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, cached, err := h.compressPage(m, pageIdx)
+	data, _, err := h.compressPage(m, pageIdx)
 	if err != nil {
 		http.Error(w, "Page not found", http.StatusNotFound)
 		return
 	}
 
-	source := "compressed"
-	if cached {
-		source = "cache"
-	}
-
 	go h.prefetchAhead(m, pageIdx, 15)
-
-	if h.Log != nil {
-		h.Log.Info("[manga] served page manga=%d page=%d size_kb=%d source=%s total=%v", m.ID, pageIdx, len(data)/1024, source, time.Since(t0))
-	}
 
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
