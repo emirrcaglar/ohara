@@ -1,6 +1,9 @@
 package db
 
-import "database/sql"
+import (
+	"database/sql"
+	"ohara/src/internal/media/audio"
+)
 
 type AudioRow struct {
 	ID       int64
@@ -39,4 +42,30 @@ func (db *DB) GetAudioByID(id int64) (*AudioRow, error) {
 		return nil, err
 	}
 	return &a, nil
+}
+
+func (db *DB) InsertAudio(track *audio.Track) error {
+	_, err := db.Exec(
+		`INSERT OR IGNORE INTO audio (path, title, artist, album, duration) VALUES (?, ?, ?, ?, ?)`,
+		track.FilePath, track.Title, track.Artist, track.Album, track.Duration,
+	)
+	return err
+}
+
+func (db *DB) IndexedAudioPaths() (map[string]struct{}, error) {
+	rows, err := db.Query(`SELECT path FROM audio`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	paths := make(map[string]struct{})
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths[p] = struct{}{}
+	}
+	return paths, rows.Err()
 }

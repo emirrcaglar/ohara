@@ -2,7 +2,6 @@ package db
 
 import (
 	"database/sql"
-	"ohara/src/internal/media/audio"
 )
 
 type MangaRow struct {
@@ -87,36 +86,11 @@ func (db *DB) UpsertProgress(userID, mangaID int64, page int) error {
 	return err
 }
 
-func (db *DB) InsertManga(path, title string, pageCount int) error {
-	_, err := db.Exec(
+func (db *DB) InsertManga(path, title string, pageCount int) (int64, error) {
+	sq, err := db.Exec(
 		`INSERT OR IGNORE INTO manga (path, title, page_count) VALUES (?, ?, ?)`,
 		path, title, pageCount,
 	)
-	return err
-}
-
-func (db *DB) IndexedAudioPaths() (map[string]struct{}, error) {
-	rows, err := db.Query(`SELECT path FROM audio`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	paths := make(map[string]struct{})
-	for rows.Next() {
-		var p string
-		if err := rows.Scan(&p); err != nil {
-			return nil, err
-		}
-		paths[p] = struct{}{}
-	}
-	return paths, rows.Err()
-}
-
-func (db *DB) InsertAudio(track *audio.Track) error {
-	_, err := db.Exec(
-		`INSERT OR IGNORE INTO audio (path, title, artist, album, duration) VALUES (?, ?, ?, ?, ?)`,
-		track.FilePath, track.Title, track.Artist, track.Album, track.Duration,
-	)
-	return err
+	id, err := sq.LastInsertId()
+	return id, err
 }
