@@ -8,13 +8,15 @@ import (
 	"ohara/src/internal/logger"
 	"ohara/src/internal/media/audio"
 	"ohara/src/internal/media/cbz"
+	"ohara/src/internal/worker"
 )
 
 type Scanner struct {
-	db       *db.DB
-	scanDir  string
-	scanType ScanType
-	log      *logger.Logger
+	db          *db.DB
+	scanDir     string
+	scanType    ScanType
+	log         *logger.Logger
+	cacheWorker *worker.CacheWorker
 
 	CBZService cbz.ICBZService
 }
@@ -41,13 +43,14 @@ func WithScanType(scanType ScanType) ScannerOption {
 	}
 }
 
-func NewScanner(db *db.DB, cbzService cbz.ICBZService, log *logger.Logger, opts ...ScannerOption) *Scanner {
+func NewScanner(db *db.DB, cbzService cbz.ICBZService, cacheWorker *worker.CacheWorker, log *logger.Logger, opts ...ScannerOption) *Scanner {
 	scanner := &Scanner{
-		db:         db,
-		CBZService: cbzService,
-		scanDir:    ".",
-		scanType:   ScanTypeAll,
-		log:        log,
+		db:          db,
+		CBZService:  cbzService,
+		cacheWorker: cacheWorker,
+		scanDir:     ".",
+		scanType:    ScanTypeAll,
+		log:         log,
 	}
 
 	for _, opt := range opts {
@@ -169,30 +172,25 @@ func (s *Scanner) scanAudio() (int, error) {
 }
 
 func (s *Scanner) indexManga(absPath string) error {
-	if s.log != nil {
-		s.log.Info("[scanner] indexing manga path=%s", absPath)
-	}
 	manga, err := s.CBZService.Open(absPath)
 	if err != nil {
 		return fmt.Errorf("indexer: skipping %s: %v", absPath, err)
 	}
 	defer s.CBZService.Close()
 
-	if err := s.db.InsertManga(absPath, manga.Title, manga.PageCount); err != nil {
+	mangaID, err := s.db.InsertManga(absPath, manga.Title, manga.PageCount)
+	if err != nil {
 		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)
 	}
 
-	if s.log != nil {
-		s.log.Info("[scanner] indexed manga title=%s pages=%d path=%s", manga.Title, manga.PageCount, absPath)
+	for i := 0; i < manga.PageCount; i++ {
+		s.cacheWorker.SubmitJob(mangaID, i)
 	}
 
 	return nil
 }
 
 func (s *Scanner) indexAudio(absPath string) error {
-	if s.log != nil {
-		s.log.Info("[scanner] indexing audio path=%s", absPath)
-	}
 	audio, err := audio.Open(absPath)
 	if err != nil {
 		return fmt.Errorf("indexer: skipping %s: %v", absPath, err)
@@ -200,10 +198,6 @@ func (s *Scanner) indexAudio(absPath string) error {
 
 	if err := s.db.InsertAudio(audio); err != nil {
 		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)
-	}
-
-	if s.log != nil {
-		s.log.Info("[scanner] indexed audio title=%s path=%s", audio.Title, audio.FilePath)
 	}
 
 	return nil

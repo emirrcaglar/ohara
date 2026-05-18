@@ -10,7 +10,10 @@ import (
 	"ohara/src/internal/logger"
 	"ohara/src/internal/media/cbz"
 	"ohara/src/internal/scanner"
+	"ohara/src/internal/worker"
 	"ohara/src/ui"
+
+	_ "net/http/pprof"
 )
 
 func WithAuth(database *db.DB, log *logger.Logger, next http.HandlerFunc) http.HandlerFunc {
@@ -57,16 +60,21 @@ func WithRole(role string, log *logger.Logger, next http.HandlerFunc) http.Handl
 }
 
 func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handler {
-	mux := http.NewServeMux()
+	mux := http.DefaultServeMux
 
 	cbzService := cbz.NewCBZService(database)
-	scanner := scanner.NewScanner(database, cbzService, log)
 	mangaHandler := &handler.MangaHandler{DB: database, Cache: handler.NewPageCache(dataDir), Inflight: handler.NewInflight(), CBZService: cbzService, Log: log}
 	audioHandler := &handler.AudioHandler{DB: database, Log: log}
-	uploadHandler := handler.NewUploadHandler(database, scanner, log)
 	logHandler := &handler.LogHandler{Logger: log}
 	authHandler := &handler.AuthHandler{DB: database, Log: log}
 	adminHandler := &handler.AdminHandler{DB: database, Log: log}
+
+	jobQueue := make(chan worker.CompressJob, 100)
+	cacheWorker := worker.NewCacheWorker(dataDir, database, *cbzService, jobQueue)
+	cacheWorker.Start()
+
+	scanner := scanner.NewScanner(database, cbzService, cacheWorker, log)
+	uploadHandler := handler.NewUploadHandler(database, scanner, log)
 
 	mux.HandleFunc("POST /api/auth/login", authHandler.HandleLogin)
 	mux.HandleFunc("POST /api/auth/register", authHandler.HandleRegister)

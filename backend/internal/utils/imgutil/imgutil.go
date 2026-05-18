@@ -23,7 +23,7 @@ func Compress(r io.Reader, w io.Writer, maxWidth, quality int) error {
 	if srcW > maxWidth {
 		newH := int(float64(srcH) * float64(maxWidth) / float64(srcW))
 		dst := image.NewRGBA(image.Rect(0, 0, maxWidth, newH))
-		draw.ApproxBiLinear.Scale(dst, dst.Bounds(), src, bounds, draw.Over, nil)
+		draw.NearestNeighbor.Scale(dst, dst.Bounds(), src, bounds, draw.Over, nil)
 		out = dst
 	}
 
