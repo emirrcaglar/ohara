@@ -3,29 +3,20 @@ package main
 import (
 	"flag"
 	"os"
-	"path/filepath"
-	"time"
 
 	"ohara/src/internal/db"
 	"ohara/src/internal/logger"
-	"ohara/src/internal/media/cbz"
 	"ohara/src/internal/router"
-	"ohara/src/internal/scanner"
 	"ohara/src/internal/server"
-	"ohara/src/internal/worker"
 )
 
 func main() {
 	domain := flag.String("domain", "", "Domain for auto-HTTPS (e.g., stream.example.com)")
 	port := flag.String("port", "3000", "Local dev port")
 	dataDir := flag.String("data", "./app-data", "Path to store certs and media")
-	scan := flag.String("scan", "", "Scan for media: all, manga, or audio")
 	flag.Parse()
 
 	log := logger.New(500)
-
-	cacheDir := filepath.Join(*dataDir, "cache")
-	go worker.StartCacheCleaner(cacheDir, 1000, 15*time.Minute, log) // 1 GB
 
 	database, err := db.Init(*dataDir)
 	if err != nil {
@@ -52,23 +43,6 @@ func main() {
 				log.Info("[main] admin bootstrap complete username=%s", adminUser)
 			}
 		}
-	}
-
-	if *scan != "" {
-		if flag.NArg() == 0 {
-			log.Warn("[scan] missing directory for type=%s", *scan)
-			return
-		}
-		dir := flag.Arg(0)
-		log.Info("[scan] requested type=%s dir=%s", *scan, dir)
-		s := scanner.NewScanner(database, cbz.NewCBZService(database), log, scanner.WithScanDir(dir), scanner.WithScanType(scanner.ScanType(*scan)))
-		scannedCount, err := s.Run()
-		if err != nil {
-			log.Error("[scan] failed type=%s dir=%s err=%v", *scan, dir, err)
-			return
-		}
-		log.Info("[scan] indexed count=%d type=%s dir=%s", scannedCount, *scan, dir)
-		return
 	}
 
 	r := router.SetupRoutes(database, *dataDir, log)
