@@ -69,8 +69,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	authHandler := &handler.AuthHandler{DB: database, Log: log}
 	adminHandler := &handler.AdminHandler{DB: database, Log: log}
 
-	jobQueue := make(chan worker.CompressJob, 100)
-	cacheWorker := worker.NewCacheWorker(dataDir, database, *cbzService, jobQueue)
+	cacheWorker := worker.NewCacheWorker(dataDir, database, *cbzService)
 	cacheWorker.Start()
 
 	scanner := scanner.NewScanner(database, cbzService, cacheWorker, log)

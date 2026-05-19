@@ -2,6 +2,7 @@ package worker
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"ohara/src/internal/db"
 	"ohara/src/internal/media/cbz"
@@ -15,10 +16,10 @@ import (
 const MANGA_NOT_FOUND = "manga not found"
 
 type CacheWorker struct {
-	dataDir  string
-	db       *db.DB
-	cbz      cbz.CBZService
-	jobQueue chan CompressJob
+	dataDir string
+	db      *db.DB
+	cbz     cbz.CBZService
+	wakeUp  chan struct{}
 }
 
 type CompressJob struct {
@@ -26,48 +27,62 @@ type CompressJob struct {
 	PageIdx int
 }
 
-func NewCacheWorker(dataDir string, db *db.DB, cbz cbz.CBZService, jobQueue chan CompressJob) *CacheWorker {
+func NewCacheWorker(dataDir string, db *db.DB, cbz cbz.CBZService) *CacheWorker {
 	return &CacheWorker{
-		dataDir:  dataDir,
-		db:       db,
-		cbz:      cbz,
-		jobQueue: jobQueue,
+		dataDir: dataDir,
+		db:      db,
+		cbz:     cbz,
+		wakeUp:  make(chan struct{}, 1),
 	}
 }
 
 func (cw *CacheWorker) Start() {
 	go func() {
-		ticker := time.NewTicker(500 * time.Millisecond)
-		defer ticker.Stop()
-
-		for job := range cw.jobQueue {
-			<-ticker.C
-			err := cw.CompressImg(job)
+		for {
+			job, err := cw.db.ClaimNextScanJob()
 			if err != nil {
-				if err == fmt.Errorf(MANGA_NOT_FOUND) {
+				if err == sql.ErrNoRows {
+					<-cw.wakeUp
 					continue
 				}
-				fmt.Println(err)
+				fmt.Println("DB Claim Error:", err)
+				time.Sleep(3 * time.Second)
+				continue
 			}
+
+			err = cw.CompressImg(job.MangaID, job.PageIdx)
+
+			if err != nil {
+				cw.db.MarkScanJobFailed(job.ID, err.Error())
+				fmt.Println("job failed:", err)
+			} else {
+				cw.db.DeleteScan(job.ID)
+			}
+
+			// Explicitly sleep for 500ms after a job to throttle CPU
+			time.Sleep(500 * time.Millisecond)
 		}
 	}()
 }
 
 func (cw *CacheWorker) SubmitJob(mangaID int64, pageIdx int) {
-	job := CompressJob{
-		MangaID: mangaID,
-		PageIdx: pageIdx,
+	if err := cw.db.InsertScanJob(mangaID, pageIdx); err != nil {
+		fmt.Println(err)
 	}
-	cw.jobQueue <- job
+
+	select {
+	case cw.wakeUp <- struct{}{}:
+	default:
+	}
 }
 
-func (cw *CacheWorker) CompressImg(job CompressJob) error {
-	manga, err := cw.db.GetMangaByID(job.MangaID)
+func (cw *CacheWorker) CompressImg(mangaID int64, pageIdx int) error {
+	manga, err := cw.db.GetMangaByID(mangaID)
 	if err != nil || manga == nil {
 		return fmt.Errorf(MANGA_NOT_FOUND)
 	}
 
-	err = cw.ImgCompressWorker(manga, job.PageIdx)
+	err = cw.ImgCompressWorker(manga, pageIdx)
 	return err
 }
 

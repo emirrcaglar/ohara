@@ -115,23 +115,6 @@ func (h *MangaHandler) compressPage(m *db.MangaRow, pageIdx int) ([]byte, bool, 
 	return data, false, err
 }
 
-func (h *MangaHandler) prefetchAhead(m *db.MangaRow, fromPage, count int) {
-	go func() {
-		for i := 1; i <= count; i++ {
-			p := fromPage + i
-			if p >= m.PageCount {
-				break
-			}
-			if _, ok := h.Cache.Get(m.ID, p); ok {
-				continue
-			}
-			if _, _, err := h.compressPage(m, p); err != nil && h.Log != nil {
-				h.Log.Warn("[manga] prefetch failed manga=%d page=%d err=%v", m.ID, p, err)
-			}
-		}
-	}()
-}
-
 func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 
 	m, status, err := h.mangaByID(r.PathValue("id"))
@@ -162,8 +145,6 @@ func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Page not found", http.StatusNotFound)
 		return
 	}
-
-	go h.prefetchAhead(m, pageIdx, 15)
 
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "public, max-age=3600")

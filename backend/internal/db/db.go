@@ -74,6 +74,18 @@ func migrate(conn *sql.DB) error {
 			duration   INTEGER  NOT NULL DEFAULT 0,
 			indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
+
+		CREATE TABLE IF NOT EXISTS scan (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			manga_id INTEGER NOT NULL,
+			page_idx INTEGER NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			attempts INTEGER NOT NULL DEFAULT 0,
+			error_message TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(manga_id) REFERENCES manga(id) ON DELETE CASCADE
+		);
 	`)
 	return err
 }
