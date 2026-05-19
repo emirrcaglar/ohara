@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 const MANGA_NOT_FOUND = "manga not found"
@@ -36,7 +37,11 @@ func NewCacheWorker(dataDir string, db *db.DB, cbz cbz.CBZService, jobQueue chan
 
 func (cw *CacheWorker) Start() {
 	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+
 		for job := range cw.jobQueue {
+			<-ticker.C
 			err := cw.CompressImg(job)
 			if err != nil {
 				if err == fmt.Errorf(MANGA_NOT_FOUND) {
