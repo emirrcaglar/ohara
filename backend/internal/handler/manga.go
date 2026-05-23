@@ -152,6 +152,32 @@ func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
+func (h *MangaHandler) HandleMangaDelete(w http.ResponseWriter, r *http.Request) {
+	m, status, err := h.mangaByID(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	if err := h.DB.DeleteManga(m.ID); err != nil {
+		if h.Log != nil {
+			h.Log.Error("[manga] delete failed manga=%d err=%v", m.ID, err)
+		}
+		http.Error(w, "Failed to delete manga", http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.Cache.DeleteManga(m.ID); err != nil {
+		if h.Log != nil {
+			h.Log.Error("[manga] cache delete failed manga=%d err=%v", m.ID, err)
+		}
+		http.Error(w, "Failed to delete manga cache", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *MangaHandler) HandleMangaProgress(w http.ResponseWriter, r *http.Request) {
 	m, status, err := h.mangaByID(r.PathValue("id"))
 	if err != nil {

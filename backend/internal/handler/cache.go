@@ -43,6 +43,32 @@ func (c *PageCache) Set(mangaID int64, page int, data []byte) {
 	}
 }
 
+func (c *PageCache) DeleteManga(mangaID int64) error {
+	flatPatterns := []string{
+		filepath.Join(c.dir, fmt.Sprintf("%d_*.jpg", mangaID)),
+		filepath.Join(c.dir, fmt.Sprintf("%d_*.jpg.tmp", mangaID)),
+	}
+
+	for _, pattern := range flatPatterns {
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			return err
+		}
+		for _, path := range matches {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
+	}
+
+	mangaDir := filepath.Join(c.dir, fmt.Sprintf("%d", mangaID))
+	if err := os.RemoveAll(mangaDir); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 type inflightCall struct {
 	wg  sync.WaitGroup
 	val []byte

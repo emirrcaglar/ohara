@@ -93,6 +93,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	mux.HandleFunc("PUT /api/preferences/{key}", WithAuth(database, log, preferencesHandler.HandlePreferenceUpsert))
 	mux.HandleFunc("DELETE /api/preferences/{key}", WithAuth(database, log, preferencesHandler.HandlePreferenceDelete))
 
+	mux.HandleFunc("DELETE /api/manga/{id}", WithAuth(database, log, mangaHandler.HandleMangaDelete))
 	mux.HandleFunc("GET /api/manga/{id}/resume", WithAuth(database, log, mangaHandler.HandleMangaResume))
 	mux.HandleFunc("GET /api/manga/{id}/page/{page}", WithAuth(database, log, mangaHandler.HandleMangaPage))
 	mux.HandleFunc("POST /api/manga/{id}/progress/{page}", WithAuth(database, log, mangaHandler.HandleMangaProgress))

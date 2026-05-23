@@ -76,6 +76,15 @@ function handleMangaClick(item: MangaRow | AudioRow) {
   }
 }
 
+async function deleteManga(manga: MangaRow) {
+  const confirmed = window.confirm(
+    `Delete "${manga.title}" from the library? This removes its index, reading progress, and cached pages.`,
+  )
+  if (!confirmed) return
+
+  await mangaStore.removeManga(manga.id)
+}
+
 function openUploadDialog() {
   showUploadDialog.value = true
 }
@@ -143,6 +152,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
             category="MANGA_ARCHIVE"
             :stats="`${manga.currentPage} / ${manga.pageCount} PAGES`"
             @click="handleMangaClick"
+            @delete="deleteManga"
           />
 
           <VaultCard

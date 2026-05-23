@@ -10,8 +10,14 @@ export async function fetchMangaInfo(id: number): Promise<MangaInfo> {
 }
 
 export async function saveMangaProgress(id: number, page: number): Promise<void> {
-  await fetch(`${API_BASE}/manga/${id}/progress/${page}`, {
-    method: 'POST'
+  await fetchJson<void>(`${API_BASE}/manga/${id}/progress/${page}`, {
+    method: 'POST',
+  })
+}
+
+export async function deleteManga(id: number): Promise<void> {
+  await fetchJson<void>(`${API_BASE}/manga/${id}`, {
+    method: 'DELETE',
   })
 }
 

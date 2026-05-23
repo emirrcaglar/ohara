@@ -94,3 +94,23 @@ func (db *DB) InsertManga(path, title string, pageCount int) (int64, error) {
 	id, err := sq.LastInsertId()
 	return id, err
 }
+
+func (db *DB) DeleteManga(id int64) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`DELETE FROM manga_progress WHERE manga_id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM scan WHERE manga_id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM manga WHERE id = ?`, id); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}

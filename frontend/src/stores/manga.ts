@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { MangaRow, MangaInfo } from '../types/api'
-import { fetchMangaLibrary, fetchMangaInfo, saveMangaProgress } from '../api/manga'
+import { deleteManga, fetchMangaLibrary, fetchMangaInfo, saveMangaProgress } from '../api/manga'
 
 export const useMangaStore = defineStore('manga', () => {
   const items = ref<MangaRow[]>([])
@@ -36,12 +36,29 @@ export const useMangaStore = defineStore('manga', () => {
   async function updateProgress(id: number, page: number) {
     try {
       await saveMangaProgress(id, page)
-      const item = items.value.find(m => m.id === id)
+      const item = items.value.find((m) => m.id === id)
       if (item) {
         item.currentPage = page
       }
     } catch (e) {
       console.error('Failed to save progress:', e)
+    }
+  }
+
+  async function removeManga(id: number) {
+    const previousItems = items.value
+    const previousTotal = total.value
+
+    items.value = items.value.filter((m) => m.id !== id)
+    total.value = items.value.length
+
+    try {
+      await deleteManga(id)
+    } catch (e) {
+      items.value = previousItems
+      total.value = previousTotal
+      error.value = e instanceof Error ? e.message : 'Failed to delete manga'
+      throw e
     }
   }
 
@@ -53,6 +70,7 @@ export const useMangaStore = defineStore('manga', () => {
     totalItems,
     fetchLibrary,
     getMangaInfo,
-    updateProgress
+    updateProgress,
+    removeManga,
   }
 })

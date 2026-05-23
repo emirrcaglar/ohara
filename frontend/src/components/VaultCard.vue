@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { MangaRow, AudioRow } from '../types/api'
 const AUDIO_COVERS = Object.values(
   import.meta.glob('../assets/audio-cover/*.png', {
@@ -19,7 +19,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   click: [item: MangaRow | AudioRow]
+  delete: [item: MangaRow]
 }>()
+
+const menuOpen = ref(false)
 
 const audioCover = computed(() => {
   if (!props.audio) return null
@@ -27,6 +30,11 @@ const audioCover = computed(() => {
 })
 
 function handleClick() {
+  if (menuOpen.value) {
+    menuOpen.value = false
+    return
+  }
+
   if (props.manga) {
     emit('click', props.manga)
     return
@@ -36,6 +44,17 @@ function handleClick() {
     emit('click', props.audio)
   }
 }
+
+function toggleMenu() {
+  menuOpen.value = !menuOpen.value
+}
+
+function deleteManga() {
+  if (!props.manga) return
+
+  menuOpen.value = false
+  emit('delete', props.manga)
+}
 </script>
 
 <template>
@@ -44,7 +63,7 @@ function handleClick() {
     @click="handleClick"
   >
     <div
-      class="aspect-[3/4] overflow-hidden bg-surface-container-lowest relative flex items-center justify-center"
+      class="aspect-3/4 overflow-hidden bg-surface-container-lowest relative flex items-center justify-center"
     >
       <template v-if="manga">
         <img
@@ -59,11 +78,37 @@ function handleClick() {
         />
       </template>
 
-      <div class="absolute top-0 right-0 p-2">
+      <div class="absolute top-0 right-0 p-2 flex items-start gap-2">
         <span
           class="bg-secondary-container text-on-secondary-container px-2 py-1 text-[9px] font-black uppercase"
           >{{ manga?.fileExtension || audio?.fileExtension }}</span
         >
+
+        <div v-if="manga" class="relative">
+          <button
+            class="flex h-7 w-7 items-center justify-center bg-surface-container-high/90 text-on-surface transition-colors hover:bg-surface-container-highest"
+            type="button"
+            aria-label="Open manga actions"
+            @click.stop="toggleMenu"
+          >
+            <span class="material-symbols-outlined text-base">more_vert</span>
+          </button>
+
+          <div
+            v-if="menuOpen"
+            class="absolute right-0 top-8 z-20 min-w-28 border border-outline-variant/25 bg-surface-container-highest py-1 shadow-xl"
+            @click.stop
+          >
+            <button
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-error transition-colors hover:bg-error/10"
+              type="button"
+              @click="deleteManga"
+            >
+              <span class="material-symbols-outlined text-sm">delete</span>
+              Delete
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
