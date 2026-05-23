@@ -8,6 +8,11 @@ defineProps<{
   speed?: string
   storagePath?: string
 }>()
+
+defineEmits<{
+  pause: []
+  cancel: []
+}>()
 </script>
 
 <template>
@@ -25,12 +30,38 @@ defineProps<{
         </p>
       </div>
 
-      <span
-        class="material-symbols-outlined text-[14px] text-secondary"
-        :style="status === 'complete' ? 'font-variation-settings: \'FILL\' 1;' : ''"
-      >
-        {{ status === 'complete' ? 'check_circle' : 'cloud_upload' }}
-      </span>
+      <div class="flex items-center gap-2">
+        <button
+          v-if="status === 'active'"
+          class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary"
+          type="button"
+          aria-label="Pause transfer"
+          @click="$emit('pause')"
+        >
+          pause
+        </button>
+        <button
+          v-if="status !== 'complete'"
+          class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-error"
+          type="button"
+          aria-label="Cancel transfer"
+          @click="$emit('cancel')"
+        >
+          close
+        </button>
+        <span
+          class="material-symbols-outlined text-[14px] text-secondary"
+          :style="status === 'complete' ? 'font-variation-settings: \'FILL\' 1;' : ''"
+        >
+          {{
+            status === 'complete'
+              ? 'check_circle'
+              : status === 'paused'
+                ? 'pause_circle'
+                : 'cloud_upload'
+          }}
+        </span>
+      </div>
     </div>
 
     <div class="h-1 w-full bg-surface-container-highest">

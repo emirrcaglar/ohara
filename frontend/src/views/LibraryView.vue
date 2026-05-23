@@ -46,6 +46,7 @@ const floatingButtonsBottomClass = computed(() => {
 onMounted(() => {
   mangaStore.fetchLibrary()
   audioStore.fetchLibrary()
+  uploadStore.fetchPendingTransfers()
   window.addEventListener('keydown', handleGlobalKeydown)
 })
 
@@ -85,6 +86,7 @@ function closeUploadDialog() {
 
 function openTransfersPanel() {
   showTransfersPanel.value = true
+  uploadStore.fetchPendingTransfers()
 }
 
 function closeTransfersPanel() {
@@ -294,7 +296,19 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 
           <div class="flex-1 overflow-y-auto p-6 space-y-6">
             <p
-              v-if="uploadStore.transfers.length === 0"
+              v-if="uploadStore.loadingTransfers"
+              class="text-xs text-on-surface-variant uppercase tracking-widest"
+            >
+              Loading transfers...
+            </p>
+            <p
+              v-else-if="uploadStore.transfersError"
+              class="text-xs text-error uppercase tracking-widest"
+            >
+              {{ uploadStore.transfersError }}
+            </p>
+            <p
+              v-else-if="uploadStore.transfers.length === 0"
               class="text-xs text-on-surface-variant uppercase tracking-widest"
             >
               No active transfers
@@ -309,6 +323,8 @@ function handleGlobalKeydown(event: KeyboardEvent) {
               :eta="transfer.eta"
               :speed="transfer.speed"
               :storagePath="transfer.storagePath"
+              @pause="uploadStore.pauseTransfer(transfer.id)"
+              @cancel="uploadStore.cancelTransfer(transfer.id)"
             />
           </div>
 

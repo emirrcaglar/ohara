@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { uploadFile } from '../api/upload'
+import { cancelUpload, listPendingUploads, pauseUpload, uploadFile } from '../api/upload'
+import type { PendingUpload } from '../api/upload'
 
 export type UploadStatus = 'active' | 'complete'
 
@@ -14,7 +15,8 @@ export interface UploadQueueItem {
 }
 
 export interface TransferItemData {
-  id: number
+  id: number | string
+  uploadId?: string
   name: string
   progress: number
   sizeInfo?: string
@@ -29,6 +31,10 @@ export interface TransferItemData {
 export const useUploadStore = defineStore('upload', () => {
   const queuedItems = ref<UploadQueueItem[]>([])
   const transfers = ref<TransferItemData[]>([])
+  const loadingTransfers = ref(false)
+  const transfersError = ref<string | null>(null)
+  const processingUploads = ref(false)
+  const uploadControllers = new Map<string | number, AbortController>()
   let onCompleteCallback: (() => void) | null = null
 
   const totalBandwidth = computed(() => {
@@ -66,55 +72,161 @@ export const useUploadStore = defineStore('upload', () => {
     queuedItems.value = []
   }
 
-  async function processAll() {
-    const itemsToUpload = [...queuedItems.value]
-    const nextTransferId = transfers.value.length + 1
-    const newTransfers: TransferItemData[] = itemsToUpload.map((item, index) => ({
-      id: nextTransferId + index,
-      name: item.name,
-      progress: 0,
-      sizeInfo: formatFileSize(item.file.size),
-      status: 'active' as const,
-      eta: '--',
-      speed: '--',
-      startedAt: performance.now(),
-      bytesPerSecond: 0,
-    }))
+  async function fetchPendingTransfers() {
+    loadingTransfers.value = true
+    transfersError.value = null
+    try {
+      const pendingUploads = await listPendingUploads()
+      const runtimeTransfers = transfers.value.filter(isRuntimeTransfer)
+      const runtimeUploadIds = new Set(
+        runtimeTransfers.map((transfer) => transfer.uploadId).filter(Boolean),
+      )
+      const runtimeTransferNames = new Set(runtimeTransfers.map((transfer) => transfer.name))
+      const pendingTransfers = pendingUploads
+        .filter(
+          (upload) =>
+            !runtimeUploadIds.has(upload.uploadId) && !runtimeTransferNames.has(upload.filename),
+        )
+        .map(pendingUploadToTransfer)
+      transfers.value = [...runtimeTransfers, ...pendingTransfers]
+    } catch (error) {
+      transfersError.value = error instanceof Error ? error.message : 'Failed to load transfers'
+    } finally {
+      loadingTransfers.value = false
+    }
+  }
 
-    transfers.value = [...newTransfers, ...transfers.value]
-    queuedItems.value = []
+  function processAll() {
+    if (processingUploads.value) return
+    processingUploads.value = true
+    void runUploadWorker()
+  }
 
-    for (let i = 0; i < itemsToUpload.length; i++) {
-      const queueItem = itemsToUpload[i]
-      const transfer = newTransfers[i]
-      if (!transfer) continue
+  async function runUploadWorker() {
+    let completedAny = false
 
-      try {
-        await uploadFile(queueItem.file, '', (progress) => {
+    try {
+      while (queuedItems.value.length > 0) {
+        const queueItem = queuedItems.value[0]
+        if (!queueItem) break
+
+        queuedItems.value = queuedItems.value.slice(1)
+        const transfer: TransferItemData = {
+          id: `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          name: queueItem.name,
+          progress: 0,
+          sizeInfo: formatFileSize(queueItem.file.size),
+          status: 'active',
+          eta: '--',
+          speed: '--',
+          startedAt: performance.now(),
+          bytesPerSecond: 0,
+        }
+
+        transfers.value = [transfer, ...transfers.value]
+
+        try {
+          const controller = new AbortController()
+          uploadControllers.set(transfer.id, controller)
+          await uploadFile(
+            queueItem.file,
+            '',
+            (progress) => {
+              const t = transfers.value.find((t) => t.id === transfer.id)
+              if (t) {
+                t.progress = progress
+                updateTransferStats(t, queueItem.file.size, progress)
+              }
+            },
+            (uploadId) => {
+              const t = transfers.value.find((t) => t.id === transfer.id)
+              if (t) {
+                t.uploadId = uploadId
+              }
+            },
+            controller.signal,
+          )
           const t = transfers.value.find((t) => t.id === transfer.id)
           if (t) {
-            t.progress = progress
-            updateTransferStats(t, queueItem.file.size, progress)
+            t.progress = 100
+            t.status = 'complete'
+            updateTransferStats(t, queueItem.file.size, 100)
           }
-        })
-        const t = transfers.value.find((t) => t.id === transfer.id)
-        if (t) {
-          t.progress = 100
-          t.status = 'complete'
-          updateTransferStats(t, queueItem.file.size, 100)
+          completedAny = true
+        } catch {
+          const t = transfers.value.find((t) => t.id === transfer.id)
+          if (t) {
+            t.status = 'paused'
+            t.speed = '--'
+            t.eta = 'reselect file to continue'
+            t.bytesPerSecond = 0
+          }
+        } finally {
+          uploadControllers.delete(transfer.id)
         }
-      } catch {
-        const t = transfers.value.find((t) => t.id === transfer.id)
-        if (t) {
-          t.status = 'paused'
-          t.speed = '--'
-          t.eta = '--'
-          t.bytesPerSecond = 0
-        }
+      }
+    } finally {
+      processingUploads.value = false
+      if (completedAny) onCompleteCallback?.()
+      await fetchPendingTransfers()
+    }
+  }
+
+  function isRuntimeTransfer(transfer: TransferItemData): boolean {
+    return typeof transfer.id === 'string' && transfer.id.startsWith('local-')
+  }
+
+  async function pauseTransfer(transferId: string | number) {
+    const transfer = transfers.value.find((transfer) => transfer.id === transferId)
+    if (!transfer) return
+
+    transfer.status = 'paused'
+    transfer.speed = '--'
+    transfer.eta = 'reselect file to continue'
+    transfer.bytesPerSecond = 0
+    uploadControllers.get(transferId)?.abort()
+
+    if (transfer.uploadId) {
+      try {
+        await pauseUpload(transfer.uploadId)
+      } catch (error) {
+        transfersError.value = error instanceof Error ? error.message : 'Failed to pause transfer'
+      }
+    }
+  }
+
+  async function cancelTransfer(transferId: string | number) {
+    const transfer = transfers.value.find((transfer) => transfer.id === transferId)
+    if (!transfer) return
+
+    uploadControllers.get(transferId)?.abort()
+    if (transfer.uploadId) {
+      try {
+        await cancelUpload(transfer.uploadId)
+      } catch (error) {
+        transfersError.value = error instanceof Error ? error.message : 'Failed to cancel transfer'
+        return
       }
     }
 
-    onCompleteCallback?.()
+    uploadControllers.delete(transferId)
+    transfers.value = transfers.value.filter((transfer) => transfer.id !== transferId)
+  }
+
+  function pendingUploadToTransfer(upload: PendingUpload): TransferItemData {
+    return {
+      id: upload.uploadId,
+      uploadId: upload.uploadId,
+      name: upload.filename,
+      progress:
+        upload.totalChunks > 0 ? Math.round((upload.uploadedCount / upload.totalChunks) * 100) : 0,
+      sizeInfo: `${formatFileSize(upload.size)} • ${upload.uploadedCount}/${upload.totalChunks} chunks`,
+      status: upload.status === 'active' || upload.status === 'assembling' ? 'active' : 'paused',
+      eta: upload.status === 'assembling' ? 'assembling' : '--',
+      speed: upload.status === 'assembling' ? 'finalizing' : '--',
+      startedAt: 0,
+      bytesPerSecond: 0,
+    }
   }
 
   function updateTransferStats(transfer: TransferItemData, fileSize: number, progress: number) {
@@ -162,11 +274,17 @@ export const useUploadStore = defineStore('upload', () => {
   return {
     queuedItems,
     transfers,
+    loadingTransfers,
+    transfersError,
+    processingUploads,
     totalBandwidth,
     hasActiveTransfers,
     enqueue,
     clearQueue,
+    fetchPendingTransfers,
     processAll,
+    pauseTransfer,
+    cancelTransfer,
     setOnComplete,
   }
 })

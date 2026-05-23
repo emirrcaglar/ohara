@@ -94,6 +94,35 @@ func migrate(conn *sql.DB) error {
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY(manga_id) REFERENCES manga(id) ON DELETE CASCADE
 		);
+
+		CREATE TABLE IF NOT EXISTS upload_sessions (
+			id            TEXT     PRIMARY KEY,
+			user_id       INTEGER  NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+			filename      TEXT     NOT NULL,
+			size          INTEGER  NOT NULL,
+			profile       TEXT     NOT NULL DEFAULT '',
+			last_modified INTEGER  NOT NULL DEFAULT 0,
+			chunk_size    INTEGER  NOT NULL,
+			total_chunks  INTEGER  NOT NULL,
+			status        TEXT     NOT NULL DEFAULT 'active',
+			target_path    TEXT     NOT NULL DEFAULT '',
+			error_message TEXT,
+			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+			completed_at  DATETIME
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_upload_sessions_resume
+		ON upload_sessions(user_id, filename, size, last_modified, profile, status, updated_at);
+
+		CREATE TABLE IF NOT EXISTS upload_chunks (
+			upload_id   TEXT     NOT NULL REFERENCES upload_sessions(id) ON DELETE CASCADE,
+			chunk_index INTEGER  NOT NULL,
+			size        INTEGER  NOT NULL,
+			path        TEXT     NOT NULL DEFAULT '',
+			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (upload_id, chunk_index)
+		);
 	`)
 	return err
 }
