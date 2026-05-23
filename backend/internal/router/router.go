@@ -68,6 +68,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	logHandler := &handler.LogHandler{Logger: log}
 	authHandler := &handler.AuthHandler{DB: database, Log: log}
 	adminHandler := &handler.AdminHandler{DB: database, Log: log}
+	preferencesHandler := &handler.PreferencesHandler{DB: database, Log: log}
 
 	cacheWorker := worker.NewCacheWorker(dataDir, database, *cbzService)
 	cacheWorker.Start()
@@ -86,6 +87,11 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 
 	mux.HandleFunc("GET /api/manga", WithAuth(database, log, mangaHandler.HandleMangaList))
 	mux.HandleFunc("GET /api/audio", WithAuth(database, log, audioHandler.HandleAudioList))
+
+	mux.HandleFunc("GET /api/preferences", WithAuth(database, log, preferencesHandler.HandlePreferencesList))
+	mux.HandleFunc("GET /api/preferences/{key}", WithAuth(database, log, preferencesHandler.HandlePreferenceGet))
+	mux.HandleFunc("PUT /api/preferences/{key}", WithAuth(database, log, preferencesHandler.HandlePreferenceUpsert))
+	mux.HandleFunc("DELETE /api/preferences/{key}", WithAuth(database, log, preferencesHandler.HandlePreferenceDelete))
 
 	mux.HandleFunc("GET /api/manga/{id}/resume", WithAuth(database, log, mangaHandler.HandleMangaResume))
 	mux.HandleFunc("GET /api/manga/{id}/page/{page}", WithAuth(database, log, mangaHandler.HandleMangaPage))

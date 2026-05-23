@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { useMangaStore } from '../stores/manga'
+import { usePreferencesStore } from '../stores/preferences'
 import { API_BASE } from '../api/client'
 
 const route = useRoute()
 const router = useRouter()
 const mangaStore = useMangaStore()
+const preferencesStore = usePreferencesStore()
+const { rightToLeftSwipeForManga } = storeToRefs(preferencesStore)
 
 const mangaId = computed(() => Number(route.query.manga))
 const currentPage = ref(Number(route.query.page) || 0)
@@ -14,8 +18,11 @@ const totalPages = ref(Number(route.query.total) || 0)
 
 const pageUrl = computed(() => `${API_BASE}/manga/${mangaId.value}/page/${currentPage.value}`)
 
-const hasPrev = computed(() => currentPage.value > 0)
-const hasNext = computed(() => currentPage.value < totalPages.value - 1)
+const currentVisualPage = computed(() => pageToVisualPage(currentPage.value))
+const hasVisualLeft = computed(() => currentVisualPage.value > 0)
+const hasVisualRight = computed(() => currentVisualPage.value < totalPages.value - 1)
+const visualLeftLabel = computed(() => (rightToLeftSwipeForManga.value ? 'NEXT' : 'PREV'))
+const visualRightLabel = computed(() => (rightToLeftSwipeForManga.value ? 'PREV' : 'NEXT'))
 
 const readerRef = ref<HTMLElement | null>(null)
 const viewportWidth = ref(0)
@@ -55,8 +62,10 @@ const SWIPE_THRESHOLD_RATIO = 0.18
 const PAN_MOMENTUM_MIN_VELOCITY = 0.08
 const PAN_MOMENTUM_FRICTION = 0.94
 
+const visualDragX = computed(() => (rightToLeftSwipeForManga.value ? -dragX.value : dragX.value))
+
 const mobileTrackStyle = computed(() => ({
-  transform: `translate3d(${-currentPage.value * viewportWidth.value + dragX.value}px, 0, 0)`,
+  transform: `translate3d(${-currentVisualPage.value * viewportWidth.value + visualDragX.value}px, 0, 0)`,
   transition: isAnimating.value && !isDragging.value ? 'transform 220ms ease-out' : 'none',
 }))
 
@@ -70,17 +79,29 @@ async function saveProgress() {
   await mangaStore.updateProgress(mangaId.value, currentPage.value)
 }
 
-function prevPage() {
-  if (hasPrev.value) {
-    currentPage.value--
-    navigate()
+function pageToVisualPage(page: number) {
+  if (totalPages.value <= 0) return page
+  return rightToLeftSwipeForManga.value ? totalPages.value - 1 - page : page
+}
+
+function visualPageToPage(visualPage: number) {
+  if (totalPages.value <= 0) return visualPage
+  return rightToLeftSwipeForManga.value ? totalPages.value - 1 - visualPage : visualPage
+}
+
+function getVisualPageIndex(visualPageNumber: number) {
+  return visualPageToPage(visualPageNumber - 1)
+}
+
+function goVisualLeft() {
+  if (hasVisualLeft.value) {
+    commitPage(visualPageToPage(currentVisualPage.value - 1))
   }
 }
 
-function nextPage() {
-  if (hasNext.value) {
-    currentPage.value++
-    navigate()
+function goVisualRight() {
+  if (hasVisualRight.value) {
+    commitPage(visualPageToPage(currentVisualPage.value + 1))
   }
 }
 
@@ -154,9 +175,9 @@ watch(currentPage, prefetchPages)
 
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'ArrowLeft' || e.key === 'a') {
-    prevPage()
+    goVisualLeft()
   } else if (e.key === 'ArrowRight' || e.key === 'd') {
-    nextPage()
+    goVisualRight()
   }
 }
 
@@ -364,9 +385,10 @@ function handleTouchMove(event: TouchEvent) {
     clampPan()
   } else if (Math.abs(dx) > Math.abs(dy)) {
     let nextDragX = dx
+    const nextVisualDragX = rightToLeftSwipeForManga.value ? -nextDragX : nextDragX
     if (
-      (currentPage.value === 0 && nextDragX > 0) ||
-      (currentPage.value === totalPages.value - 1 && nextDragX < 0)
+      (currentVisualPage.value === 0 && nextVisualDragX > 0) ||
+      (currentVisualPage.value === totalPages.value - 1 && nextVisualDragX < 0)
     ) {
       nextDragX *= 0.28
     }
@@ -410,13 +432,14 @@ function handleTouchEnd(event: TouchEvent) {
 
   const movedX = Math.abs(dragX.value)
   const movedEnough = movedX > viewportWidth.value * SWIPE_THRESHOLD_RATIO
+  const committedVisualDragX = visualDragX.value
 
   if (scale.value <= 1.02) {
     scale.value = 1
-    if (movedEnough && dragX.value < 0) {
-      commitPage(currentPage.value + 1)
-    } else if (movedEnough && dragX.value > 0) {
-      commitPage(currentPage.value - 1)
+    if (movedEnough && committedVisualDragX < 0) {
+      commitPage(visualPageToPage(currentVisualPage.value + 1))
+    } else if (movedEnough && committedVisualDragX > 0) {
+      commitPage(visualPageToPage(currentVisualPage.value - 1))
     } else {
       const touch = event.changedTouches[0]
       const wasTap =
@@ -456,6 +479,10 @@ function handleTap(touch: Touch) {
 }
 
 onMounted(async () => {
+  if (!preferencesStore.hasLoaded) {
+    void preferencesStore.loadPreferences()
+  }
+
   window.addEventListener('keydown', handleKeydown)
   window.addEventListener('resize', updateViewportWidth)
   window.addEventListener('orientationchange', updateViewportWidth)
@@ -495,17 +522,17 @@ onBeforeUnmount(() => {
     >
       <div class="flex h-dvh will-change-transform" :style="mobileTrackStyle">
         <div
-          v-for="page in totalPages"
-          :key="page"
+          v-for="visualPage in totalPages"
+          :key="getVisualPageIndex(visualPage)"
           class="flex h-dvh w-screen shrink-0 items-center justify-center overflow-hidden bg-black"
         >
           <img
-            v-if="getMobilePageSrc(page - 1)"
-            :src="getMobilePageSrc(page - 1)"
-            :alt="`Page ${page}`"
+            v-if="getMobilePageSrc(getVisualPageIndex(visualPage))"
+            :src="getMobilePageSrc(getVisualPageIndex(visualPage))"
+            :alt="`Page ${getVisualPageIndex(visualPage) + 1}`"
             class="h-dvh w-screen object-contain will-change-transform select-none"
             :class="{ 'transition-transform duration-150': !isDragging && !isMomentumPanning }"
-            :style="page - 1 === currentPage ? currentImageStyle : undefined"
+            :style="getVisualPageIndex(visualPage) === currentPage ? currentImageStyle : undefined"
             draggable="false"
           />
         </div>
@@ -536,13 +563,13 @@ onBeforeUnmount(() => {
       <div class="flex items-center gap-0.5 sm:gap-1">
         <button
           class="flex min-h-9 items-center bg-primary-container px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-on-primary-container transition-all hover:bg-primary disabled:opacity-30 disabled:cursor-not-allowed sm:min-h-10 sm:px-3 sm:text-[10px] md:px-4 md:text-xs md:tracking-[0.16em]"
-          :disabled="!hasPrev"
-          @click="prevPage"
+          :disabled="!hasVisualLeft"
+          @click="goVisualLeft"
         >
           <span class="material-symbols-outlined mr-0.5 text-[13px] sm:mr-1 sm:text-sm"
             >chevron_left</span
           >
-          PREV
+          {{ visualLeftLabel }}
         </button>
 
         <div
@@ -564,10 +591,10 @@ onBeforeUnmount(() => {
 
         <button
           class="flex min-h-9 items-center bg-primary-container px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-on-primary-container transition-all hover:bg-primary disabled:opacity-30 disabled:cursor-not-allowed sm:min-h-10 sm:px-3 sm:text-[10px] md:px-4 md:text-xs md:tracking-[0.16em]"
-          :disabled="!hasNext"
-          @click="nextPage"
+          :disabled="!hasVisualRight"
+          @click="goVisualRight"
         >
-          NEXT
+          {{ visualRightLabel }}
           <span class="material-symbols-outlined ml-0.5 text-[13px] sm:ml-1 sm:text-sm"
             >chevron_right</span
           >

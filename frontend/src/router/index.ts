@@ -31,8 +31,13 @@ const routes: RouteRecordRaw[] = [
     meta: { fullscreen: true, public: true },
   },
   {
+    path: '/settings',
+    component: () => import('../views/SettingsView.vue'),
+    meta: { requiresAdmin: true },
+  },
+  {
     path: '/network',
-    component: () => import('../views/LibraryView.vue'),
+    redirect: '/settings',
     meta: { requiresAdmin: true },
   },
   {

@@ -65,6 +65,14 @@ func migrate(conn *sql.DB) error {
 			PRIMARY KEY (user_id, manga_id)
 		);
 
+		CREATE TABLE IF NOT EXISTS preferences (
+			user_id    INTEGER  NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+			key        TEXT     NOT NULL,
+			value      TEXT     NOT NULL,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (user_id, key)
+		);
+
 		CREATE TABLE IF NOT EXISTS audio (
 			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
 			path       TEXT     NOT NULL UNIQUE,

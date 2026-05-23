@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Library, Network, Terminal, ShieldCheck } from 'lucide-vue-next'
+import { Library, Settings, Terminal, ShieldCheck } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
 import StatusBar from './StatusBar.vue'
 import LogoutModal from './LogoutModal.vue'
@@ -11,14 +11,13 @@ defineOptions({
 })
 
 const props = defineProps<{ open?: boolean }>()
-const emit = defineEmits(['close'])
 
 const route = useRoute()
 const authStore = useAuthStore()
 
 const navItems = [
   { name: 'Library', icon: Library, path: '/library' },
-  { name: 'Network', icon: Network, path: '/network', adminOnly: true },
+  { name: 'Settings', icon: Settings, path: '/settings', adminOnly: true },
   { name: 'Logs', icon: Terminal, path: '/logs', adminOnly: true },
 ]
 
