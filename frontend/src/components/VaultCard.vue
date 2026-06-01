@@ -30,6 +30,12 @@ const audioCover = computed(() => {
   return AUDIO_COVERS[props.audio.id % AUDIO_COVERS.length]
 })
 
+const videoProgressPercent = computed(() => {
+  if (!props.video?.duration) return 0
+  if (props.video.completed) return 100
+  return Math.min(100, Math.round((props.video.position / props.video.duration) * 100))
+})
+
 function handleClick() {
   if (menuOpen.value) {
     menuOpen.value = false
@@ -142,12 +148,18 @@ function deleteItem() {
       >
         {{ manga?.title || audio?.title || video?.title }}
       </h3>
+      <div v-if="videoProgressPercent" class="mt-auto pt-1 md:pt-2">
+        <div class="mb-2 h-1 bg-surface-container-highest">
+          <div class="h-full bg-primary" :style="{ width: `${videoProgressPercent}%` }"></div>
+        </div>
+      </div>
       <div
-        class="mt-auto flex justify-between items-center pt-1 md:pt-2 border-t border-outline-variant/15"
+        class="flex justify-between items-center pt-1 md:pt-2 border-t border-outline-variant/15"
+        :class="videoProgressPercent ? '' : 'mt-auto'"
       >
         <span class="text-[9px] md:text-[10px] font-mono text-outline">{{ stats }}</span>
         <span class="material-symbols-outlined text-sm text-primary">{{
-          video ? 'play_arrow' : 'arrow_forward'
+          video ? (video.completed ? 'check_circle' : 'play_arrow') : 'arrow_forward'
         }}</span>
       </div>
     </div>

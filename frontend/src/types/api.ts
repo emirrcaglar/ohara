@@ -36,6 +36,11 @@ export interface VideoRow {
   id: number
   title: string
   duration: number
+  width: number
+  height: number
+  position: number
+  completed: boolean
+  lastError: string
   fileExtension: string
 }
 
@@ -44,7 +49,21 @@ export interface VideoInfo {
   title: string
   path: string
   duration: number
+  width: number
+  height: number
+  position: number
+  completed: boolean
+  lastError: string
   fileExtension: string
+}
+
+export interface VideoStateUpdate {
+  duration: number
+  width: number
+  height: number
+  position: number
+  completed: boolean
+  lastError: string
 }
 
 export interface AudioLibraryResponse {

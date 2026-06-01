@@ -21,6 +21,11 @@ type VideoResponse struct {
 	ID            int64  `json:"id"`
 	Title         string `json:"title"`
 	Duration      int    `json:"duration"`
+	Width         int    `json:"width"`
+	Height        int    `json:"height"`
+	Position      int    `json:"position"`
+	Completed     bool   `json:"completed"`
+	LastError     string `json:"lastError"`
 	FileExtension string `json:"fileExtension"`
 }
 
@@ -29,7 +34,21 @@ type VideoDetailResponse struct {
 	Title         string `json:"title"`
 	Path          string `json:"path"`
 	Duration      int    `json:"duration"`
+	Width         int    `json:"width"`
+	Height        int    `json:"height"`
+	Position      int    `json:"position"`
+	Completed     bool   `json:"completed"`
+	LastError     string `json:"lastError"`
 	FileExtension string `json:"fileExtension"`
+}
+
+type VideoStateRequest struct {
+	Duration  int    `json:"duration"`
+	Width     int    `json:"width"`
+	Height    int    `json:"height"`
+	Position  int    `json:"position"`
+	Completed bool   `json:"completed"`
+	LastError string `json:"lastError"`
 }
 
 type VideoLibraryResponse struct {
@@ -37,13 +56,32 @@ type VideoLibraryResponse struct {
 	Total int             `json:"total"`
 }
 
-func (h *VideoHandler) videoByID(idStr string) (*db.VideoRow, int) {
+func videoResponse(video db.VideoRow) VideoResponse {
+	return VideoResponse{
+		ID:            video.ID,
+		Title:         video.Title,
+		Duration:      video.Duration,
+		Width:         video.Width,
+		Height:        video.Height,
+		Position:      video.Position,
+		Completed:     video.Completed,
+		LastError:     video.LastError,
+		FileExtension: filepath.Ext(video.Path),
+	}
+}
+
+func (h *VideoHandler) videoByID(r *http.Request, idStr string) (*db.VideoRow, int) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		return nil, http.StatusBadRequest
 	}
 
-	video, err := h.DB.GetVideoByID(id)
+	user := GetUser(r.Context())
+	if user == nil {
+		return nil, http.StatusUnauthorized
+	}
+
+	video, err := h.DB.GetVideoByID(user.ID, id)
 	if err != nil {
 		return nil, http.StatusInternalServerError
 	}
@@ -55,7 +93,13 @@ func (h *VideoHandler) videoByID(idStr string) (*db.VideoRow, int) {
 }
 
 func (h *VideoHandler) HandleVideoList(w http.ResponseWriter, r *http.Request) {
-	videos, err := h.DB.ListVideo()
+	user := GetUser(r.Context())
+	if user == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	videos, err := h.DB.ListVideo(user.ID)
 	if err != nil {
 		http.Error(w, "Failed to load video library", http.StatusInternalServerError)
 		return
@@ -63,12 +107,7 @@ func (h *VideoHandler) HandleVideoList(w http.ResponseWriter, r *http.Request) {
 
 	items := make([]VideoResponse, 0, len(videos))
 	for _, video := range videos {
-		items = append(items, VideoResponse{
-			ID:            video.ID,
-			Title:         video.Title,
-			Duration:      video.Duration,
-			FileExtension: filepath.Ext(video.Path),
-		})
+		items = append(items, videoResponse(video))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -76,7 +115,7 @@ func (h *VideoHandler) HandleVideoList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *VideoHandler) HandleVideoInfo(w http.ResponseWriter, r *http.Request) {
-	video, status := h.videoByID(r.PathValue("id"))
+	video, status := h.videoByID(r, r.PathValue("id"))
 	if status != 0 {
 		http.Error(w, "Video not found", status)
 		return
@@ -88,8 +127,60 @@ func (h *VideoHandler) HandleVideoInfo(w http.ResponseWriter, r *http.Request) {
 		Title:         video.Title,
 		Path:          video.Path,
 		Duration:      video.Duration,
+		Width:         video.Width,
+		Height:        video.Height,
+		Position:      video.Position,
+		Completed:     video.Completed,
+		LastError:     video.LastError,
 		FileExtension: filepath.Ext(video.Path),
 	})
+}
+
+func (h *VideoHandler) HandleVideoState(w http.ResponseWriter, r *http.Request) {
+	video, status := h.videoByID(r, r.PathValue("id"))
+	if status != 0 {
+		http.Error(w, "Video not found", status)
+		return
+	}
+
+	user := GetUser(r.Context())
+	if user == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req VideoStateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid video state", http.StatusBadRequest)
+		return
+	}
+
+	if req.Duration < 0 {
+		req.Duration = 0
+	}
+	if req.Width < 0 {
+		req.Width = 0
+	}
+	if req.Height < 0 {
+		req.Height = 0
+	}
+	if req.Position < 0 {
+		req.Position = 0
+	}
+	if len(req.LastError) > 500 {
+		req.LastError = req.LastError[:500]
+	}
+
+	if err := h.DB.UpdateVideoMetadata(video.ID, req.Duration, req.Width, req.Height); err != nil {
+		http.Error(w, "Failed to save video metadata", http.StatusInternalServerError)
+		return
+	}
+	if err := h.DB.UpsertVideoProgress(user.ID, video.ID, req.Position, req.Completed, req.LastError); err != nil {
+		http.Error(w, "Failed to save video progress", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func videoContentType(path string) string {
@@ -110,7 +201,7 @@ func videoContentType(path string) string {
 }
 
 func (h *VideoHandler) HandleVideoStream(w http.ResponseWriter, r *http.Request) {
-	video, status := h.videoByID(r.PathValue("id"))
+	video, status := h.videoByID(r, r.PathValue("id"))
 	if status != 0 {
 		http.Error(w, "Video not found", status)
 		return
@@ -144,7 +235,7 @@ func (h *VideoHandler) HandleVideoStream(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *VideoHandler) HandleVideoDelete(w http.ResponseWriter, r *http.Request) {
-	video, status := h.videoByID(r.PathValue("id"))
+	video, status := h.videoByID(r, r.PathValue("id"))
 	if status != 0 {
 		http.Error(w, "Video not found", status)
 		return

@@ -102,6 +102,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	mux.HandleFunc("GET /api/manga/{id}/info", WithAuth(database, log, mangaHandler.HandleMangaInfo))
 
 	mux.HandleFunc("GET /api/video/{id}/info", WithAuth(database, log, videoHandler.HandleVideoInfo))
+	mux.HandleFunc("PUT /api/video/{id}/state", WithAuth(database, log, videoHandler.HandleVideoState))
 	mux.HandleFunc("DELETE /api/video/{id}", WithAuth(database, log, videoHandler.HandleVideoDelete))
 
 	mux.HandleFunc("GET /audio/{id}/stream", WithAuth(database, log, audioHandler.HandleAudioStream))

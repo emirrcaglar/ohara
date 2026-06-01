@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { VideoInfo, VideoRow } from '../types/api'
-import { deleteVideo, fetchVideoInfo, fetchVideoLibrary } from '../api/video'
+import type { VideoInfo, VideoRow, VideoStateUpdate } from '../types/api'
+import { deleteVideo, fetchVideoInfo, fetchVideoLibrary, saveVideoState } from '../api/video'
 
 export const useVideoStore = defineStore('video', () => {
   const items = ref<VideoRow[]>([])
@@ -33,6 +33,20 @@ export const useVideoStore = defineStore('video', () => {
     }
   }
 
+  async function updateVideoState(id: number, state: VideoStateUpdate) {
+    await saveVideoState(id, state)
+
+    const item = items.value.find((v) => v.id === id)
+    if (!item) return
+
+    item.duration = state.duration || item.duration
+    item.width = state.width || item.width
+    item.height = state.height || item.height
+    item.position = state.position
+    item.completed = state.completed
+    item.lastError = state.lastError
+  }
+
   async function removeVideo(id: number) {
     const previousItems = items.value
     const previousTotal = total.value
@@ -58,6 +72,7 @@ export const useVideoStore = defineStore('video', () => {
     totalItems,
     fetchLibrary,
     getVideoInfo,
+    updateVideoState,
     removeVideo,
   }
 })

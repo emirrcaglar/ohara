@@ -88,6 +88,32 @@ function openVideo(video: VideoRow) {
   })
 }
 
+function formatDuration(seconds: number) {
+  if (!seconds) return ''
+
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const remainingSeconds = seconds % 60
+
+  if (hours) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
+  }
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`
+}
+
+function videoStats(video: VideoRow) {
+  if (video.completed) return 'WATCHED'
+
+  const parts: string[] = []
+  if (video.duration) parts.push(formatDuration(video.duration))
+  if (video.width && video.height) parts.push(`${video.height}P`)
+  if (video.position && video.duration) {
+    parts.push(`${Math.round((video.position / video.duration) * 100)}%`)
+  }
+
+  return parts.length ? parts.join(' · ') : 'READY'
+}
+
 function handleMangaClick(item: MangaRow | AudioRow | VideoRow) {
   if ('pageCount' in item) {
     openManga(item)
@@ -207,11 +233,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
             :key="`video-${video.id}`"
             :video="video"
             category="VIDEO_ARCHIVE"
-            :stats="
-              video.duration
-                ? `${Math.floor(video.duration / 60)}:${String(video.duration % 60).padStart(2, '0')} MIN`
-                : 'READY'
-            "
+            :stats="videoStats(video)"
             @click="() => openVideo(video)"
             @delete="deleteVideo"
           />

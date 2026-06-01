@@ -88,7 +88,19 @@ func migrate(conn *sql.DB) error {
 			path       TEXT     NOT NULL UNIQUE,
 			title      TEXT     NOT NULL,
 			duration   INTEGER  NOT NULL DEFAULT 0,
+			width      INTEGER  NOT NULL DEFAULT 0,
+			height     INTEGER  NOT NULL DEFAULT 0,
 			indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
+		CREATE TABLE IF NOT EXISTS video_progress (
+			user_id       INTEGER  NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+			video_id      INTEGER  NOT NULL REFERENCES video(id) ON DELETE CASCADE,
+			position      INTEGER  NOT NULL DEFAULT 0,
+			completed     BOOLEAN  NOT NULL DEFAULT 0,
+			last_error    TEXT     NOT NULL DEFAULT '',
+			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (user_id, video_id)
 		);
 
 		CREATE TABLE IF NOT EXISTS scan (
@@ -132,5 +144,44 @@ func migrate(conn *sql.DB) error {
 			PRIMARY KEY (upload_id, chunk_index)
 		);
 	`)
+	if err != nil {
+		return err
+	}
+
+	if err := addColumnIfMissing(conn, "video", "width", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := addColumnIfMissing(conn, "video", "height", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func addColumnIfMissing(conn *sql.DB, table, column, definition string) error {
+	rows, err := conn.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid int
+		var name, columnType string
+		var notNull int
+		var defaultValue any
+		var pk int
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
+			return err
+		}
+		if name == column {
+			return rows.Err()
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	_, err = conn.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + definition)
 	return err
 }
