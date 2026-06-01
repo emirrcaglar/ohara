@@ -9,19 +9,21 @@ import TransferItem from '../components/uploads/TransferItem.vue'
 import activeTransfersIcon from '../assets/active-transfers.svg'
 import { useMangaStore } from '../stores/manga'
 import { useAudioStore } from '../stores/audio'
+import { useVideoStore } from '../stores/video'
 import { usePlayerStore } from '../stores/player'
 import { useUploadStore } from '../stores/upload'
 import { getMangaPageUrl } from '../api/manga'
-import type { MangaRow, AudioRow } from '../types/api'
+import type { MangaRow, AudioRow, VideoRow } from '../types/api'
 
 const router = useRouter()
 const mangaStore = useMangaStore()
 const audioStore = useAudioStore()
+const videoStore = useVideoStore()
 const playerStore = usePlayerStore()
 
 const uploadStore = useUploadStore()
 
-const selectedTab = ref<'ALL' | 'CBZ' | 'AUDIO'>('ALL')
+const selectedTab = ref<'ALL' | 'CBZ' | 'AUDIO' | 'VIDEO'>('ALL')
 const showUploadDialog = ref(false)
 const showTransfersPanel = ref(false)
 
@@ -39,6 +41,15 @@ const filteredAudio = computed(() => {
   return []
 })
 
+const filteredVideo = computed(() => {
+  if (selectedTab.value === 'ALL' || selectedTab.value === 'VIDEO') {
+    return videoStore.items
+  }
+  return []
+})
+
+const totalMedia = computed(() => mangaStore.total + audioStore.total + videoStore.total)
+
 const floatingButtonsBottomClass = computed(() => {
   return playerStore.currentTrack ? 'bottom-28' : 'bottom-6'
 })
@@ -46,6 +57,7 @@ const floatingButtonsBottomClass = computed(() => {
 onMounted(() => {
   mangaStore.fetchLibrary()
   audioStore.fetchLibrary()
+  videoStore.fetchLibrary()
   uploadStore.fetchPendingTransfers()
   window.addEventListener('keydown', handleGlobalKeydown)
 })
@@ -70,19 +82,38 @@ function playAudio(audio: AudioRow) {
   playerStore.play(audio)
 }
 
-function handleMangaClick(item: MangaRow | AudioRow) {
+function openVideo(video: VideoRow) {
+  router.push({
+    path: `/video/${video.id}`,
+  })
+}
+
+function handleMangaClick(item: MangaRow | AudioRow | VideoRow) {
   if ('pageCount' in item) {
     openManga(item)
   }
 }
 
-async function deleteManga(manga: MangaRow) {
+async function deleteManga(item: MangaRow | VideoRow) {
+  if (!('pageCount' in item)) return
+
   const confirmed = window.confirm(
-    `Delete "${manga.title}" from the library? This removes its index, reading progress, and cached pages.`,
+    `Delete "${item.title}" from the library? This removes its index, reading progress, and cached pages.`,
   )
   if (!confirmed) return
 
-  await mangaStore.removeManga(manga.id)
+  await mangaStore.removeManga(item.id)
+}
+
+async function deleteVideo(item: MangaRow | VideoRow) {
+  if ('pageCount' in item) return
+
+  const confirmed = window.confirm(
+    `Delete "${item.title}" from the library? This removes its index but keeps the video file on disk.`,
+  )
+  if (!confirmed) return
+
+  await videoStore.removeVideo(item.id)
 }
 
 function openUploadDialog() {
@@ -116,6 +147,7 @@ async function processAll() {
   uploadStore.setOnComplete(() => {
     mangaStore.fetchLibrary()
     audioStore.fetchLibrary()
+    videoStore.fetchLibrary()
   })
   await uploadStore.processAll()
 }
@@ -137,11 +169,17 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   <div class="h-full flex flex-col">
     <main class="flex-1 overflow-y-auto">
       <section class="p-4 md:p-8 flex-1 bg-surface">
-        <VaultHeader v-model="selectedTab" :totalManga="mangaStore.total + audioStore.total" />
+        <VaultHeader v-model="selectedTab" :totalManga="totalMedia" />
 
-        <div v-if="mangaStore.loading || audioStore.loading" class="text-secondary">Loading...</div>
+        <div
+          v-if="mangaStore.loading || audioStore.loading || videoStore.loading"
+          class="text-secondary"
+        >
+          Loading...
+        </div>
         <div v-else-if="mangaStore.error" class="text-error">{{ mangaStore.error }}</div>
         <div v-else-if="audioStore.error" class="text-error">{{ audioStore.error }}</div>
+        <div v-else-if="videoStore.error" class="text-error">{{ videoStore.error }}</div>
 
         <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6">
           <VaultCard
@@ -162,6 +200,20 @@ function handleGlobalKeydown(event: KeyboardEvent) {
             category="AUDIO_ARCHIVE"
             :stats="`${Math.floor(audio.duration / 60)}:${String(audio.duration % 60).padStart(2, '0')} MIN`"
             @click="() => playAudio(audio)"
+          />
+
+          <VaultCard
+            v-for="video in filteredVideo"
+            :key="`video-${video.id}`"
+            :video="video"
+            category="VIDEO_ARCHIVE"
+            :stats="
+              video.duration
+                ? `${Math.floor(video.duration / 60)}:${String(video.duration % 60).padStart(2, '0')} MIN`
+                : 'READY'
+            "
+            @click="() => openVideo(video)"
+            @delete="deleteVideo"
           />
         </div>
       </section>
@@ -231,6 +283,13 @@ function handleGlobalKeydown(event: KeyboardEvent) {
             <section class="space-y-4">
               <p class="text-[10px] font-bold uppercase tracking-widest text-secondary">
                 Queued_Operations
+              </p>
+
+              <p
+                v-if="uploadStore.rejectedItems.length > 0"
+                class="text-xs text-error uppercase tracking-widest"
+              >
+                Unsupported file skipped: {{ uploadStore.rejectedItems.join(', ') }}
               </p>
 
               <article

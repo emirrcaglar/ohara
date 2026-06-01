@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { MangaRow, AudioRow } from '../types/api'
+import type { MangaRow, AudioRow, VideoRow } from '../types/api'
 const AUDIO_COVERS = Object.values(
   import.meta.glob('../assets/audio-cover/*.png', {
     eager: true,
@@ -12,14 +12,15 @@ const AUDIO_COVERS = Object.values(
 const props = defineProps<{
   manga?: MangaRow
   audio?: AudioRow
+  video?: VideoRow
   coverUrl?: string
   stats?: string
   category?: string
 }>()
 
 const emit = defineEmits<{
-  click: [item: MangaRow | AudioRow]
-  delete: [item: MangaRow]
+  click: [item: MangaRow | AudioRow | VideoRow]
+  delete: [item: MangaRow | VideoRow]
 }>()
 
 const menuOpen = ref(false)
@@ -42,6 +43,11 @@ function handleClick() {
 
   if (props.audio) {
     emit('click', props.audio)
+    return
+  }
+
+  if (props.video) {
+    emit('click', props.video)
   }
 }
 
@@ -49,11 +55,12 @@ function toggleMenu() {
   menuOpen.value = !menuOpen.value
 }
 
-function deleteManga() {
-  if (!props.manga) return
+function deleteItem() {
+  const item = props.manga || props.video
+  if (!item) return
 
   menuOpen.value = false
-  emit('delete', props.manga)
+  emit('delete', item)
 }
 </script>
 
@@ -73,7 +80,7 @@ function deleteManga() {
           decoding="async"
         />
       </template>
-      <template v-else>
+      <template v-else-if="audio">
         <img
           :src="audioCover!"
           class="w-full h-full object-cover opacity-60 group-hover:opacity-90 transition-opacity grayscale group-hover:grayscale-0"
@@ -81,18 +88,28 @@ function deleteManga() {
           decoding="async"
         />
       </template>
+      <template v-else>
+        <div
+          class="h-full w-full bg-surface-container-high flex flex-col items-center justify-center gap-3 text-primary-container opacity-80 group-hover:opacity-100 transition-opacity"
+        >
+          <span class="material-symbols-outlined text-5xl">movie</span>
+          <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant"
+            >Video Stream</span
+          >
+        </div>
+      </template>
 
       <div class="absolute top-0 right-0 p-2 flex items-start gap-2">
         <span
           class="bg-secondary-container text-on-secondary-container px-2 py-1 text-[9px] font-black uppercase"
-          >{{ manga?.fileExtension || audio?.fileExtension }}</span
+          >{{ manga?.fileExtension || audio?.fileExtension || video?.fileExtension }}</span
         >
 
-        <div v-if="manga" class="relative">
+        <div v-if="manga || video" class="relative">
           <button
             class="flex h-7 w-7 items-center justify-center bg-surface-container-high/90 text-on-surface transition-colors hover:bg-surface-container-highest"
             type="button"
-            aria-label="Open manga actions"
+            :aria-label="manga ? 'Open manga actions' : 'Open video actions'"
             @click.stop="toggleMenu"
           >
             <span class="material-symbols-outlined text-base">more_vert</span>
@@ -106,7 +123,7 @@ function deleteManga() {
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-error transition-colors hover:bg-error/10"
               type="button"
-              @click="deleteManga"
+              @click="deleteItem"
             >
               <span class="material-symbols-outlined text-sm">delete</span>
               Delete
@@ -121,15 +138,17 @@ function deleteManga() {
         {{ category }}
       </p>
       <h3
-        class="font-bold text-xs md:text-lg leading-tight mb-1 md:mb-2 tracking-tight group-hover:text-primary transition-colors uppercase"
+        class="font-bold text-xs md:text-lg leading-tight mb-1 md:mb-2 tracking-tight group-hover:text-primary transition-colors uppercase overflow-hidden wrap-anywhere"
       >
-        {{ manga?.title || audio?.title }}
+        {{ manga?.title || audio?.title || video?.title }}
       </h3>
       <div
         class="mt-auto flex justify-between items-center pt-1 md:pt-2 border-t border-outline-variant/15"
       >
         <span class="text-[9px] md:text-[10px] font-mono text-outline">{{ stats }}</span>
-        <span class="material-symbols-outlined text-sm text-primary">arrow_forward</span>
+        <span class="material-symbols-outlined text-sm text-primary">{{
+          video ? 'play_arrow' : 'arrow_forward'
+        }}</span>
       </div>
     </div>
   </div>

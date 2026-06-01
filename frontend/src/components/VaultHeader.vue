@@ -1,14 +1,16 @@
 <script setup lang="ts">
+type LibraryTab = 'ALL' | 'CBZ' | 'AUDIO' | 'VIDEO'
+
 defineProps<{
   totalManga?: number
-  modelValue?: 'ALL' | 'CBZ' | 'AUDIO'
+  modelValue?: LibraryTab
 }>()
 
 defineEmits<{
-  'update:modelValue': [value: 'ALL' | 'CBZ' | 'AUDIO']
+  'update:modelValue': [value: LibraryTab]
 }>()
 
-const tabs = ['ALL', 'CBZ', 'AUDIO'] as const
+const tabs = ['ALL', 'CBZ', 'AUDIO', 'VIDEO'] as const
 </script>
 
 <template>

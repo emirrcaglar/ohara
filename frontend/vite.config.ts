@@ -1,11 +1,11 @@
-import tailwindcss from '@tailwindcss/vite';
-import vue from '@vitejs/plugin-vue';
-import path from 'path';
-import {defineConfig, loadEnv} from 'vite';
+import tailwindcss from '@tailwindcss/vite'
+import vue from '@vitejs/plugin-vue'
+import path from 'path'
+import { defineConfig, loadEnv } from 'vite'
 
-export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, '.', '');
-  const buildId = process.env.OHARA_BUILD_ID || Date.now().toString(36);
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, '.', '')
+  const buildId = process.env.OHARA_BUILD_ID || Date.now().toString(36)
   return {
     plugins: [vue(), tailwindcss()],
     define: {
@@ -33,7 +33,8 @@ export default defineConfig(({mode}) => {
         '/api': 'http://localhost:3000',
         '/manga': 'http://localhost:3000',
         '/audio': 'http://localhost:3000',
+        '/video': 'http://localhost:3000',
       },
     },
-  };
-});
+  }
+})

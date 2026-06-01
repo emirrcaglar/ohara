@@ -65,6 +65,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	cbzService := cbz.NewCBZService(database)
 	mangaHandler := &handler.MangaHandler{DB: database, Cache: handler.NewPageCache(dataDir), Inflight: handler.NewInflight(), CBZService: cbzService, Log: log}
 	audioHandler := &handler.AudioHandler{DB: database, Log: log}
+	videoHandler := &handler.VideoHandler{DB: database, Log: log}
 	logHandler := &handler.LogHandler{Logger: log}
 	authHandler := &handler.AuthHandler{DB: database, Log: log}
 	adminHandler := &handler.AdminHandler{DB: database, Log: log}
@@ -87,6 +88,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 
 	mux.HandleFunc("GET /api/manga", WithAuth(database, log, mangaHandler.HandleMangaList))
 	mux.HandleFunc("GET /api/audio", WithAuth(database, log, audioHandler.HandleAudioList))
+	mux.HandleFunc("GET /api/video", WithAuth(database, log, videoHandler.HandleVideoList))
 
 	mux.HandleFunc("GET /api/preferences", WithAuth(database, log, preferencesHandler.HandlePreferencesList))
 	mux.HandleFunc("GET /api/preferences/{key}", WithAuth(database, log, preferencesHandler.HandlePreferenceGet))
@@ -99,7 +101,11 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	mux.HandleFunc("POST /api/manga/{id}/progress/{page}", WithAuth(database, log, mangaHandler.HandleMangaProgress))
 	mux.HandleFunc("GET /api/manga/{id}/info", WithAuth(database, log, mangaHandler.HandleMangaInfo))
 
+	mux.HandleFunc("GET /api/video/{id}/info", WithAuth(database, log, videoHandler.HandleVideoInfo))
+	mux.HandleFunc("DELETE /api/video/{id}", WithAuth(database, log, videoHandler.HandleVideoDelete))
+
 	mux.HandleFunc("GET /audio/{id}/stream", WithAuth(database, log, audioHandler.HandleAudioStream))
+	mux.HandleFunc("GET /video/{id}/stream", WithAuth(database, log, videoHandler.HandleVideoStream))
 
 	mux.HandleFunc("GET /api/uploads", WithAuth(database, log, uploadHandler.HandleUploadsList))
 	mux.HandleFunc("POST /api/uploads/init", WithAuth(database, log, uploadHandler.HandleChunkedUploadInit))

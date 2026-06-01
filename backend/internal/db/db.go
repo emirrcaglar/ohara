@@ -83,6 +83,14 @@ func migrate(conn *sql.DB) error {
 			indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
 
+		CREATE TABLE IF NOT EXISTS video (
+			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
+			path       TEXT     NOT NULL UNIQUE,
+			title      TEXT     NOT NULL,
+			duration   INTEGER  NOT NULL DEFAULT 0,
+			indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
 		CREATE TABLE IF NOT EXISTS scan (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			manga_id INTEGER NOT NULL,

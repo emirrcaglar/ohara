@@ -3,6 +3,7 @@ package scanner
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"ohara/src/internal/db"
 	"ohara/src/internal/logger"
@@ -29,6 +30,7 @@ var (
 	ScanTypeAll   ScanType = "all"
 	ScanTypeManga ScanType = "manga"
 	ScanTypeAudio ScanType = "audio"
+	ScanTypeVideo ScanType = "video"
 )
 
 func WithScanDir(scanDir string) ScannerOption {
@@ -61,13 +63,15 @@ func NewScanner(db *db.DB, cbzService cbz.ICBZService, cacheWorker *worker.Cache
 }
 
 func (s *Scanner) Index(targetPath string) error {
-	fileType := filepath.Ext(targetPath)
+	fileType := strings.ToLower(filepath.Ext(targetPath))
 
 	switch fileType {
 	case ".cbz":
 		return s.indexManga(targetPath)
 	case ".mp3", ".flac", ".ogg", ".m4a", ".wav", ".aac":
 		return s.indexAudio(targetPath)
+	case ".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v":
+		return s.indexVideo(targetPath)
 	default:
 		return fmt.Errorf("unsupported file type: %s", fileType)
 	}
@@ -89,6 +93,14 @@ func (s *Scanner) Run() (int, error) {
 
 	if s.scanType == ScanTypeAudio || s.scanType == ScanTypeAll {
 		n, err := s.scanAudio()
+		if err != nil {
+			return added, err
+		}
+		added += n
+	}
+
+	if s.scanType == ScanTypeVideo || s.scanType == ScanTypeAll {
+		n, err := s.scanVideo()
 		if err != nil {
 			return added, err
 		}
@@ -135,6 +147,7 @@ func (s *Scanner) scanManga() (int, error) {
 }
 
 var audioExts = []string{"*.mp3", "*.flac", "*.ogg", "*.m4a", "*.wav", "*.aac"}
+var videoExts = []string{"*.mp4", "*.mkv", "*.webm", "*.mov", "*.avi", "*.m4v"}
 
 func (s *Scanner) scanAudio() (int, error) {
 	indexed, err := s.db.IndexedAudioPaths()
@@ -200,5 +213,48 @@ func (s *Scanner) indexAudio(absPath string) error {
 		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)
 	}
 
+	return nil
+}
+
+func (s *Scanner) scanVideo() (int, error) {
+	indexed, err := s.db.IndexedVideoPaths()
+	if err != nil {
+		return 0, err
+	}
+
+	added := 0
+	for _, ext := range videoExts {
+		matches, err := filepath.Glob(filepath.Join(s.scanDir, ext))
+		if err != nil {
+			return added, err
+		}
+		for _, path := range matches {
+			absPath, err := filepath.Abs(path)
+			if err != nil {
+				if s.log != nil {
+					s.log.Warn("[scanner] skipping video path=%s err=%v", path, err)
+				}
+				continue
+			}
+			if _, exists := indexed[absPath]; exists {
+				continue
+			}
+			if err := s.indexVideo(absPath); err != nil {
+				if s.log != nil {
+					s.log.Error("[scanner] video index failed path=%s err=%v", absPath, err)
+				}
+			} else {
+				added++
+			}
+		}
+	}
+	return added, nil
+}
+
+func (s *Scanner) indexVideo(absPath string) error {
+	title := strings.TrimSuffix(filepath.Base(absPath), filepath.Ext(absPath))
+	if err := s.db.InsertVideo(absPath, title, 0); err != nil {
+		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)
+	}
 	return nil
 }

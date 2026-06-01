@@ -16,6 +16,10 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../views/ReaderView.vue'),
   },
   {
+    path: '/video/:id',
+    component: () => import('../views/VideoView.vue'),
+  },
+  {
     path: '/logs',
     component: () => import('../views/LogsView.vue'),
     meta: { requiresAdmin: true },

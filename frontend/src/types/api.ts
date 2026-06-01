@@ -32,8 +32,28 @@ export interface AudioRow {
   fileExtension: string
 }
 
+export interface VideoRow {
+  id: number
+  title: string
+  duration: number
+  fileExtension: string
+}
+
+export interface VideoInfo {
+  id: number
+  title: string
+  path: string
+  duration: number
+  fileExtension: string
+}
+
 export interface AudioLibraryResponse {
   items: AudioRow[]
+  total: number
+}
+
+export interface VideoLibraryResponse {
+  items: VideoRow[]
   total: number
 }
 

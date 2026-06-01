@@ -28,12 +28,40 @@ export interface TransferItemData {
   bytesPerSecond: number
 }
 
+const allowedExtensions = [
+  '.cbz',
+  '.mp3',
+  '.flac',
+  '.ogg',
+  '.m4a',
+  '.wav',
+  '.aac',
+  '.mp4',
+  '.mkv',
+  '.webm',
+  '.mov',
+  '.avi',
+  '.m4v',
+]
+
+function fileExtension(fileName: string): string {
+  const dotIndex = fileName.lastIndexOf('.')
+  if (dotIndex < 0) return ''
+  return fileName.slice(dotIndex).toLowerCase()
+}
+
+function isSupportedUpload(file: File): boolean {
+  const ext = fileExtension(file.name)
+  return allowedExtensions.includes(ext) || file.type.startsWith('video/')
+}
+
 export const useUploadStore = defineStore('upload', () => {
   const queuedItems = ref<UploadQueueItem[]>([])
   const transfers = ref<TransferItemData[]>([])
   const loadingTransfers = ref(false)
   const transfersError = ref<string | null>(null)
   const processingUploads = ref(false)
+  const rejectedItems = ref<string[]>([])
   const uploadControllers = new Map<string | number, AbortController>()
   let onCompleteCallback: (() => void) | null = null
 
@@ -51,16 +79,17 @@ export const useUploadStore = defineStore('upload', () => {
   }
 
   function enqueue(files: File[]) {
-    const allowedExtensions = ['.cbz', '.mp3', '.flac', '.ogg', '.m4a', '.wav', '.aac']
+    rejectedItems.value = []
     const filtered = files.filter((file) => {
-      const ext = '.' + file.name.split('.').pop()?.toLowerCase()
-      return allowedExtensions.includes(ext)
+      const supported = isSupportedUpload(file)
+      if (!supported) rejectedItems.value.push(file.name)
+      return supported
     })
     const nextIdBase = queuedItems.value.length + 1
     const newItems: UploadQueueItem[] = filtered.map((file, index) => ({
       id: nextIdBase + index,
       name: file.name,
-      ext: file.name.split('.').pop()?.toUpperCase() ?? 'FILE',
+      ext: fileExtension(file.name).replace('.', '').toUpperCase() || 'FILE',
       progress: 0,
       status: 'active' as const,
       file,
@@ -70,6 +99,7 @@ export const useUploadStore = defineStore('upload', () => {
 
   function clearQueue() {
     queuedItems.value = []
+    rejectedItems.value = []
   }
 
   async function fetchPendingTransfers() {
@@ -277,6 +307,7 @@ export const useUploadStore = defineStore('upload', () => {
     loadingTransfers,
     transfersError,
     processingUploads,
+    rejectedItems,
     totalBandwidth,
     hasActiveTransfers,
     enqueue,

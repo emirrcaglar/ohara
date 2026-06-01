@@ -40,6 +40,11 @@ const (
 	FileExtensionWAV  FileExtension = ".wav"
 	FileExtensionAAC  FileExtension = ".aac"
 	FileExtensionMP4  FileExtension = ".mp4"
+	FileExtensionMKV  FileExtension = ".mkv"
+	FileExtensionWEBM FileExtension = ".webm"
+	FileExtensionMOV  FileExtension = ".mov"
+	FileExtensionAVI  FileExtension = ".avi"
+	FileExtensionM4V  FileExtension = ".m4v"
 
 	DefaultUploadChunkSize = 8 << 20
 	MaxUploadChunkSize     = 16 << 20
@@ -56,9 +61,24 @@ var AudioExtensions = []FileExtension{
 	FileExtensionAAC,
 }
 
+// VideoExtensions lists every video format the server accepts.
+var VideoExtensions = []FileExtension{
+	FileExtensionMP4,
+	FileExtensionMKV,
+	FileExtensionWEBM,
+	FileExtensionMOV,
+	FileExtensionAVI,
+	FileExtensionM4V,
+}
+
 // IsAudio reports whether the extension belongs to a supported audio format.
 func (f FileExtension) IsAudio() bool {
 	return slices.Contains(AudioExtensions, f)
+}
+
+// IsVideo reports whether the extension belongs to a supported video format.
+func (f FileExtension) IsVideo() bool {
+	return slices.Contains(VideoExtensions, f)
 }
 
 type ChunkedUploadInitRequest struct {
@@ -534,12 +554,16 @@ func detectFileType(file string) FileExtension {
 
 func isSupportedUploadFile(fileName string) bool {
 	fileType := detectFileType(fileName)
-	return fileType == FileExtensionCBZ || fileType.IsAudio()
+	return fileType == FileExtensionCBZ || fileType.IsAudio() || fileType.IsVideo()
 }
 
 func defaultTargetPath(fileName string) string {
-	if detectFileType(fileName) == FileExtensionCBZ {
+	fileType := detectFileType(fileName)
+	if fileType == FileExtensionCBZ {
 		return filepath.Join(media.DefaultMangaDir, fileName)
+	}
+	if fileType.IsVideo() {
+		return filepath.Join(media.DefaultVideoDir, fileName)
 	}
 	return filepath.Join(media.DefaultAudioDir, fileName)
 }
