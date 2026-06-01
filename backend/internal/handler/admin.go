@@ -72,3 +72,45 @@ func (h *AdminHandler) HandleApproveUser(w http.ResponseWriter, r *http.Request)
 	}
 	w.WriteHeader(http.StatusOK)
 }
+
+func (h *AdminHandler) HandleRejectUser(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		if h.Log != nil {
+			h.Log.Warn("[admin] reject invalid id=%q", idStr)
+		}
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	result, err := h.DB.Exec("DELETE FROM user WHERE id = ? AND is_approved = 0", id)
+	if err != nil {
+		if h.Log != nil {
+			h.Log.Error("[admin] reject failed id=%d err=%v", id, err)
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		if h.Log != nil {
+			h.Log.Error("[admin] reject rows affected failed id=%d err=%v", id, err)
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		if h.Log != nil {
+			h.Log.Warn("[admin] reject no pending user id=%d", id)
+		}
+		http.Error(w, "Pending user not found", http.StatusNotFound)
+		return
+	}
+
+	if h.Log != nil {
+		h.Log.Info("[admin] user rejected id=%d", id)
+	}
+	w.WriteHeader(http.StatusOK)
+}

@@ -37,6 +37,18 @@ async function approveUser(id: number) {
   }
 }
 
+async function rejectUser(id: number) {
+  try {
+    await fetchJson(`/api/admin/users/${id}/reject`, {
+      method: 'POST',
+    })
+    await fetchPendingUsers()
+  } catch (error) {
+    console.error('Failed to reject user:', error)
+    alert('Failed to reject user')
+  }
+}
+
 onMounted(() => {
   fetchPendingUsers()
 })
@@ -108,12 +120,17 @@ onMounted(() => {
               <td class="p-4 text-right">
                 <div class="flex justify-end gap-2">
                   <button
-                    @click="approveUser(user.id)"
                     class="bg-primary-container text-on-primary-container px-3 py-1 text-[10px] font-black uppercase hover:bg-primary transition-colors"
+                    @click="approveUser(user.id)"
                   >
                     APPROVE
                   </button>
-                  <!-- Reject could be implemented later if needed -->
+                  <button
+                    class="border border-error text-error px-3 py-1 text-[10px] font-black uppercase hover:bg-error hover:text-on-error transition-colors"
+                    @click="rejectUser(user.id)"
+                  >
+                    REJECT
+                  </button>
                 </div>
               </td>
             </tr>

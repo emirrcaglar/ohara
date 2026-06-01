@@ -86,6 +86,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	// Admin routes
 	mux.HandleFunc("GET /api/admin/users/pending", WithAuth(database, log, WithRole("admin", log, adminHandler.HandleListPendingUsers)))
 	mux.HandleFunc("POST /api/admin/users/{id}/approve", WithAuth(database, log, WithRole("admin", log, adminHandler.HandleApproveUser)))
+	mux.HandleFunc("POST /api/admin/users/{id}/reject", WithAuth(database, log, WithRole("admin", log, adminHandler.HandleRejectUser)))
 
 	mux.HandleFunc("GET /api/manga", WithAuth(database, log, mangaHandler.HandleMangaList))
 	mux.HandleFunc("GET /api/audio", WithAuth(database, log, audioHandler.HandleAudioList))
