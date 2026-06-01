@@ -1,30 +1,16 @@
 # Ohara
 
-Media server for manga and audio content.
+Minimal personal media server for manga, audio, and video.
 
-## Deploy
+## Dependency model
 
-### Prerequisites
+Ohara aims for self-contained deployment.
 
-**Ubuntu / Debian**
-```bash
-sudo apt install sshpass nodejs npm golang-go
-```
+- Local/source builds use the tools available on your machine.
+- Production deploys should not pollute the VPS with global media packages.
+- Runtime helpers, when needed, should be managed inside Ohara's own install directory.
 
-**Arch / Manjaro**
-```bash
-sudo pacman -S sshpass nodejs npm go
-```
-
-**Fedora / RHEL**
-```bash
-sudo dnf install sshpass nodejs npm golang
-```
-
-**macOS**
-```bash
-brew install sshpass node go
-```
+## Deploy from source
 
 ### 1. Create your config
 
@@ -45,7 +31,9 @@ DEPLOY_PASSWORD="yourpassword"
 ./deploy/deploy.sh
 ```
 
-The script builds the frontend, compiles the Go binary for Linux, uploads both to the server, and registers/restarts the systemd service — no further prompts.
+The script builds locally, uploads the release to the server, and registers/restarts the systemd service — no further prompts.
+
+The VPS receives Ohara, not your local build toolchain.
 
 `deploy.conf` is gitignored. See `deploy/deploy.conf.example` for all available config keys.
 
