@@ -70,6 +70,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	authHandler := &handler.AuthHandler{DB: database, Log: log}
 	adminHandler := &handler.AdminHandler{DB: database, Log: log}
 	preferencesHandler := &handler.PreferencesHandler{DB: database, Log: log}
+	deploymentHandler := &handler.DeploymentHandler{DB: database, Log: log}
 
 	cacheWorker := worker.NewCacheWorker(dataDir, database, *cbzService)
 	cacheWorker.Start()
@@ -118,6 +119,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 
 	mux.HandleFunc("GET /api/logs", WithAuth(database, log, logHandler.HandleSnapshot))
 	mux.HandleFunc("GET /api/logs/stream", WithAuth(database, log, logHandler.HandleStream))
+	mux.HandleFunc("GET /api/deployments/latest", WithAuth(database, log, deploymentHandler.HandleLatest))
 
 	if spaHandler, err := ui.SPAHandler(); err == nil {
 		mux.Handle("/", spaHandler)

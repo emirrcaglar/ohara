@@ -143,6 +143,15 @@ func migrate(conn *sql.DB) error {
 			created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (upload_id, chunk_index)
 		);
+
+		CREATE TABLE IF NOT EXISTS deployments (
+			id          INTEGER PRIMARY KEY AUTOINCREMENT,
+			deployed_at TEXT    NOT NULL UNIQUE,
+			created_at  TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_deployments_deployed_at
+		ON deployments(deployed_at DESC);
 	`)
 	if err != nil {
 		return err

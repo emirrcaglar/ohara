@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	"ohara/src/internal/db"
 	"ohara/src/internal/logger"
@@ -25,6 +26,17 @@ func main() {
 	}
 	log.Info("[main] database initialized data_dir=%s", *dataDir)
 	defer database.Close()
+
+	if deployedAt := os.Getenv("OHARA_DEPLOYED_AT"); deployedAt != "" {
+		parsedDeployedAt, err := time.Parse(time.RFC3339, deployedAt)
+		if err != nil {
+			log.Error("[main] invalid OHARA_DEPLOYED_AT value=%s err=%v", deployedAt, err)
+		} else if err := database.RecordDeployment(parsedDeployedAt); err != nil {
+			log.Error("[main] failed to record deployment deployed_at=%s err=%v", deployedAt, err)
+		} else {
+			log.Info("[main] deployment recorded deployed_at=%s", deployedAt)
+		}
+	}
 
 	// Bootstrap admin user
 	if *domain == "" {

@@ -19,6 +19,7 @@ REMOTE_DIR="${DEPLOY_DIR:-/opt/ohara}"
 BINARY_NAME="${DEPLOY_BINARY_NAME:-ohara}"
 SERVICE_NAME="${DEPLOY_SERVICE_NAME:-ohara}"
 DEPLOY_PASSWORD="${DEPLOY_PASSWORD:-}"
+DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 INSTALL_SCRIPT_TMP=""
 DEPLOY_START_SECONDS=$SECONDS
 
@@ -111,6 +112,7 @@ ESC_ADMIN_PASS=$(echo "${ADMIN_PASSWORD:-}" | sed 's/\$/$$/g')
 	echo "ExecStart=$REMOTE_DIR/$BINARY_NAME"
 	echo "Environment=\"OHARA_ADMIN_USER=$ESC_ADMIN_USER\""
 	echo "Environment=\"OHARA_ADMIN_PASS=$ESC_ADMIN_PASS\""
+	echo "Environment=\"OHARA_DEPLOYED_AT=$DEPLOYED_AT\""
 	echo "Restart=always"
 	echo "RestartSec=3"
 	echo ""
