@@ -1,36 +1,18 @@
 <script setup lang="ts">
-import { Settings, Power } from 'lucide-vue-next';
-
-const emit = defineEmits(['toggleSidebar']);
+defineEmits(['toggleSidebar'])
 </script>
 
 <template>
-  <header class="flex items-center justify-between px-4 md:px-8 h-16 w-full bg-surface-dim z-30">
-    <div class="flex items-center gap-4">
-      <button class="md:hidden text-on-surface-variant hover:text-on-surface p-1" @click="$emit('toggleSidebar')" aria-label="Toggle sidebar">
-        <span class="material-symbols-outlined">menu</span>
-      </button>
-      <span class="text-xl font-black text-primary-container uppercase tracking-tighter">
-        <span class="md:hidden">OHARA</span>
-      </span>
-    </div>
-
-    <div class="flex items-center gap-3 md:gap-6">
-      <div class="relative hidden md:flex items-center">
-        <input
-          class="bg-surface-container-low border-0 text-[10px] tracking-widest uppercase py-2 px-4 w-64 focus:ring-1 focus:ring-primary-container text-white placeholder-white/20"
-          placeholder="SEARCH_SYSTEM..."
-          type="text"
-        />
-      </div>
-      <div class="flex items-center gap-2 md:gap-4">
-        <button class="text-white/80 hover:text-secondary-container transition-none">
-          <Settings class="w-5 h-5" />
-        </button>
-        <button class="text-white/80 hover:text-secondary-container transition-none">
-          <Power class="w-5 h-5" />
-        </button>
-      </div>
-    </div>
+  <header class="flex md:hidden items-center px-4 h-16 w-full bg-surface-dim z-30">
+    <button
+      class="text-on-surface-variant hover:text-on-surface p-1"
+      aria-label="Toggle sidebar"
+      @click="$emit('toggleSidebar')"
+    >
+      <span class="material-symbols-outlined">menu</span>
+    </button>
+    <span class="ml-4 text-xl font-black text-primary-container uppercase tracking-tighter">
+      OHARA
+    </span>
   </header>
 </template>
