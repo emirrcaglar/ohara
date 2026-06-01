@@ -69,12 +69,16 @@ function deleteManga() {
         <img
           :src="coverUrl"
           class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0"
+          loading="lazy"
+          decoding="async"
         />
       </template>
       <template v-else>
         <img
           :src="audioCover!"
           class="w-full h-full object-cover opacity-60 group-hover:opacity-90 transition-opacity grayscale group-hover:grayscale-0"
+          loading="lazy"
+          decoding="async"
         />
       </template>
 

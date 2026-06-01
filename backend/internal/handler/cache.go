@@ -23,21 +23,30 @@ func NewPageCache(dataDir string) *PageCache {
 }
 
 func (c *PageCache) getPath(mangaID int64, page int) string {
+	return filepath.Join(c.dir, fmt.Sprintf("%d", mangaID), fmt.Sprintf("%d.jpg", page))
+}
+
+func (c *PageCache) getLegacyPath(mangaID int64, page int) string {
 	return filepath.Join(c.dir, fmt.Sprintf("%d_%d.jpg", mangaID, page))
 }
 
 func (c *PageCache) Get(mangaID int64, page int) ([]byte, bool) {
-	data, err := os.ReadFile(c.getPath(mangaID, page))
-	if err != nil {
-		return nil, false
+	for _, path := range []string{c.getPath(mangaID, page), c.getLegacyPath(mangaID, page)} {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			return data, true
+		}
 	}
-	return data, true
+	return nil, false
 }
 
 func (c *PageCache) Set(mangaID int64, page int, data []byte) {
 	finalPath := c.getPath(mangaID, page)
 	tempPath := finalPath + ".tmp"
 
+	if err := os.MkdirAll(filepath.Dir(finalPath), 0o755); err != nil {
+		return
+	}
 	if err := os.WriteFile(tempPath, data, 0o644); err == nil {
 		os.Rename(tempPath, finalPath)
 	}

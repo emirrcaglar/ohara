@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 
@@ -129,18 +128,7 @@ func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cachePath := filepath.Join("app-data", "cache", strconv.FormatInt(m.ID, 10), fmt.Sprintf("%d.jpg", pageIdx))
-	data, err := os.ReadFile(cachePath)
-	if err == nil {
-		// Cache hit
-		w.Header().Set("Content-Type", "image/jpeg")
-		w.Header().Set("Cache-Control", "public, max-age=3600")
-		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-		w.Write(data)
-		return
-	}
-
-	data, _, err = h.compressPage(m, pageIdx)
+	data, _, err := h.compressPage(m, pageIdx)
 	if err != nil {
 		http.Error(w, "Page not found", http.StatusNotFound)
 		return
