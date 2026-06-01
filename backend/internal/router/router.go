@@ -63,7 +63,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	mux := http.DefaultServeMux
 
 	cbzService := cbz.NewCBZService(database)
-	mangaHandler := &handler.MangaHandler{DB: database, Cache: handler.NewPageCache(dataDir), Inflight: handler.NewInflight(), CBZService: cbzService, Log: log}
+	mangaHandler := &handler.MangaHandler{DB: database, Cache: handler.NewPageCache(dataDir, database), Inflight: handler.NewInflight(), CBZService: cbzService, Log: log}
 	audioHandler := &handler.AudioHandler{DB: database, Log: log}
 	videoHandler := &handler.VideoHandler{DB: database, Log: log}
 	logHandler := &handler.LogHandler{Logger: log}

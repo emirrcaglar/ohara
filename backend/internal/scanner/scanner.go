@@ -196,8 +196,14 @@ func (s *Scanner) indexManga(absPath string) error {
 		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)
 	}
 
-	for i := 0; i < manga.PageCount; i++ {
-		s.cacheWorker.SubmitJob(mangaID, i)
+	hasProgress, err := s.db.HasMangaProgress(mangaID)
+	if err != nil {
+		return fmt.Errorf("indexer: failed to check manga progress %s: %v", absPath, err)
+	}
+	if !hasProgress {
+		for i := 0; i < manga.PageCount; i++ {
+			s.cacheWorker.SubmitJob(mangaID, i)
+		}
 	}
 
 	return nil
