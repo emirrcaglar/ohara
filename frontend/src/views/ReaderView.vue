@@ -62,7 +62,7 @@ const SWIPE_THRESHOLD_RATIO = 0.18
 const PAN_MOMENTUM_MIN_VELOCITY = 0.08
 const PAN_MOMENTUM_FRICTION = 0.94
 
-const visualDragX = computed(() => (rightToLeftSwipeForManga.value ? -dragX.value : dragX.value))
+const visualDragX = computed(() => dragX.value)
 
 const mobileTrackStyle = computed(() => ({
   transform: `translate3d(${-currentVisualPage.value * viewportWidth.value + visualDragX.value}px, 0, 0)`,
@@ -385,10 +385,9 @@ function handleTouchMove(event: TouchEvent) {
     clampPan()
   } else if (Math.abs(dx) > Math.abs(dy)) {
     let nextDragX = dx
-    const nextVisualDragX = rightToLeftSwipeForManga.value ? -nextDragX : nextDragX
     if (
-      (currentVisualPage.value === 0 && nextVisualDragX > 0) ||
-      (currentVisualPage.value === totalPages.value - 1 && nextVisualDragX < 0)
+      (currentVisualPage.value === 0 && nextDragX > 0) ||
+      (currentVisualPage.value === totalPages.value - 1 && nextDragX < 0)
     ) {
       nextDragX *= 0.28
     }
