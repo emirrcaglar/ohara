@@ -167,15 +167,15 @@ function clearQueue() {
   uploadStore.clearQueue()
 }
 
-async function processAll() {
+function processAll() {
   closeUploadDialog()
-  openTransfersPanel()
   uploadStore.setOnComplete(() => {
     mangaStore.fetchLibrary()
     audioStore.fetchLibrary()
     videoStore.fetchLibrary()
   })
-  await uploadStore.processAll()
+  uploadStore.processAll()
+  openTransfersPanel()
 }
 
 function handleGlobalKeydown(event: KeyboardEvent) {
@@ -399,13 +399,13 @@ function handleGlobalKeydown(event: KeyboardEvent) {
               {{ uploadStore.transfersError }}
             </p>
             <p
-              v-else-if="uploadStore.transfers.length === 0"
+              v-else-if="uploadStore.visibleTransfers.length === 0"
               class="text-xs text-on-surface-variant uppercase tracking-widest"
             >
               No active transfers
             </p>
             <TransferItem
-              v-for="transfer in uploadStore.transfers"
+              v-for="transfer in uploadStore.visibleTransfers"
               :key="transfer.id"
               :name="transfer.name"
               :progress="transfer.progress"
@@ -414,8 +414,11 @@ function handleGlobalKeydown(event: KeyboardEvent) {
               :eta="transfer.eta"
               :speed="transfer.speed"
               :storagePath="transfer.storagePath"
-              @pause="uploadStore.pauseTransfer(transfer.id)"
+              :canMoveUp="uploadStore.canMoveTransferUp(transfer.id)"
+              :canMoveDown="uploadStore.canMoveTransferDown(transfer.id)"
               @cancel="uploadStore.cancelTransfer(transfer.id)"
+              @moveUp="uploadStore.moveTransferUp(transfer.id)"
+              @moveDown="uploadStore.moveTransferDown(transfer.id)"
             />
           </div>
 
@@ -430,7 +433,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
               <div>
                 <p class="text-[9px] text-secondary uppercase font-bold">Files in Queue</p>
                 <p class="text-lg font-black text-on-surface leading-none mt-1">
-                  {{ uploadStore.transfers.length }}
+                  {{ uploadStore.visibleTransfers.length }}
                 </p>
               </div>
             </div>

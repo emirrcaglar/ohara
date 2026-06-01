@@ -3,15 +3,18 @@ defineProps<{
   name: string
   progress: number
   sizeInfo?: string
-  status: 'active' | 'complete' | 'paused'
+  status: 'queued' | 'active' | 'complete' | 'paused' | 'failed'
   eta?: string
   speed?: string
   storagePath?: string
+  canMoveUp?: boolean
+  canMoveDown?: boolean
 }>()
 
 defineEmits<{
-  pause: []
   cancel: []
+  moveUp: []
+  moveDown: []
 }>()
 </script>
 
@@ -25,6 +28,7 @@ defineEmits<{
         <p v-if="status === 'complete'" class="text-[10px] text-secondary-fixed-dim font-mono">
           SUCCESS_COMPLETED
         </p>
+        <p v-else-if="status === 'failed'" class="text-[10px] text-error font-mono">FAILED</p>
         <p v-else-if="sizeInfo" class="text-[10px] text-on-surface-variant font-mono">
           {{ sizeInfo }}
         </p>
@@ -32,13 +36,22 @@ defineEmits<{
 
       <div class="flex items-center gap-2">
         <button
-          v-if="status === 'active'"
-          class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary"
+          class="h-8 w-8 text-xl leading-none font-black text-on-surface-variant hover:text-primary disabled:opacity-20 disabled:hover:text-on-surface-variant"
           type="button"
-          aria-label="Pause transfer"
-          @click="$emit('pause')"
+          aria-label="Move transfer up"
+          :disabled="!canMoveUp"
+          @click="$emit('moveUp')"
         >
-          pause
+          ↑
+        </button>
+        <button
+          class="h-8 w-8 text-xl leading-none font-black text-on-surface-variant hover:text-primary disabled:opacity-20 disabled:hover:text-on-surface-variant"
+          type="button"
+          aria-label="Move transfer down"
+          :disabled="!canMoveDown"
+          @click="$emit('moveDown')"
+        >
+          ↓
         </button>
         <button
           v-if="status !== 'complete'"
@@ -49,18 +62,6 @@ defineEmits<{
         >
           close
         </button>
-        <span
-          class="material-symbols-outlined text-[14px] text-secondary"
-          :style="status === 'complete' ? 'font-variation-settings: \'FILL\' 1;' : ''"
-        >
-          {{
-            status === 'complete'
-              ? 'check_circle'
-              : status === 'paused'
-                ? 'pause_circle'
-                : 'cloud_upload'
-          }}
-        </span>
       </div>
     </div>
 
@@ -78,7 +79,9 @@ defineEmits<{
       </span>
     </div>
     <div v-else class="flex justify-between items-center">
-      <span class="text-[9px] font-mono text-on-surface-variant">ETA: {{ eta }}</span>
+      <span class="text-[9px] font-mono text-on-surface-variant">
+        {{ status === 'queued' || status === 'failed' ? 'STATUS' : 'ETA' }}: {{ eta }}
+      </span>
       <span class="text-[9px] font-mono text-primary">{{ speed }}</span>
     </div>
   </div>

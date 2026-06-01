@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { cancelUpload, listPendingUploads, pauseUpload, uploadFile } from '../api/upload'
 import type { PendingUpload } from '../api/upload'
 
-export type UploadStatus = 'active' | 'complete'
+export type UploadStatus = 'queued' | 'active' | 'complete'
 
 export interface UploadQueueItem {
   id: number
@@ -20,12 +20,13 @@ export interface TransferItemData {
   name: string
   progress: number
   sizeInfo?: string
-  status: 'active' | 'complete' | 'paused'
+  status: 'queued' | 'active' | 'complete' | 'paused' | 'failed'
   eta?: string
   speed?: string
   storagePath?: string
   startedAt: number
   bytesPerSecond: number
+  file?: File
 }
 
 const allowedExtensions = [
@@ -64,6 +65,8 @@ export const useUploadStore = defineStore('upload', () => {
   const rejectedItems = ref<string[]>([])
   const uploadControllers = new Map<string | number, AbortController>()
   let onCompleteCallback: (() => void) | null = null
+  let nextQueueId = 1
+  let resumeTimer: number | undefined
 
   const totalBandwidth = computed(() => {
     const bps = transfers.value
@@ -72,7 +75,14 @@ export const useUploadStore = defineStore('upload', () => {
     return `${((bps * 8) / (1024 * 1024)).toFixed(2)} Mbps`
   })
 
-  const hasActiveTransfers = computed(() => transfers.value.some((t) => t.status === 'active'))
+  const visibleTransfers = computed(() => {
+    const activeTransfers = transfers.value.filter((transfer) => transfer.status === 'active')
+    const waitingTransfers = queuedItems.value.map(queueItemToTransfer)
+    const inactiveTransfers = transfers.value.filter((transfer) => transfer.status !== 'active')
+    return [...activeTransfers, ...waitingTransfers, ...inactiveTransfers]
+  })
+
+  const hasActiveTransfers = computed(() => visibleTransfers.value.length > 0)
 
   function setOnComplete(fn: (() => void) | null) {
     onCompleteCallback = fn
@@ -85,16 +95,15 @@ export const useUploadStore = defineStore('upload', () => {
       if (!supported) rejectedItems.value.push(file.name)
       return supported
     })
-    const nextIdBase = queuedItems.value.length + 1
-    const newItems: UploadQueueItem[] = filtered.map((file, index) => ({
-      id: nextIdBase + index,
+    const newItems: UploadQueueItem[] = filtered.map((file) => ({
+      id: nextQueueId++,
       name: file.name,
       ext: fileExtension(file.name).replace('.', '').toUpperCase() || 'FILE',
       progress: 0,
-      status: 'active' as const,
+      status: 'queued' as const,
       file,
     }))
-    queuedItems.value = [...newItems, ...queuedItems.value]
+    queuedItems.value = [...queuedItems.value, ...newItems].sort(compareQueueItemNames)
   }
 
   function clearQueue() {
@@ -103,6 +112,8 @@ export const useUploadStore = defineStore('upload', () => {
   }
 
   async function fetchPendingTransfers() {
+    if (processingUploads.value) return
+
     loadingTransfers.value = true
     transfersError.value = null
     try {
@@ -151,9 +162,10 @@ export const useUploadStore = defineStore('upload', () => {
           speed: '--',
           startedAt: performance.now(),
           bytesPerSecond: 0,
+          file: queueItem.file,
         }
 
-        transfers.value = [transfer, ...transfers.value]
+        transfers.value = [...transfers.value, transfer].sort(compareTransferNames)
 
         try {
           const controller = new AbortController()
@@ -183,12 +195,22 @@ export const useUploadStore = defineStore('upload', () => {
             updateTransferStats(t, queueItem.file.size, 100)
           }
           completedAny = true
-        } catch {
+        } catch (error) {
           const t = transfers.value.find((t) => t.id === transfer.id)
           if (t) {
-            t.status = 'paused'
-            t.speed = '--'
-            t.eta = 'reselect file to continue'
+            if (isAbortError(error) && t.status === 'paused') {
+              t.speed = '--'
+              t.eta = 'reselect file to continue'
+            } else if (isSQLiteBusyError(error)) {
+              transfers.value = transfers.value.filter((transfer) => transfer.id !== t.id)
+              queuedItems.value = [queueItem, ...queuedItems.value]
+              scheduleUploadResume()
+              break
+            } else {
+              t.status = 'failed'
+              t.speed = '--'
+              t.eta = uploadErrorMessage(error)
+            }
             t.bytesPerSecond = 0
           }
         } finally {
@@ -200,6 +222,15 @@ export const useUploadStore = defineStore('upload', () => {
       if (completedAny) onCompleteCallback?.()
       await fetchPendingTransfers()
     }
+  }
+
+  function scheduleUploadResume() {
+    if (resumeTimer !== undefined) return
+
+    resumeTimer = window.setTimeout(() => {
+      resumeTimer = undefined
+      processAll()
+    }, 1500)
   }
 
   function isRuntimeTransfer(transfer: TransferItemData): boolean {
@@ -225,7 +256,97 @@ export const useUploadStore = defineStore('upload', () => {
     }
   }
 
+  async function moveTransferUp(transferId: string | number) {
+    if (typeof transferId !== 'string' || !transferId.startsWith('queue-')) return
+
+    const queueId = Number(transferId.slice('queue-'.length))
+    const index = queuedItems.value.findIndex((item) => item.id === queueId)
+    if (index < 0) return
+
+    if (index > 0) {
+      const nextQueue = [...queuedItems.value]
+      ;[nextQueue[index - 1], nextQueue[index]] = [nextQueue[index], nextQueue[index - 1]]
+      queuedItems.value = nextQueue
+      return
+    }
+
+    const activeTransfer = transfers.value.find((transfer) => transfer.status === 'active')
+    if (activeTransfer) {
+      preemptActiveTransfer(activeTransfer, 1)
+    }
+  }
+
+  async function moveTransferDown(transferId: string | number) {
+    const activeTransfer = transfers.value.find((transfer) => transfer.id === transferId)
+    if (activeTransfer?.status === 'active' && queuedItems.value.length > 0) {
+      preemptActiveTransfer(activeTransfer, 1)
+      return
+    }
+
+    if (typeof transferId !== 'string' || !transferId.startsWith('queue-')) return
+
+    const queueId = Number(transferId.slice('queue-'.length))
+    const index = queuedItems.value.findIndex((item) => item.id === queueId)
+    if (index < 0 || index >= queuedItems.value.length - 1) return
+
+    const nextQueue = [...queuedItems.value]
+    ;[nextQueue[index], nextQueue[index + 1]] = [nextQueue[index + 1], nextQueue[index]]
+    queuedItems.value = nextQueue
+  }
+
+  function preemptActiveTransfer(transfer: TransferItemData, queueIndex: number) {
+    if (!transfer.file) return
+
+    const nextQueue = [...queuedItems.value]
+    nextQueue.splice(queueIndex, 0, transferToQueueItem(transfer))
+    queuedItems.value = nextQueue
+    transfers.value = transfers.value.filter((item) => item.id !== transfer.id)
+    uploadControllers.get(transfer.id)?.abort()
+    uploadControllers.delete(transfer.id)
+  }
+
+  function transferToQueueItem(transfer: TransferItemData): UploadQueueItem {
+    return {
+      id: nextQueueId++,
+      name: transfer.name,
+      ext: fileExtension(transfer.name).replace('.', '').toUpperCase() || 'FILE',
+      progress: transfer.progress,
+      status: 'queued',
+      file: transfer.file as File,
+    }
+  }
+
+  function canMoveTransferUp(transferId: string | number): boolean {
+    if (typeof transferId !== 'string' || !transferId.startsWith('queue-')) return false
+
+    const queueId = Number(transferId.slice('queue-'.length))
+    const index = queuedItems.value.findIndex((item) => item.id === queueId)
+    return (
+      index > 0 ||
+      (index === 0 &&
+        transfers.value.some((transfer) => transfer.status === 'active' && transfer.file))
+    )
+  }
+
+  function canMoveTransferDown(transferId: string | number): boolean {
+    const activeTransfer = transfers.value.find((transfer) => transfer.id === transferId)
+    if (activeTransfer?.status === 'active')
+      return queuedItems.value.length > 0 && Boolean(activeTransfer.file)
+
+    if (typeof transferId !== 'string' || !transferId.startsWith('queue-')) return false
+
+    const queueId = Number(transferId.slice('queue-'.length))
+    const index = queuedItems.value.findIndex((item) => item.id === queueId)
+    return index >= 0 && index < queuedItems.value.length - 1
+  }
+
   async function cancelTransfer(transferId: string | number) {
+    if (typeof transferId === 'string' && transferId.startsWith('queue-')) {
+      const queueId = Number(transferId.slice('queue-'.length))
+      queuedItems.value = queuedItems.value.filter((item) => item.id !== queueId)
+      return
+    }
+
     const transfer = transfers.value.find((transfer) => transfer.id === transferId)
     if (!transfer) return
 
@@ -243,6 +364,29 @@ export const useUploadStore = defineStore('upload', () => {
     transfers.value = transfers.value.filter((transfer) => transfer.id !== transferId)
   }
 
+  function retryTransfer(transferId: string | number) {
+    const transfer = transfers.value.find((transfer) => transfer.id === transferId)
+    if (!transfer?.file || (transfer.status !== 'failed' && transfer.status !== 'paused')) return
+
+    transfers.value = transfers.value.filter((transfer) => transfer.id !== transferId)
+    enqueue([transfer.file])
+    processAll()
+  }
+
+  function queueItemToTransfer(item: UploadQueueItem): TransferItemData {
+    return {
+      id: `queue-${item.id}`,
+      name: item.name,
+      progress: item.progress,
+      sizeInfo: `${formatFileSize(item.file.size)} • waiting`,
+      status: 'queued',
+      eta: 'queued',
+      speed: 'waiting',
+      startedAt: 0,
+      bytesPerSecond: 0,
+    }
+  }
+
   function pendingUploadToTransfer(upload: PendingUpload): TransferItemData {
     return {
       id: upload.uploadId,
@@ -257,6 +401,32 @@ export const useUploadStore = defineStore('upload', () => {
       startedAt: 0,
       bytesPerSecond: 0,
     }
+  }
+
+  function compareQueueItemNames(a: UploadQueueItem, b: UploadQueueItem): number {
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
+  }
+
+  function compareTransferNames(a: TransferItemData, b: TransferItemData): number {
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
+  }
+
+  function isAbortError(error: unknown): boolean {
+    return error instanceof DOMException && error.name === 'AbortError'
+  }
+
+  function isSQLiteBusyError(error: unknown): boolean {
+    const message = uploadErrorMessage(error).toLowerCase()
+    return message.includes('sqlite_busy') || message.includes('database is locked')
+  }
+
+  function uploadErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) return error.message
+    if (typeof error === 'object' && error && 'message' in error) {
+      const message = (error as { message?: unknown }).message
+      if (typeof message === 'string' && message) return message
+    }
+    return 'upload failed'
   }
 
   function updateTransferStats(transfer: TransferItemData, fileSize: number, progress: number) {
@@ -304,6 +474,7 @@ export const useUploadStore = defineStore('upload', () => {
   return {
     queuedItems,
     transfers,
+    visibleTransfers,
     loadingTransfers,
     transfersError,
     processingUploads,
@@ -315,7 +486,12 @@ export const useUploadStore = defineStore('upload', () => {
     fetchPendingTransfers,
     processAll,
     pauseTransfer,
+    moveTransferUp,
+    moveTransferDown,
+    canMoveTransferUp,
+    canMoveTransferDown,
     cancelTransfer,
+    retryTransfer,
     setOnComplete,
   }
 })

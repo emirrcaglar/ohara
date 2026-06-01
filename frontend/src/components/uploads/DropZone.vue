@@ -19,8 +19,15 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const isDragging = ref(false)
 let dragCounter = 0
 
+function handleDragenter(event: DragEvent) {
+  event.preventDefault()
+  dragCounter++
+  isDragging.value = true
+}
+
 function handleDragover(event: DragEvent) {
   event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
   if (!isDragging.value) isDragging.value = true
 }
 
@@ -36,9 +43,21 @@ function handleDrop(event: DragEvent) {
   event.preventDefault()
   isDragging.value = false
   dragCounter = 0
-  if (!event.dataTransfer?.files) return
-  const files = Array.from(event.dataTransfer.files)
+
+  const files = droppedFiles(event.dataTransfer)
   if (files.length > 0) emit('filesSelected', files)
+}
+
+function droppedFiles(dataTransfer: DataTransfer | null): File[] {
+  if (!dataTransfer) return []
+
+  const itemFiles = Array.from(dataTransfer.items ?? [])
+    .filter((item) => item.kind === 'file')
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => file !== null)
+
+  if (itemFiles.length > 0) return itemFiles
+  return Array.from(dataTransfer.files ?? [])
 }
 
 function openPicker() {
@@ -80,6 +99,7 @@ function handleZoneClick() {
     :class="{ '!border-primary-container !bg-primary-container/10': isDragging }"
     @click="handleZoneClick"
     @keydown="handleKeydown"
+    @dragenter="handleDragenter"
     @dragover="handleDragover"
     @dragleave="handleDragleave"
     @drop="handleDrop"
