@@ -1,8 +1,9 @@
-import { watch, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 
 const PREFETCH_COUNT = 5
 const MOBILE_PREFETCH_COUNT = 2
 const PREFETCH_DEBOUNCE_MS = 300
+const PAGE_LOADING_SKELETON_DELAY_MS = 50
 
 export function usePagePrefetch(
   mangaId: Ref<number>,
@@ -11,7 +12,9 @@ export function usePagePrefetch(
   getPageUrl: (page: number) => string,
 ) {
   let prefetchTimeoutId: ReturnType<typeof setTimeout> | undefined
+  let skeletonTimeoutId: ReturnType<typeof setTimeout> | undefined
   const loadedPages = new Set<number>()
+  const showPageSkeleton = ref(false)
   let currentMainImageLoaded = false
 
   function shouldLoadMobilePage(page: number) {
@@ -46,7 +49,17 @@ export function usePagePrefetch(
 
   function prefetchPagesDebounced() {
     clearTimeout(prefetchTimeoutId)
-    currentMainImageLoaded = false
+    clearTimeout(skeletonTimeoutId)
+    currentMainImageLoaded = loadedPages.has(currentPage.value)
+    showPageSkeleton.value = false
+
+    if (!currentMainImageLoaded) {
+      skeletonTimeoutId = setTimeout(() => {
+        if (!currentMainImageLoaded) {
+          showPageSkeleton.value = true
+        }
+      }, PAGE_LOADING_SKELETON_DELAY_MS)
+    }
 
     prefetchTimeoutId = setTimeout(() => {
       if (currentMainImageLoaded) {
@@ -55,8 +68,16 @@ export function usePagePrefetch(
     }, PREFETCH_DEBOUNCE_MS)
   }
 
-  function onMainImageLoaded() {
+  function onMainImageLoaded(page = currentPage.value) {
+    loadedPages.add(page)
+
+    if (page !== currentPage.value) {
+      return
+    }
+
     currentMainImageLoaded = true
+    clearTimeout(skeletonTimeoutId)
+    showPageSkeleton.value = false
 
     if (prefetchTimeoutId !== undefined) {
       clearTimeout(prefetchTimeoutId)
@@ -65,18 +86,19 @@ export function usePagePrefetch(
   }
 
   watch(currentPage, () => {
-    loadedPages.delete(currentPage.value)
     prefetchPagesDebounced()
   })
 
   function cleanup() {
     clearTimeout(prefetchTimeoutId)
+    clearTimeout(skeletonTimeoutId)
   }
 
   return {
     shouldLoadMobilePage,
     getMobilePageSrc,
     prefetchPages,
+    showPageSkeleton,
     onMainImageLoaded,
     cleanup,
   }

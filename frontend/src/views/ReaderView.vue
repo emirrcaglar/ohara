@@ -31,6 +31,7 @@ const {
   goVisualLeft,
   goVisualRight,
   getMobilePageSrc,
+  showPageSkeleton,
   onMainImageLoaded,
   currentImageStyle,
   snapAfterPageChange,
@@ -86,9 +87,16 @@ const mobilePages = computed(() =>
             :class="mobilePage.page === currentPage ? 'transition-transform duration-150' : ''"
             :style="mobilePage.page === currentPage ? currentImageStyle : undefined"
             draggable="false"
-            @load="mobilePage.page === currentPage ? onMainImageLoaded() : undefined"
+            @load="onMainImageLoaded(mobilePage.page)"
           />
         </div>
+      </div>
+
+      <div
+        v-if="showPageSkeleton"
+        class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-black"
+      >
+        <div class="h-dvh w-screen animate-pulse bg-surface-container-lowest/40" />
       </div>
 
       <div
@@ -102,11 +110,18 @@ const mobilePages = computed(() =>
     <div class="hidden md:block flex-1 min-h-0 p-2 md:p-4">
       <div class="relative w-full h-full">
         <img
+          :key="currentPage"
           :src="pageUrl"
           :alt="`Page ${currentPage + 1}`"
           class="absolute inset-0 w-full h-full object-contain"
-          @load="onMainImageLoaded"
+          @load="onMainImageLoaded(currentPage)"
         />
+        <div
+          v-if="showPageSkeleton"
+          class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black"
+        >
+          <div class="h-full w-full animate-pulse bg-surface-container-lowest/40" />
+        </div>
       </div>
     </div>
 

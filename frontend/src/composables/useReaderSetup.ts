@@ -53,7 +53,7 @@ export function useReaderSetup(options: ReaderSetupOptions) {
     options.getPageUrl,
   )
 
-  const { getMobilePageSrc, prefetchPages, onMainImageLoaded } = prefetch
+  const { getMobilePageSrc, prefetchPages, showPageSkeleton, onMainImageLoaded } = prefetch
 
   const zoom = useZoomAndPan(viewportWidth)
 
@@ -176,6 +176,7 @@ export function useReaderSetup(options: ReaderSetupOptions) {
     goVisualLeft,
     goVisualRight,
     getMobilePageSrc,
+    showPageSkeleton,
     onMainImageLoaded,
     scale,
     currentImageStyle,
