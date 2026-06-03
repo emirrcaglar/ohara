@@ -63,6 +63,16 @@ if [ -d /etc/systemd/system ] && [ "$OS" = "linux" ]; then
     echo ""
     echo "Setting up systemd service..."
 
+    # Stop and disable existing service if it exists
+    if systemctl is-active --quiet ohara 2>/dev/null; then
+        sudo systemctl stop ohara
+        echo "Stopped existing ohara service"
+    fi
+    if systemctl is-enabled --quiet ohara 2>/dev/null; then
+        sudo systemctl disable ohara
+        echo "Disabled existing ohara service"
+    fi
+
     # Create dedicated system user if it doesn't exist
     if ! id -u ohara >/dev/null 2>&1; then
         sudo useradd --system --no-create-home --shell /bin/false ohara
