@@ -63,6 +63,10 @@ if command -v ohara >/dev/null 2>&1; then
     echo "✓ Ohara installed successfully!"
     echo ""
     echo "Run 'ohara' to start the server"
+    echo "Data will be stored in ./app-data (relative to where you run it)"
+    echo ""
+    echo "Tip: Use -data flag to specify a custom data directory:"
+    echo "  ohara -data /path/to/data"
 else
     echo "✓ Binary installed to $INSTALL_DIR/ohara"
     echo ""

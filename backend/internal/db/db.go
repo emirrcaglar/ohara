@@ -2,7 +2,9 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
+	"path/filepath"
 
 	_ "modernc.org/sqlite"
 )
@@ -13,12 +15,13 @@ type DB struct {
 
 func Init(dataDir string) (*DB, error) {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create data directory %q: %w", dataDir, err)
 	}
 
-	conn, err := sql.Open("sqlite", dataDir+"/ohara.db")
+	dbPath := filepath.Join(dataDir, "ohara.db")
+	conn, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open database at %q: %w", dbPath, err)
 	}
 
 	if _, err := conn.Exec(`PRAGMA journal_mode=WAL`); err != nil {

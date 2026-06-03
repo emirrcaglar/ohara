@@ -27,7 +27,7 @@ type PageCache struct {
 
 func NewPageCache(dataDir string, database *db.DB) *PageCache {
 	cacheDir := filepath.Join(dataDir, "cache")
-	os.MkdirAll(cacheDir, 0o755)
+	_ = os.MkdirAll(cacheDir, 0o755) // cache dir will be created on-demand if this fails
 	return &PageCache{dir: cacheDir, db: database, maxSize: MaxPageCacheSizeBytes}
 }
 

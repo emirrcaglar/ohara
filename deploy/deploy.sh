@@ -140,6 +140,7 @@ set -euo pipefail
 trap 'rm -f "$REMOTE_INSTALL_TMP"' EXIT
 echo "Finalizing deployment as root..."
 mkdir -p $REMOTE_DIR_Q
+mkdir -p $REMOTE_DIR_Q/app-data
 mv $SERVICE_REMOTE_TMP_Q $SERVICE_REMOTE_PATH_Q
 systemctl daemon-reload
 systemctl enable $SERVICE_NAME_Q
