@@ -1,6 +1,9 @@
 DEPLOY_SERVER="user@your-vps"
 DEPLOY_PASSWORD=""
 DEPLOY_DIR="/opt/ohara"
+DEPLOY_DATA_DIR="/var/lib/ohara"
+DEPLOY_CONFIG_DIR="/etc/ohara"
+DEPLOY_CACHE_DIR="/var/cache/ohara"
 DEPLOY_BINARY_NAME="ohara"
 DEPLOY_SERVICE_NAME="ohara"
 
