@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onBeforeUnmount, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { usePreferencesStore } from '../stores/preferences'
 import { API_BASE } from '../api/client'
 import { useReaderSetup } from '../composables/useReaderSetup'
+import { useDesktopReaderZoom } from '../composables/useDesktopReaderZoom'
+import { useReaderScrollPages } from '../composables/useReaderScrollPages'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,8 +15,6 @@ const { rightToLeftSwipeForManga, scrollReadingForManga } = storeToRefs(preferen
 
 const mangaId = computed(() => Number(route.query.manga))
 const totalPages = ref(Number(route.query.total) || 0)
-const desktopZoomedPage = ref<number | null>(null)
-const desktopZoomOrigin = ref('50% 50%')
 
 const pageUrl = computed(() => `${API_BASE}/manga/${mangaId.value}/page/${currentPage.value}`)
 
@@ -53,43 +53,21 @@ const {
   getPageUrl,
 })
 
-const mobileScrollRef = ref<HTMLElement | null>(null)
-const mobileScrollPageRefs = ref<HTMLElement[]>([])
-let mobileScrollObserver: IntersectionObserver | undefined
-
-const mobilePages = computed(() =>
-  Array.from({ length: totalPages.value }, (_, visualIndex) => {
-    const page = getVisualPageIndex(visualIndex + 1)
-    return {
-      page,
-      src: getMobilePageSrc(page),
-    }
-  }),
-)
-
-const mobileScrollPages = computed(() =>
-  Array.from({ length: totalPages.value }, (_, visualIndex) => {
-    const page = getVisualPageIndex(visualIndex + 1)
-    return {
-      page,
-      src: getPageUrl(page),
-    }
-  }),
-)
-
-function setMobileScrollPageRef(el: unknown, index: number) {
-  if (el instanceof HTMLElement) {
-    mobileScrollPageRefs.value[index] = el
-  }
-}
-
-function scrollToCurrentPage() {
-  const visualIndex = mobileScrollPages.value.findIndex(
-    (mobilePage) => mobilePage.page === currentPage.value,
-  )
-  const el = visualIndex >= 0 ? mobileScrollPageRefs.value[visualIndex] : undefined
-  el?.scrollIntoView({ block: 'start' })
-}
+const {
+  mobileScrollRef,
+  mobileScrollPageRefs,
+  mobilePages,
+  mobileScrollPages,
+  setMobileScrollPageRef,
+} = useReaderScrollPages({
+  totalPages,
+  currentPage,
+  scrollReadingForManga,
+  getVisualPageIndex,
+  getMobilePageSrc,
+  getPageUrl,
+  commitPage,
+})
 
 function isDesktopPointer() {
   return window.matchMedia('(min-width: 768px)').matches
@@ -100,80 +78,23 @@ function toggleMobileChrome() {
   chromeVisible.value = !chromeVisible.value
 }
 
-function updateZoomOrigin(target: HTMLElement, clientX: number, clientY: number) {
-  const rect = target.getBoundingClientRect()
-  const x = ((clientX - rect.left) / rect.width) * 100
-  const y = ((clientY - rect.top) / rect.height) * 100
-  desktopZoomOrigin.value = `${x}% ${y}%`
-}
-
-function updateDesktopZoomOrigin(event: MouseEvent) {
-  const target = event.currentTarget
-  if (!(target instanceof HTMLElement)) return
-
-  updateZoomOrigin(target, event.clientX, event.clientY)
-}
-
-function toggleDesktopZoom(page: number, event: MouseEvent) {
-  if (!isDesktopPointer()) return
-
-  updateDesktopZoomOrigin(event)
-  desktopZoomedPage.value = desktopZoomedPage.value === page ? null : page
-}
-
-function resetDesktopZoom() {
-  desktopZoomedPage.value = null
-  desktopZoomOrigin.value = '50% 50%'
-}
-
-function getDesktopImageStyle(page: number) {
-  if (desktopZoomedPage.value !== page) return undefined
-
-  return {
-    transform: 'scale(2.25)',
-    transformOrigin: desktopZoomOrigin.value,
-  }
-}
-
-function setupMobileScrollObserver() {
-  mobileScrollObserver?.disconnect()
-  mobileScrollObserver = undefined
-
-  if (!scrollReadingForManga.value || !mobileScrollRef.value) return
-
-  mobileScrollObserver = new IntersectionObserver(
-    (entries) => {
-      const visibleEntry = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
-      const page = Number((visibleEntry?.target as HTMLElement | undefined)?.dataset.page)
-
-      if (Number.isFinite(page) && page !== currentPage.value) {
-        commitPage(page)
-      }
-    },
-    {
-      root: mobileScrollRef.value,
-      threshold: [0.55],
-    },
-  )
-
-  mobileScrollPageRefs.value.forEach((el) => mobileScrollObserver?.observe(el))
-  scrollToCurrentPage()
-}
-
-watch(
-  [scrollReadingForManga, mobileScrollPages],
-  async () => {
-    mobileScrollPageRefs.value = []
-    await nextTick()
-    setupMobileScrollObserver()
-  },
-  { immediate: true },
-)
-
-onBeforeUnmount(() => {
-  mobileScrollObserver?.disconnect()
+const {
+  desktopZoomedPages,
+  desktopZoomEnabled,
+  activeDesktopZoomPage,
+  getDesktopImageStyle,
+  getScrollPageClass,
+  toggleDesktopZoom,
+  resetDesktopZoom,
+  updateZoomOriginForPage,
+  onScrollPageMouseLeave,
+  handleScrollPageImageEnter,
+  handleScrollAreaMouseMove,
+  handleScrollAreaMouseLeave,
+} = useDesktopReaderZoom({
+  mobileScrollRef,
+  mobileScrollPageRefs,
+  mobileScrollPages,
 })
 </script>
 
@@ -225,12 +146,15 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <!-- Scroll read mode (mobile + desktop) -->
     <div
       v-else
       ref="mobileScrollRef"
       class="fixed inset-0 overflow-y-auto bg-black overscroll-contain select-none md:static md:flex-1 md:min-h-0"
       :class="mobileReaderClass"
       @click="toggleMobileChrome"
+      @mousemove="handleScrollAreaMouseMove"
+      @mouseleave="handleScrollAreaMouseLeave"
     >
       <div
         v-for="(mobilePage, index) in mobileScrollPages"
@@ -238,18 +162,28 @@ onBeforeUnmount(() => {
         :ref="(el) => setMobileScrollPageRef(el, index)"
         :data-page="mobilePage.page"
         class="flex min-h-dvh w-full items-center justify-center bg-black"
-        @mouseleave="resetDesktopZoom"
+        :class="getScrollPageClass(mobilePage.page)"
+        @mousemove="updateZoomOriginForPage(mobilePage.page, $event)"
+        @mouseleave="onScrollPageMouseLeave(mobilePage.page)"
       >
         <img
           :src="mobilePage.src"
           :alt="`Page ${mobilePage.page + 1}`"
           class="min-h-0 w-full max-w-full object-contain select-none transition-transform duration-150 md:h-auto md:max-h-dvh md:w-auto md:cursor-zoom-in"
-          :class="desktopZoomedPage === mobilePage.page ? 'md:cursor-zoom-out' : ''"
+          :class="[
+            desktopZoomEnabled ? 'md:cursor-zoom-out' : '',
+            activeDesktopZoomPage === mobilePage.page
+              ? 'md:relative md:z-60'
+              : desktopZoomedPages.includes(mobilePage.page)
+                ? 'md:relative md:z-50'
+                : '',
+          ]"
           :style="getDesktopImageStyle(mobilePage.page)"
           loading="lazy"
           draggable="false"
+          @mouseenter="handleScrollPageImageEnter(mobilePage.page, $event)"
           @click="toggleDesktopZoom(mobilePage.page, $event)"
-          @mousemove="desktopZoomedPage === mobilePage.page && updateDesktopZoomOrigin($event)"
+          @mousemove="updateZoomOriginForPage(mobilePage.page, $event)"
           @load="onMainImageLoaded(mobilePage.page)"
         />
       </div>
@@ -269,10 +203,10 @@ onBeforeUnmount(() => {
           :src="pageUrl"
           :alt="`Page ${currentPage + 1}`"
           class="absolute inset-0 w-full h-full object-contain transition-transform duration-150 cursor-zoom-in"
-          :class="desktopZoomedPage === currentPage ? 'cursor-zoom-out' : ''"
+          :class="desktopZoomedPages.includes(currentPage) ? 'cursor-zoom-out' : ''"
           :style="getDesktopImageStyle(currentPage)"
           @click="toggleDesktopZoom(currentPage, $event)"
-          @mousemove="desktopZoomedPage === currentPage && updateDesktopZoomOrigin($event)"
+          @mousemove="updateZoomOriginForPage(currentPage, $event)"
           @load="onMainImageLoaded(currentPage)"
         />
         <div
