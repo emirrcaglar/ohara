@@ -13,6 +13,8 @@ const { rightToLeftSwipeForManga, scrollReadingForManga } = storeToRefs(preferen
 
 const mangaId = computed(() => Number(route.query.manga))
 const totalPages = ref(Number(route.query.total) || 0)
+const desktopZoomedPage = ref<number | null>(null)
+const desktopZoomOrigin = ref('50% 50%')
 
 const pageUrl = computed(() => `${API_BASE}/manga/${mangaId.value}/page/${currentPage.value}`)
 
@@ -86,6 +88,41 @@ function scrollToCurrentPage() {
   )
   const el = visualIndex >= 0 ? mobileScrollPageRefs.value[visualIndex] : undefined
   el?.scrollIntoView({ block: 'start' })
+}
+
+function isDesktopPointer() {
+  return window.matchMedia('(min-width: 768px)').matches
+}
+
+function updateDesktopZoomOrigin(event: MouseEvent) {
+  const target = event.currentTarget
+  if (!(target instanceof HTMLElement)) return
+
+  const rect = target.getBoundingClientRect()
+  const x = ((event.clientX - rect.left) / rect.width) * 100
+  const y = ((event.clientY - rect.top) / rect.height) * 100
+  desktopZoomOrigin.value = `${x}% ${y}%`
+}
+
+function toggleDesktopZoom(page: number, event: MouseEvent) {
+  if (!isDesktopPointer()) return
+
+  updateDesktopZoomOrigin(event)
+  desktopZoomedPage.value = desktopZoomedPage.value === page ? null : page
+}
+
+function resetDesktopZoom() {
+  desktopZoomedPage.value = null
+  desktopZoomOrigin.value = '50% 50%'
+}
+
+function getDesktopImageStyle(page: number) {
+  if (desktopZoomedPage.value !== page) return undefined
+
+  return {
+    transform: 'scale(2.25)',
+    transformOrigin: desktopZoomOrigin.value,
+  }
 }
 
 function setupMobileScrollObserver() {
@@ -190,13 +227,18 @@ onBeforeUnmount(() => {
         :ref="(el) => setMobileScrollPageRef(el, index)"
         :data-page="mobilePage.page"
         class="flex min-h-dvh w-full items-center justify-center bg-black"
+        @mouseleave="resetDesktopZoom"
       >
         <img
           :src="mobilePage.src"
           :alt="`Page ${mobilePage.page + 1}`"
-          class="min-h-0 w-full max-w-full object-contain select-none md:h-auto md:max-h-dvh md:w-auto"
+          class="min-h-0 w-full max-w-full object-contain select-none transition-transform duration-150 md:h-auto md:max-h-dvh md:w-auto md:cursor-zoom-in"
+          :class="desktopZoomedPage === mobilePage.page ? 'md:cursor-zoom-out' : ''"
+          :style="getDesktopImageStyle(mobilePage.page)"
           loading="lazy"
           draggable="false"
+          @click="toggleDesktopZoom(mobilePage.page, $event)"
+          @mousemove="desktopZoomedPage === mobilePage.page && updateDesktopZoomOrigin($event)"
           @load="onMainImageLoaded(mobilePage.page)"
         />
       </div>
@@ -210,12 +252,16 @@ onBeforeUnmount(() => {
     </div>
 
     <div v-if="!scrollReadingForManga" class="hidden md:block flex-1 min-h-0 p-2 md:p-4">
-      <div class="relative w-full h-full">
+      <div class="relative w-full h-full" @mouseleave="resetDesktopZoom">
         <img
           :key="currentPage"
           :src="pageUrl"
           :alt="`Page ${currentPage + 1}`"
-          class="absolute inset-0 w-full h-full object-contain"
+          class="absolute inset-0 w-full h-full object-contain transition-transform duration-150 cursor-zoom-in"
+          :class="desktopZoomedPage === currentPage ? 'cursor-zoom-out' : ''"
+          :style="getDesktopImageStyle(currentPage)"
+          @click="toggleDesktopZoom(currentPage, $event)"
+          @mousemove="desktopZoomedPage === currentPage && updateDesktopZoomOrigin($event)"
           @load="onMainImageLoaded(currentPage)"
         />
         <div
