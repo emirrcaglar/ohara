@@ -76,7 +76,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	cacheWorker.Start()
 
 	scanner := scanner.NewScanner(database, cbzService, cacheWorker, log)
-	uploadHandler := handler.NewUploadHandler(database, scanner, log)
+	uploadHandler := handler.NewUploadHandler(database, scanner, log, dataDir)
 
 	mux.HandleFunc("POST /api/auth/login", authHandler.HandleLogin)
 	mux.HandleFunc("POST /api/auth/register", authHandler.HandleRegister)

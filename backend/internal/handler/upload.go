@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"ohara/src/internal/db"
 	"ohara/src/internal/logger"
-	"ohara/src/internal/media"
 	"ohara/src/internal/scanner"
 	"os"
 	"path/filepath"
@@ -20,13 +19,14 @@ import (
 )
 
 type UploadHandler struct {
-	DB  *db.DB
-	sc  *scanner.Scanner
-	Log *logger.Logger
+	DB      *db.DB
+	sc      *scanner.Scanner
+	Log     *logger.Logger
+	dataDir string
 }
 
-func NewUploadHandler(db *db.DB, sc *scanner.Scanner, log *logger.Logger) *UploadHandler {
-	return &UploadHandler{DB: db, sc: sc, Log: log}
+func NewUploadHandler(db *db.DB, sc *scanner.Scanner, log *logger.Logger, dataDir string) *UploadHandler {
+	return &UploadHandler{DB: db, sc: sc, Log: log, dataDir: dataDir}
 }
 
 type FileExtension string
@@ -190,7 +190,7 @@ func (h *UploadHandler) HandleChunkedUploadInit(w http.ResponseWriter, r *http.R
 			ChunkSize:    DefaultUploadChunkSize,
 			TotalChunks:  totalChunksForSize(req.Size, DefaultUploadChunkSize),
 			Status:       db.UploadStatusActive,
-			TargetPath:   defaultTargetPath(fileName),
+			TargetPath:   h.defaultTargetPath(fileName),
 		}
 		if err := h.DB.CreateUploadSession(*session); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -209,7 +209,7 @@ func (h *UploadHandler) HandleChunkedUploadInit(w http.ResponseWriter, r *http.R
 		session.Status = db.UploadStatusActive
 	}
 
-	chunksDir := chunkedUploadChunksDir(session.ID)
+	chunksDir := h.chunkedUploadChunksDir(session.ID)
 	if err := os.MkdirAll(chunksDir, 0o755); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -268,7 +268,7 @@ func (h *UploadHandler) HandleChunkedUploadChunk(w http.ResponseWriter, r *http.
 	}
 
 	limit := MaxUploadChunkSize + 1
-	chunkPath := chunkedUploadChunkPath(uploadID, chunkIndex)
+	chunkPath := h.chunkedUploadChunkPath(uploadID, chunkIndex)
 	tmpPath := chunkPath + ".tmp"
 	if err := os.MkdirAll(filepath.Dir(chunkPath), 0o755); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -360,7 +360,7 @@ func (h *UploadHandler) HandleChunkedUploadComplete(w http.ResponseWriter, r *ht
 
 	targetPath := session.TargetPath
 	if targetPath == "" {
-		targetPath = defaultTargetPath(session.Filename)
+		targetPath = h.defaultTargetPath(session.Filename)
 	}
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -384,7 +384,7 @@ func (h *UploadHandler) HandleChunkedUploadComplete(w http.ResponseWriter, r *ht
 		h.Log.Info("[upload] chunked complete id=%s name=%s path=%s", uploadID, session.Filename, targetPath)
 	}
 	go func() {
-		defer os.RemoveAll(chunkedUploadDir(uploadID))
+		defer os.RemoveAll(h.chunkedUploadDir(uploadID))
 		defer h.DB.DeleteUploadChunks(uploadID)
 		h.indexPath(targetPath)
 	}()
@@ -494,7 +494,7 @@ func (h *UploadHandler) HandleChunkedUploadCancel(w http.ResponseWriter, r *http
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := os.RemoveAll(chunkedUploadDir(uploadID)); err != nil {
+	if err := os.RemoveAll(h.chunkedUploadDir(uploadID)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -510,7 +510,7 @@ func (h *UploadHandler) assembleChunkedUpload(session *db.UploadSession, targetP
 
 	var assembled int64
 	for i := int64(0); i < session.TotalChunks; i++ {
-		chunkPath := chunkedUploadChunkPath(session.ID, int(i))
+		chunkPath := h.chunkedUploadChunkPath(session.ID, int(i))
 		src, err := os.Open(chunkPath)
 		if err != nil {
 			_ = dst.Close()
@@ -557,15 +557,15 @@ func isSupportedUploadFile(fileName string) bool {
 	return fileType == FileExtensionCBZ || fileType.IsAudio() || fileType.IsVideo()
 }
 
-func defaultTargetPath(fileName string) string {
+func (h *UploadHandler) defaultTargetPath(fileName string) string {
 	fileType := detectFileType(fileName)
 	if fileType == FileExtensionCBZ {
-		return filepath.Join(media.DefaultMangaDir, fileName)
+		return filepath.Join(h.dataDir, "manga", fileName)
 	}
 	if fileType.IsVideo() {
-		return filepath.Join(media.DefaultVideoDir, fileName)
+		return filepath.Join(h.dataDir, "video", fileName)
 	}
-	return filepath.Join(media.DefaultAudioDir, fileName)
+	return filepath.Join(h.dataDir, "audio", fileName)
 }
 
 func sanitizeUploadFileName(fileName string) (string, error) {
@@ -599,28 +599,28 @@ func isValidUploadID(uploadID string) bool {
 	return true
 }
 
-func chunkedUploadsRoot() string {
-	return filepath.Join(media.DefaultStorageDir, "uploads")
+func (h *UploadHandler) chunkedUploadsRoot() string {
+	return filepath.Join(h.dataDir, "uploads")
 }
 
-func chunkedUploadDir(uploadID string) string {
-	return filepath.Join(chunkedUploadsRoot(), uploadID)
+func (h *UploadHandler) chunkedUploadDir(uploadID string) string {
+	return filepath.Join(h.chunkedUploadsRoot(), uploadID)
 }
 
-func chunkedUploadChunksDir(uploadID string) string {
-	return filepath.Join(chunkedUploadDir(uploadID), "chunks")
+func (h *UploadHandler) chunkedUploadChunksDir(uploadID string) string {
+	return filepath.Join(h.chunkedUploadDir(uploadID), "chunks")
 }
 
-func chunkedUploadMetadataPath(uploadID string) string {
-	return filepath.Join(chunkedUploadDir(uploadID), "meta.json")
+func (h *UploadHandler) chunkedUploadMetadataPath(uploadID string) string {
+	return filepath.Join(h.chunkedUploadDir(uploadID), "meta.json")
 }
 
-func chunkedUploadChunkPath(uploadID string, chunkIndex int) string {
-	return filepath.Join(chunkedUploadChunksDir(uploadID), fmt.Sprintf("%06d.part", chunkIndex))
+func (h *UploadHandler) chunkedUploadChunkPath(uploadID string, chunkIndex int) string {
+	return filepath.Join(h.chunkedUploadChunksDir(uploadID), fmt.Sprintf("%06d.part", chunkIndex))
 }
 
-func writeUploadMetadata(meta ChunkedUploadMetadata) error {
-	f, err := os.Create(chunkedUploadMetadataPath(meta.ID))
+func (h *UploadHandler) writeUploadMetadata(meta ChunkedUploadMetadata) error {
+	f, err := os.Create(h.chunkedUploadMetadataPath(meta.ID))
 	if err != nil {
 		return err
 	}
@@ -628,9 +628,9 @@ func writeUploadMetadata(meta ChunkedUploadMetadata) error {
 	return json.NewEncoder(f).Encode(meta)
 }
 
-func readUploadMetadata(uploadID string) (ChunkedUploadMetadata, error) {
+func (h *UploadHandler) readUploadMetadata(uploadID string) (ChunkedUploadMetadata, error) {
 	var meta ChunkedUploadMetadata
-	f, err := os.Open(chunkedUploadMetadataPath(uploadID))
+	f, err := os.Open(h.chunkedUploadMetadataPath(uploadID))
 	if err != nil {
 		return meta, err
 	}
@@ -651,7 +651,7 @@ func totalChunksForSize(size, chunkSize int64) int64 {
 
 func (h *UploadHandler) reconcileUploadChunks(session *db.UploadSession) error {
 	for i := int64(0); i < session.TotalChunks; i++ {
-		chunkPath := chunkedUploadChunkPath(session.ID, int(i))
+		chunkPath := h.chunkedUploadChunkPath(session.ID, int(i))
 		info, err := os.Stat(chunkPath)
 		if err != nil {
 			if os.IsNotExist(err) {
