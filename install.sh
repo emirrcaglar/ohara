@@ -138,6 +138,7 @@ EOF
 
     sudo systemctl daemon-reload
     sudo systemctl enable ohara
+    sudo systemctl start ohara
 
     echo ""
     echo "✓ Systemd service installed with FHS-compliant paths:"
@@ -146,10 +147,20 @@ EOF
     echo "  Config:  $CONFIG_DIR"
     echo "  Cache:   $CACHE_DIR"
     echo ""
+
+    # Check if service started successfully
+    if systemctl is-active --quiet ohara; then
+        echo "✓ Service is running"
+    else
+        echo "⚠ Service failed to start. Check logs:"
+        echo "  sudo journalctl -u ohara -n 20"
+    fi
+
+    echo ""
     echo "Commands:"
-    echo "  Start:   sudo systemctl start ohara"
     echo "  Status:  sudo systemctl status ohara"
     echo "  Logs:    sudo journalctl -u ohara -f"
+    echo "  Restart: sudo systemctl restart ohara"
     echo "  Config:  sudo nano $CONFIG_DIR/environment"
 fi
 
