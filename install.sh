@@ -58,42 +58,41 @@ else
     sudo chmod +x "$INSTALL_DIR/ohara"
 fi
 
-# Setup systemd service (optional)
+# Setup systemd service on Linux
 if [ -d /etc/systemd/system ] && [ "$OS" = "linux" ]; then
     echo ""
-    read -p "Setup systemd service? (y/N) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        # Create dedicated system user if it doesn't exist
-        if ! id -u ohara >/dev/null 2>&1; then
-            sudo useradd --system --no-create-home --shell /bin/false ohara
-            echo "Created system user 'ohara'"
-        fi
+    echo "Setting up systemd service..."
 
-        # FHS-compliant paths
-        DATA_DIR="/var/lib/ohara"          # Application state data
-        CONFIG_DIR="/etc/ohara"             # Configuration files
-        CACHE_DIR="/var/cache/ohara"        # Cache/temporary data
+    # Create dedicated system user if it doesn't exist
+    if ! id -u ohara >/dev/null 2>&1; then
+        sudo useradd --system --no-create-home --shell /bin/false ohara
+        echo "Created system user 'ohara'"
+    fi
 
-        # Create directories with proper ownership
-        sudo mkdir -p "$DATA_DIR" "$CONFIG_DIR" "$CACHE_DIR"
-        sudo chown -R ohara:ohara "$DATA_DIR" "$CONFIG_DIR" "$CACHE_DIR"
-        sudo chmod 750 "$DATA_DIR" "$CONFIG_DIR"
-        sudo chmod 755 "$CACHE_DIR"
+    # FHS-compliant paths
+    DATA_DIR="/var/lib/ohara"          # Application state data
+    CONFIG_DIR="/etc/ohara"             # Configuration files
+    CACHE_DIR="/var/cache/ohara"        # Cache/temporary data
 
-        # Create environment file for configuration
-        sudo tee "$CONFIG_DIR/environment" > /dev/null <<EOF
+    # Create directories with proper ownership
+    sudo mkdir -p "$DATA_DIR" "$CONFIG_DIR" "$CACHE_DIR"
+    sudo chown -R ohara:ohara "$DATA_DIR" "$CONFIG_DIR" "$CACHE_DIR"
+    sudo chmod 750 "$DATA_DIR" "$CONFIG_DIR"
+    sudo chmod 755 "$CACHE_DIR"
+
+    # Create environment file for configuration
+    sudo tee "$CONFIG_DIR/environment" > /dev/null <<EOF
 # Ohara configuration
 # Uncomment and set these for production deployments:
 # OHARA_ADMIN_USER=admin
 # OHARA_ADMIN_PASS=changeme
 # OHARA_DEPLOYED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 EOF
-        sudo chown ohara:ohara "$CONFIG_DIR/environment"
-        sudo chmod 640 "$CONFIG_DIR/environment"
+    sudo chown ohara:ohara "$CONFIG_DIR/environment"
+    sudo chmod 640 "$CONFIG_DIR/environment"
 
-        # Create systemd service with security hardening
-        sudo tee /etc/systemd/system/ohara.service > /dev/null <<EOF
+    # Create systemd service with security hardening
+    sudo tee /etc/systemd/system/ohara.service > /dev/null <<EOF
 [Unit]
 Description=Ohara Media Server
 After=network.target
@@ -126,34 +125,27 @@ ProtectControlGroups=true
 WantedBy=multi-user.target
 EOF
 
-        sudo systemctl daemon-reload
-        sudo systemctl enable ohara
+    sudo systemctl daemon-reload
+    sudo systemctl enable ohara
 
-        echo ""
-        echo "✓ Systemd service installed with FHS-compliant paths:"
-        echo "  Binary:  $INSTALL_DIR/ohara"
-        echo "  Data:    $DATA_DIR"
-        echo "  Config:  $CONFIG_DIR"
-        echo "  Cache:   $CACHE_DIR"
-        echo ""
-        echo "Commands:"
-        echo "  Start:   sudo systemctl start ohara"
-        echo "  Status:  sudo systemctl status ohara"
-        echo "  Logs:    sudo journalctl -u ohara -f"
-        echo "  Config:  sudo nano $CONFIG_DIR/environment"
-    fi
+    echo ""
+    echo "✓ Systemd service installed with FHS-compliant paths:"
+    echo "  Binary:  $INSTALL_DIR/ohara"
+    echo "  Data:    $DATA_DIR"
+    echo "  Config:  $CONFIG_DIR"
+    echo "  Cache:   $CACHE_DIR"
+    echo ""
+    echo "Commands:"
+    echo "  Start:   sudo systemctl start ohara"
+    echo "  Status:  sudo systemctl status ohara"
+    echo "  Logs:    sudo journalctl -u ohara -f"
+    echo "  Config:  sudo nano $CONFIG_DIR/environment"
 fi
 
 # Verify
 if command -v ohara >/dev/null 2>&1; then
     echo ""
     echo "✓ Ohara installed successfully!"
-    echo ""
-    echo "Run 'ohara' to start the server"
-    echo "Data will be stored in ./app-data (relative to where you run it)"
-    echo ""
-    echo "Tip: Use -data flag to specify a custom data directory:"
-    echo "  ohara -data /path/to/data"
 else
     echo "✓ Binary installed to $INSTALL_DIR/ohara"
     echo ""
