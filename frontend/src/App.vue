@@ -132,7 +132,7 @@ function handleCloseMediaBar() {
 
 <template>
   <div
-    class="min-h-screen bg-background text-on-surface font-sans selection:bg-primary-container selection:text-on-primary-container"
+    class="min-h-dvh bg-background text-on-surface font-sans selection:bg-primary-container selection:text-on-primary-container"
   >
     <audio
       ref="audioRef"
@@ -158,7 +158,7 @@ function handleCloseMediaBar() {
 
       <Sidebar :open="sidebarOpen" @close="sidebarOpen = false" />
 
-      <main class="md:ml-64 flex flex-col h-dvh">
+      <main class="md:ml-64 flex h-dvh flex-col bg-surface">
         <TopBar @toggleSidebar="sidebarOpen = !sidebarOpen" />
 
         <div class="flex-1 min-h-0 flex flex-col overflow-clip">

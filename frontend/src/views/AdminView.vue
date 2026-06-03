@@ -55,7 +55,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="p-8 flex flex-col gap-8 flex-1 bg-surface-container-lowest min-h-screen">
+  <main class="p-8 flex flex-col gap-8 flex-1 bg-surface-container-lowest min-h-full">
     <section class="flex-1 space-y-6">
       <div class="flex justify-between items-end border-b-0">
         <div>

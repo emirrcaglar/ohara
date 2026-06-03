@@ -43,7 +43,6 @@ export function useTouchGestures(options: TouchGestureOptions) {
   let pinchStartPanY = 0
   let pinchStartCenterX = 0
   let pinchStartCenterY = 0
-  let twoFingerTapCandidate = false
   let lastTapAt = 0
   let tapTimer: number | undefined
   let snapTimer: number | undefined
@@ -112,7 +111,6 @@ export function useTouchGestures(options: TouchGestureOptions) {
       pinchStartPanY = options.panY.value
       pinchStartCenterX = center.x
       pinchStartCenterY = center.y
-      twoFingerTapCandidate = true
       options.setPanVelocity(0, 0)
     }
   }
@@ -141,14 +139,6 @@ export function useTouchGestures(options: TouchGestureOptions) {
       const centerX = options.viewportWidth.value / 2
       const centerY = window.innerHeight / 2
       const ratio = nextScale / pinchStartScale
-
-      if (
-        Math.abs(distance - pinchStartDistance) > 8 ||
-        Math.abs(center.x - pinchStartCenterX) > 8 ||
-        Math.abs(center.y - pinchStartCenterY) > 8
-      ) {
-        twoFingerTapCandidate = false
-      }
 
       const panX = pinchStartPanX + (pinchStartCenterX - centerX - pinchStartPanX) * (1 - ratio)
       const panY = pinchStartPanY + (pinchStartCenterY - centerY - pinchStartPanY) * (1 - ratio)
@@ -204,14 +194,16 @@ export function useTouchGestures(options: TouchGestureOptions) {
 
     isDragging.value = false
 
-    if (twoFingerTapCandidate && options.scale.value > 1) {
-      twoFingerTapCandidate = false
-      options.resetZoom()
+    const touch = event.changedTouches[0]
+    const wasTap =
+      touch && Math.abs(touch.clientX - startX) < 8 && Math.abs(touch.clientY - startY) < 8
+
+    if (wasTap) {
+      handleTap(touch)
+      snapToCurrentPage()
       activeTouches.clear()
       return
     }
-
-    twoFingerTapCandidate = false
 
     const movedX = Math.abs(dragX.value)
     const movedEnough = movedX > options.viewportWidth.value * SWIPE_THRESHOLD_RATIO
@@ -223,10 +215,6 @@ export function useTouchGestures(options: TouchGestureOptions) {
       } else if (movedEnough && dragX.value > 0) {
         options.onPageSwipe(-1)
       } else {
-        const touch = event.changedTouches[0]
-        const wasTap =
-          touch && Math.abs(touch.clientX - startX) < 8 && Math.abs(touch.clientY - startY) < 8
-        if (wasTap) handleTap(touch)
         snapToCurrentPage()
       }
     } else {

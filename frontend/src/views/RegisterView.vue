@@ -27,7 +27,7 @@ async function handleSubmit() {
 
 <template>
   <div
-    class="bg-surface-container-lowest text-on-background min-h-screen flex items-center justify-center p-6 antialiased selection:bg-secondary-container selection:text-white"
+    class="bg-surface-container-lowest text-on-background min-h-dvh flex items-center justify-center p-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] antialiased selection:bg-secondary-container selection:text-white"
   >
     <main class="w-full max-w-md z-10">
       <div class="flex flex-col items-center mb-12">

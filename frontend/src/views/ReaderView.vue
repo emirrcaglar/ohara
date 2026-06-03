@@ -43,6 +43,7 @@ const {
   handleTouchEnd,
   mobileTrackStyle,
   mobileReaderClass,
+  chromeVisible,
 } = useReaderSetup({
   mangaId,
   totalPages,
@@ -94,14 +95,23 @@ function isDesktopPointer() {
   return window.matchMedia('(min-width: 768px)').matches
 }
 
+function toggleMobileChrome() {
+  if (isDesktopPointer()) return
+  chromeVisible.value = !chromeVisible.value
+}
+
+function updateZoomOrigin(target: HTMLElement, clientX: number, clientY: number) {
+  const rect = target.getBoundingClientRect()
+  const x = ((clientX - rect.left) / rect.width) * 100
+  const y = ((clientY - rect.top) / rect.height) * 100
+  desktopZoomOrigin.value = `${x}% ${y}%`
+}
+
 function updateDesktopZoomOrigin(event: MouseEvent) {
   const target = event.currentTarget
   if (!(target instanceof HTMLElement)) return
 
-  const rect = target.getBoundingClientRect()
-  const x = ((event.clientX - rect.left) / rect.width) * 100
-  const y = ((event.clientY - rect.top) / rect.height) * 100
-  desktopZoomOrigin.value = `${x}% ${y}%`
+  updateZoomOrigin(target, event.clientX, event.clientY)
 }
 
 function toggleDesktopZoom(page: number, event: MouseEvent) {
@@ -220,6 +230,7 @@ onBeforeUnmount(() => {
       ref="mobileScrollRef"
       class="fixed inset-0 overflow-y-auto bg-black overscroll-contain select-none md:static md:flex-1 md:min-h-0"
       :class="mobileReaderClass"
+      @click="toggleMobileChrome"
     >
       <div
         v-for="(mobilePage, index) in mobileScrollPages"

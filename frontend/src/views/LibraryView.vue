@@ -51,7 +51,9 @@ const filteredVideo = computed(() => {
 const totalMedia = computed(() => mangaStore.total + audioStore.total + videoStore.total)
 
 const floatingButtonsBottomClass = computed(() => {
-  return playerStore.currentTrack ? 'bottom-28' : 'bottom-6'
+  return playerStore.currentTrack
+    ? 'bottom-[calc(7rem+env(safe-area-inset-bottom))]'
+    : 'bottom-[calc(1.5rem+env(safe-area-inset-bottom))]'
 })
 
 onMounted(() => {
@@ -194,7 +196,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 <template>
   <div class="h-full flex flex-col">
     <main class="flex-1 overflow-y-auto">
-      <section class="p-4 md:p-8 flex-1 bg-surface">
+      <section class="min-h-full p-4 md:p-8 flex-1 bg-surface">
         <VaultHeader v-model="selectedTab" :totalManga="totalMedia" />
 
         <div
@@ -266,7 +268,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
 
       <section
         v-if="showUploadDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]"
       >
         <button
           class="absolute inset-0 bg-surface-container-lowest/60 backdrop-blur-sm"
@@ -276,7 +278,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
         ></button>
 
         <div
-          class="relative w-full max-w-4xl max-h-[90vh] overflow-auto border-t-4 border-primary-container bg-surface-container-low p-6 md:p-8"
+          class="relative w-full max-w-4xl max-h-[90dvh] overflow-auto border-t-4 border-primary-container bg-surface-container-low p-6 md:p-8"
         >
           <header class="mb-8 flex items-start justify-between">
             <div>
@@ -370,7 +372,7 @@ function handleGlobalKeydown(event: KeyboardEvent) {
         ></button>
 
         <aside
-          class="relative h-full w-full max-w-md bg-surface-container-low border-l border-white/10 flex flex-col"
+          class="relative h-dvh w-full max-w-md bg-surface-container-low border-l border-white/10 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
         >
           <div class="p-6 border-b border-white/10 flex items-center justify-between">
             <h3 class="text-xs font-black uppercase tracking-widest text-primary">

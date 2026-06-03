@@ -37,7 +37,7 @@ function handleClose() {
   <Transition name="slide-up">
     <div
       v-if="expanded"
-      class="md:hidden fixed inset-x-0 bottom-0 z-50 bg-surface-container-low border-t-2 border-primary-container"
+      class="md:hidden fixed inset-x-0 bottom-0 z-50 bg-surface-container-low border-t-2 border-primary-container pb-[env(safe-area-inset-bottom)]"
     >
       <div class="flex items-center justify-between px-3 pt-2 pb-1">
         <button
@@ -91,7 +91,9 @@ function handleClose() {
   </Transition>
 
   <!-- Compact bar -->
-  <div class="bg-surface-container-low border-t border-white/10 px-4 py-2">
+  <div
+    class="bg-surface-container-low border-t border-white/10 px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
+  >
     <div class="flex items-center gap-4">
       <!-- Track info — tappable on mobile to expand -->
       <button

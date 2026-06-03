@@ -11,6 +11,7 @@ defineOptions({
 })
 
 const props = defineProps<{ open?: boolean }>()
+const emit = defineEmits<{ close: [] }>()
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -26,12 +27,13 @@ const showLogoutModal = ref(false)
 
 <template>
   <aside
-    class="fixed left-0 top-0 h-full flex flex-col bg-surface-container-low z-40 w-64 border-0 rounded-0 transition-transform duration-200"
+    class="fixed left-0 top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)] h-auto flex flex-col bg-surface-container-low z-40 w-64 border-0 rounded-0 transition-transform duration-200 md:top-0 md:bottom-0"
     :class="props.open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'"
   >
     <RouterLink
       to="/"
       class="p-8 flex flex-col gap-1 group cursor-pointer hover:opacity-80 transition-opacity"
+      @click="emit('close')"
     >
       <span class="text-2xl font-bold tracking-tighter text-primary-container"> OHARA </span>
     </RouterLink>
@@ -43,6 +45,7 @@ const showLogoutModal = ref(false)
         :key="item.name"
         :to="item.path"
         class="flex items-center gap-4 px-6 py-4 transition-none"
+        @click="emit('close')"
         :class="
           route.path === item.path
             ? 'text-primary-container font-black border-l-4 border-primary-container bg-surface-container-high'
@@ -57,6 +60,7 @@ const showLogoutModal = ref(false)
         <RouterLink
           to="/admin/approvals"
           class="w-full py-4 px-4 bg-secondary-container text-on-secondary-container font-bold uppercase tracking-tighter text-sm text-left flex justify-between items-center group transition-transform active:translate-x-1"
+          @click="emit('close')"
         >
           <div class="flex items-center gap-3">
             <ShieldCheck class="w-4 h-4" />
