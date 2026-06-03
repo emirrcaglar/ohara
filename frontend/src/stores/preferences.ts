@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { fetchPreferences, savePreference } from '../api/preferences'
 
 const RIGHT_TO_LEFT_SWIPE_FOR_MANGA_KEY = 'reader.rightToLeftSwipeForManga'
+const SCROLL_READING_FOR_MANGA_KEY = 'reader.scrollReadingForManga'
 
 export const usePreferencesStore = defineStore('preferences', () => {
   const preferences = ref<Record<string, string>>({})
@@ -12,6 +13,9 @@ export const usePreferencesStore = defineStore('preferences', () => {
 
   const rightToLeftSwipeForManga = computed(
     () => preferences.value[RIGHT_TO_LEFT_SWIPE_FOR_MANGA_KEY] === 'true',
+  )
+  const scrollReadingForManga = computed(
+    () => preferences.value[SCROLL_READING_FOR_MANGA_KEY] === 'true',
   )
 
   async function loadPreferences() {
@@ -32,29 +36,37 @@ export const usePreferencesStore = defineStore('preferences', () => {
     }
   }
 
-  async function setRightToLeftSwipeForManga(value: boolean) {
-    const previousValue = preferences.value[RIGHT_TO_LEFT_SWIPE_FOR_MANGA_KEY]
+  async function setBooleanPreference(key: string, value: boolean) {
+    const previousValue = preferences.value[key]
     preferences.value = {
       ...preferences.value,
-      [RIGHT_TO_LEFT_SWIPE_FOR_MANGA_KEY]: value ? 'true' : 'false',
+      [key]: value ? 'true' : 'false',
     }
     error.value = null
 
     try {
-      await savePreference(RIGHT_TO_LEFT_SWIPE_FOR_MANGA_KEY, value ? 'true' : 'false')
+      await savePreference(key, value ? 'true' : 'false')
     } catch (e) {
       console.error('Failed to save preference:', e)
 
       const nextPreferences = { ...preferences.value }
       if (previousValue === undefined) {
-        delete nextPreferences[RIGHT_TO_LEFT_SWIPE_FOR_MANGA_KEY]
+        delete nextPreferences[key]
       } else {
-        nextPreferences[RIGHT_TO_LEFT_SWIPE_FOR_MANGA_KEY] = previousValue
+        nextPreferences[key] = previousValue
       }
       preferences.value = nextPreferences
       error.value = 'FAILED_TO_SAVE_PREFERENCE'
       throw e
     }
+  }
+
+  async function setRightToLeftSwipeForManga(value: boolean) {
+    await setBooleanPreference(RIGHT_TO_LEFT_SWIPE_FOR_MANGA_KEY, value)
+  }
+
+  async function setScrollReadingForManga(value: boolean) {
+    await setBooleanPreference(SCROLL_READING_FOR_MANGA_KEY, value)
   }
 
   return {
@@ -63,7 +75,9 @@ export const usePreferencesStore = defineStore('preferences', () => {
     hasLoaded,
     error,
     rightToLeftSwipeForManga,
+    scrollReadingForManga,
     loadPreferences,
     setRightToLeftSwipeForManga,
+    setScrollReadingForManga,
   }
 })

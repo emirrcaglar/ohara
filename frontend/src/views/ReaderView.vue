@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { usePreferencesStore } from '../stores/preferences'
@@ -9,7 +9,7 @@ import { useReaderSetup } from '../composables/useReaderSetup'
 const route = useRoute()
 const router = useRouter()
 const preferencesStore = usePreferencesStore()
-const { rightToLeftSwipeForManga } = storeToRefs(preferencesStore)
+const { rightToLeftSwipeForManga, scrollReadingForManga } = storeToRefs(preferencesStore)
 
 const mangaId = computed(() => Number(route.query.manga))
 const totalPages = ref(Number(route.query.total) || 0)
@@ -30,6 +30,7 @@ const {
   getVisualPageIndex,
   goVisualLeft,
   goVisualRight,
+  commitPage,
   getMobilePageSrc,
   showPageSkeleton,
   onMainImageLoaded,
@@ -49,6 +50,10 @@ const {
   getPageUrl,
 })
 
+const mobileScrollRef = ref<HTMLElement | null>(null)
+const mobileScrollPageRefs = ref<HTMLElement[]>([])
+let mobileScrollObserver: IntersectionObserver | undefined
+
 const mobilePages = computed(() =>
   Array.from({ length: totalPages.value }, (_, visualIndex) => {
     const page = getVisualPageIndex(visualIndex + 1)
@@ -58,6 +63,71 @@ const mobilePages = computed(() =>
     }
   }),
 )
+
+const mobileScrollPages = computed(() =>
+  Array.from({ length: totalPages.value }, (_, visualIndex) => {
+    const page = getVisualPageIndex(visualIndex + 1)
+    return {
+      page,
+      src: getPageUrl(page),
+    }
+  }),
+)
+
+function setMobileScrollPageRef(el: unknown, index: number) {
+  if (el instanceof HTMLElement) {
+    mobileScrollPageRefs.value[index] = el
+  }
+}
+
+function scrollToCurrentPage() {
+  const visualIndex = mobileScrollPages.value.findIndex(
+    (mobilePage) => mobilePage.page === currentPage.value,
+  )
+  const el = visualIndex >= 0 ? mobileScrollPageRefs.value[visualIndex] : undefined
+  el?.scrollIntoView({ block: 'start' })
+}
+
+function setupMobileScrollObserver() {
+  mobileScrollObserver?.disconnect()
+  mobileScrollObserver = undefined
+
+  if (!scrollReadingForManga.value || !mobileScrollRef.value) return
+
+  mobileScrollObserver = new IntersectionObserver(
+    (entries) => {
+      const visibleEntry = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+      const page = Number((visibleEntry?.target as HTMLElement | undefined)?.dataset.page)
+
+      if (Number.isFinite(page) && page !== currentPage.value) {
+        commitPage(page)
+      }
+    },
+    {
+      root: mobileScrollRef.value,
+      threshold: [0.55],
+    },
+  )
+
+  mobileScrollPageRefs.value.forEach((el) => mobileScrollObserver?.observe(el))
+  scrollToCurrentPage()
+}
+
+watch(
+  [scrollReadingForManga, mobileScrollPages],
+  async () => {
+    mobileScrollPageRefs.value = []
+    await nextTick()
+    setupMobileScrollObserver()
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  mobileScrollObserver?.disconnect()
+})
 </script>
 
 <template>
@@ -66,6 +136,7 @@ const mobilePages = computed(() =>
     class="relative flex-1 flex flex-col bg-black overflow-hidden overscroll-none"
   >
     <div
+      v-if="!scrollReadingForManga"
       class="md:hidden fixed inset-0 overflow-hidden bg-black touch-none select-none"
       :class="mobileReaderClass"
       @touchstart="handleTouchStart"
@@ -107,7 +178,38 @@ const mobilePages = computed(() =>
       </div>
     </div>
 
-    <div class="hidden md:block flex-1 min-h-0 p-2 md:p-4">
+    <div
+      v-else
+      ref="mobileScrollRef"
+      class="fixed inset-0 overflow-y-auto bg-black overscroll-contain select-none md:static md:flex-1 md:min-h-0"
+      :class="mobileReaderClass"
+    >
+      <div
+        v-for="(mobilePage, index) in mobileScrollPages"
+        :key="mobilePage.page"
+        :ref="(el) => setMobileScrollPageRef(el, index)"
+        :data-page="mobilePage.page"
+        class="flex min-h-dvh w-full items-center justify-center bg-black"
+      >
+        <img
+          :src="mobilePage.src"
+          :alt="`Page ${mobilePage.page + 1}`"
+          class="min-h-0 w-full max-w-full object-contain select-none md:h-auto md:max-h-dvh md:w-auto"
+          loading="lazy"
+          draggable="false"
+          @load="onMainImageLoaded(mobilePage.page)"
+        />
+      </div>
+
+      <div
+        class="fixed bottom-4 right-4 z-50 rounded bg-black/70 px-2.5 py-1 font-mono text-xs font-bold text-white"
+        :style="{ marginBottom: 'env(safe-area-inset-bottom)' }"
+      >
+        {{ currentPage + 1 }} / {{ totalPages }}
+      </div>
+    </div>
+
+    <div v-if="!scrollReadingForManga" class="hidden md:block flex-1 min-h-0 p-2 md:p-4">
       <div class="relative w-full h-full">
         <img
           :key="currentPage"
@@ -126,6 +228,7 @@ const mobilePages = computed(() =>
     </div>
 
     <div
+      v-if="!scrollReadingForManga"
       class="fixed right-2 top-16 z-60 hidden items-center bg-surface-container-lowest border-2 border-primary-container p-0.5 shadow-[0_0_40px_rgba(0,0,0,0.8)] sm:right-3 md:right-6 md:top-20 md:flex"
       :style="{ marginTop: 'env(safe-area-inset-top)' }"
     >
