@@ -102,6 +102,7 @@ Documentation=https://github.com/emirrcaglar/ohara
 Type=simple
 User=ohara
 Group=ohara
+WorkingDirectory=$DATA_DIR
 
 # Paths
 ExecStart=$INSTALL_DIR/ohara -data $DATA_DIR
