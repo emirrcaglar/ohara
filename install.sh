@@ -144,6 +144,8 @@ EOF
     echo "  Config:  $CONFIG_DIR"
     echo "  Cache:   $CACHE_DIR"
     echo ""
+    echo "⚠ Default admin account is admin/admin. Change this password immediately after logging in."
+    echo ""
 
     # Check if service started successfully
     if systemctl is-active --quiet ohara; then

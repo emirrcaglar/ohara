@@ -31,6 +31,10 @@ type UpdatePasswordRequest struct {
 	NewPassword     string `json:"newPassword"`
 }
 
+type UpdatePFPRequest struct {
+	PFP *int `json:"pfp"`
+}
+
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -202,6 +206,53 @@ func (h *AuthHandler) HandleUpdatePassword(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusOK)
 }
 
+func (h *AuthHandler) HandleUpdatePFP(w http.ResponseWriter, r *http.Request) {
+	var req UpdatePFPRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		if h.Log != nil {
+			h.Log.Warn("[auth] pfp update request decode failed err=%v", err)
+		}
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if req.PFP == nil {
+		if h.Log != nil {
+			h.Log.Warn("[auth] pfp update rejected missing pfp")
+		}
+		http.Error(w, "PFP integer required", http.StatusBadRequest)
+		return
+	}
+	pfp := *req.PFP
+
+	user := GetUser(r.Context())
+	if user == nil {
+		if h.Log != nil {
+			h.Log.Warn("[auth] pfp update missing user context")
+		}
+		http.Error(w, "Not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.DB.UpdateUserPFP(user.ID, pfp); err != nil {
+		if h.Log != nil {
+			h.Log.Error("[auth] pfp update failed username=%s pfp=%d err=%v", user.Username, pfp, err)
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	if h.Log != nil {
+		h.Log.Info("[auth] pfp update success username=%s pfp=%d", user.Username, pfp)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"pfp": pfp,
+	})
+}
+
 func (h *AuthHandler) HandleMe(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("session")
 	if err != nil {
@@ -221,10 +272,12 @@ func (h *AuthHandler) HandleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"id":         user.ID,
 		"username":   user.Username,
 		"role":       user.Role,
 		"isApproved": user.IsApproved,
+		"pfp":        user.PFP,
 	})
 }

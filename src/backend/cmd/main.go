@@ -25,6 +25,9 @@ func main() {
 		return
 	}
 	log.Info("[main] database initialized data_dir=%s", *dataDir)
+	if database.DefaultAdminCreated() {
+		log.Info("[main] default admin account created username=admin password=admin; change this password immediately")
+	}
 	defer database.Close()
 
 	if deployedAt := os.Getenv("OHARA_DEPLOYED_AT"); deployedAt != "" {

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { Library, Settings, Terminal, ShieldCheck } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
+import { getUserPfpUrl } from '../utils/userPfp'
 import StatusBar from './StatusBar.vue'
-import LogoutModal from './LogoutModal.vue'
+import UserModal from './UserModal.vue'
 
 defineOptions({
   name: 'AppSidebar',
@@ -22,7 +23,8 @@ const navItems = [
   { name: 'Logs', icon: Terminal, path: '/logs', adminOnly: true },
 ]
 
-const showLogoutModal = ref(false)
+const showUserModal = ref(false)
+const userPfpUrl = computed(() => getUserPfpUrl(authStore.user?.pfp))
 </script>
 
 <template>
@@ -76,10 +78,18 @@ const showLogoutModal = ref(false)
     <button
       type="button"
       class="p-4 bg-surface-container border-t border-surface-container-high flex items-center gap-3 w-full text-left hover:bg-surface-container-high transition-colors"
-      @click="showLogoutModal = true"
+      @click="showUserModal = true"
     >
-      <div class="w-10 h-10 bg-surface-container-highest flex items-center justify-center shrink-0">
-        <span class="material-symbols-outlined" style="color: #ff8c00">person</span>
+      <div
+        class="w-10 h-10 bg-surface-container-highest flex items-center justify-center shrink-0 overflow-hidden"
+      >
+        <img
+          v-if="userPfpUrl"
+          :src="userPfpUrl"
+          class="w-full h-full object-cover grayscale brightness-75 contrast-125"
+          alt="User avatar"
+        />
+        <span v-else class="material-symbols-outlined" style="color: #ff8c00">person</span>
       </div>
       <div class="flex-1 overflow-hidden">
         <div class="truncate font-bold text-[10px] text-on-surface uppercase tracking-widest">
@@ -93,6 +103,6 @@ const showLogoutModal = ref(false)
 
     <StatusBar />
 
-    <LogoutModal :open="showLogoutModal" @close="showLogoutModal = false" />
+    <UserModal :open="showUserModal" @close="showUserModal = false" />
   </aside>
 </template>

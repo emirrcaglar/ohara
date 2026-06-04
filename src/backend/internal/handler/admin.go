@@ -16,7 +16,7 @@ type AdminHandler struct {
 
 func (h *AdminHandler) HandleListPendingUsers(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(`
-		SELECT id, username, role, is_approved, created_at
+		SELECT id, username, role, is_approved, pfp, created_at
 		FROM user WHERE is_approved = 0
 	`)
 	if err != nil {
@@ -33,12 +33,14 @@ func (h *AdminHandler) HandleListPendingUsers(w http.ResponseWriter, r *http.Req
 		var id int64
 		var username, role, createdAt string
 		var isApproved bool
-		rows.Scan(&id, &username, &role, &isApproved, &createdAt)
+		var pfp int
+		rows.Scan(&id, &username, &role, &isApproved, &pfp, &createdAt)
 		users = append(users, map[string]interface{}{
 			"id":         id,
 			"username":   username,
 			"role":       role,
 			"isApproved": isApproved,
+			"pfp":        pfp,
 			"createdAt":  createdAt,
 		})
 	}

@@ -7,6 +7,7 @@ export interface User {
   username: string
   role: string
   isApproved: boolean
+  pfp: number
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -49,6 +50,16 @@ export const useAuthStore = defineStore('auth', () => {
     })
   }
 
+  async function updatePFP(pfp: number) {
+    await fetchJson('/api/auth/pfp', {
+      method: 'PUT',
+      body: JSON.stringify({ pfp }),
+    })
+    if (user.value) {
+      user.value.pfp = pfp
+    }
+  }
+
   async function logout() {
     await fetchJson('/api/auth/logout', { method: 'POST' })
     user.value = null
@@ -63,6 +74,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     changePassword,
+    updatePFP,
     logout,
   }
 })

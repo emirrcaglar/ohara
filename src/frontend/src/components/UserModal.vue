@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
+import { getUserPfpUrl, normalizePfpIndex, USER_PFP_OPTIONS } from '../utils/userPfp'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
@@ -11,6 +12,11 @@ const router = useRouter()
 
 const currentTime = ref('')
 const showPasswordModal = ref(false)
+const showPfpSelector = ref(false)
+const selectedPfp = ref(0)
+const pfpError = ref('')
+const isUpdatingPfp = ref(false)
+const currentPfpUrl = computed(() => getUserPfpUrl(authStore.user?.pfp))
 const currentPassword = ref('')
 const newPassword = ref('')
 const confirmNewPassword = ref('')
@@ -47,6 +53,32 @@ function getErrorMessage(error: unknown) {
 function openPasswordModal() {
   resetPasswordForm()
   showPasswordModal.value = true
+}
+
+function openPfpSelector() {
+  pfpError.value = ''
+  selectedPfp.value = normalizePfpIndex(authStore.user?.pfp)
+  showPfpSelector.value = true
+}
+
+function closePfpSelector() {
+  showPfpSelector.value = false
+  pfpError.value = ''
+}
+
+async function handlePfpSelect(pfp: number) {
+  pfpError.value = ''
+  selectedPfp.value = pfp
+  isUpdatingPfp.value = true
+
+  try {
+    await authStore.updatePFP(pfp)
+    showPfpSelector.value = false
+  } catch (error: unknown) {
+    pfpError.value = getErrorMessage(error).replace('Password', 'Avatar')
+  } finally {
+    isUpdatingPfp.value = false
+  }
 }
 
 async function handlePasswordSubmit() {
@@ -86,6 +118,9 @@ watch(
   (open) => {
     if (!open) {
       showPasswordModal.value = false
+      showPfpSelector.value = false
+      pfpError.value = ''
+      isUpdatingPfp.value = false
       resetPasswordForm()
     }
   },
@@ -108,62 +143,137 @@ onUnmounted(() => {
       class="fixed inset-0 bg-background/80 backdrop-blur-sm z-60 flex flex-col-reverse items-start justify-start gap-4 overflow-y-auto p-6 md:flex-row md:items-end"
       @click.self="emit('close')"
     >
-      <div
-        class="w-full max-w-72 bg-surface-container-lowest border-2 border-primary-container p-6 shadow-[0px_0px_40px_-10px_rgba(255,140,0,0.4)] relative"
-      >
-        <div class="flex items-center gap-4 mb-8">
+      <div class="relative w-full max-w-72">
+        <button
+          v-if="showPfpSelector"
+          type="button"
+          class="fixed inset-0 z-5 cursor-default"
+          aria-label="Close avatar selector"
+          @click="closePfpSelector"
+        ></button>
+
+        <div
+          v-if="showPfpSelector"
+          class="absolute left-0 bottom-full z-10 w-full bg-surface-container-lowest border-2 border-primary-container border-b-0 p-4 shadow-[0px_0px_40px_-10px_rgba(255,140,0,0.4)]"
+        >
+          <div class="mb-3 flex justify-between items-center"></div>
+
+          <div class="grid grid-cols-3 gap-2 mb-4">
+            <button
+              v-for="option in USER_PFP_OPTIONS"
+              :key="option.index"
+              type="button"
+              class="relative aspect-square border-2 transition-colors group overflow-hidden"
+              :class="
+                selectedPfp === option.index
+                  ? 'border-primary-container'
+                  : 'border-surface-container-high hover:border-primary-container'
+              "
+              :disabled="isUpdatingPfp"
+              @click="handlePfpSelect(option.index)"
+            >
+              <img
+                :alt="option.alt"
+                class="w-full h-full object-cover grayscale brightness-75 group-hover:grayscale-0 group-hover:brightness-100 transition-all"
+                :class="selectedPfp === option.index ? 'grayscale-0 brightness-100' : ''"
+                :src="option.src"
+              />
+              <span
+                v-if="selectedPfp === option.index"
+                class="absolute bottom-1 right-1 material-symbols-outlined text-xs text-primary-container bg-background/80"
+              >
+                check_circle
+              </span>
+            </button>
+          </div>
+
           <div
-            class="relative w-14 h-14 bg-surface-container-high border border-outline-variant flex items-center justify-center shrink-0"
+            v-if="pfpError"
+            class="mb-3 bg-error-container p-2 text-[8px] font-bold uppercase tracking-widest text-on-error-container"
           >
-            <span class="material-symbols-outlined text-4xl" style="color: #ff8c00">person</span>
-            <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-primary-container"></div>
+            {{ pfpError }}
           </div>
-          <div>
-            <div class="text-[10px] text-secondary font-bold tracking-widest mb-1">
-              TERMINATING_SESSION
-            </div>
-            <div class="text-lg font-black leading-none text-on-surface tracking-tighter">
-              {{ authStore.user?.username || 'GUEST' }}
-            </div>
-          </div>
-        </div>
 
-        <div class="space-y-3 mb-8">
-          <div class="flex justify-between text-[10px] border-b border-surface-container-high pb-1">
-            <span class="opacity-60 uppercase">System Time</span>
-            <span class="font-mono">{{ currentTime }}</span>
-          </div>
-          <div class="flex justify-between text-[10px] border-b border-surface-container-high pb-1">
-            <span class="opacity-60 uppercase">IP Address</span>
-            <span class="font-mono">127.0.0.1</span>
-          </div>
-        </div>
-
-        <div class="flex flex-col gap-2">
-          <button
-            type="button"
-            class="w-full bg-primary-container text-on-primary-container font-black py-4 flex items-center justify-center gap-3 active:scale-95 transition-transform"
-            @click="handleLogout"
-          >
-            <span class="material-symbols-outlined">logout</span>
-            <span class="tracking-widest">LOGOUT</span>
-          </button>
-          <button
-            type="button"
-            class="w-full bg-transparent text-secondary border border-secondary py-3 flex items-center justify-center gap-3 active:scale-95 transition-transform mt-1"
-            @click="openPasswordModal"
-          >
-            <span class="material-symbols-outlined text-sm font-bold">key</span>
-            <span class="text-[10px] font-bold tracking-[0.2em]">CHANGE_PASSWORD</span>
-          </button>
+          <div
+            class="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-primary-container"
+          ></div>
+          <div class="absolute -top-1 -right-1 w-2 h-2 bg-primary-container"></div>
         </div>
 
         <div
-          class="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-primary-container"
-        ></div>
-        <div class="absolute -top-1 -right-1 w-2 h-2 bg-primary-container"></div>
-        <div class="absolute bottom-0 right-0 p-1">
-          <div class="text-[8px] opacity-20 font-mono">OHARA_SYS_EXIT</div>
+          class="w-full bg-surface-container-lowest border-2 border-primary-container p-6 shadow-[0px_0px_40px_-10px_rgba(255,140,0,0.4)] relative"
+        >
+          <div class="flex items-center gap-4 mb-8">
+            <button
+              type="button"
+              class="relative w-14 h-14 bg-surface-container-high border border-outline-variant flex items-center justify-center shrink-0 overflow-hidden group"
+              aria-label="Change avatar"
+              @click="openPfpSelector"
+            >
+              <img
+                v-if="currentPfpUrl"
+                :src="currentPfpUrl"
+                class="w-full h-full object-cover grayscale brightness-75 contrast-125 group-hover:grayscale-0 group-hover:brightness-100 transition-all"
+                alt="Current user avatar"
+              />
+              <span v-else class="material-symbols-outlined text-4xl" style="color: #ff8c00"
+                >person</span
+              >
+              <span
+                class="absolute inset-0 hidden place-items-center bg-background/45 text-primary-container group-hover:grid"
+              >
+                <span class="material-symbols-outlined text-xl">edit</span>
+              </span>
+              <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-primary-container"></div>
+            </button>
+            <div>
+              <div class="text-lg font-black leading-none text-on-surface tracking-tighter">
+                {{ authStore.user?.username || 'GUEST' }}
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-3 mb-8">
+            <div
+              class="flex justify-between text-[10px] border-b border-surface-container-high pb-1"
+            >
+              <span class="opacity-60 uppercase">System Time</span>
+              <span class="font-mono">{{ currentTime }}</span>
+            </div>
+            <div
+              class="flex justify-between text-[10px] border-b border-surface-container-high pb-1"
+            >
+              <span class="opacity-60 uppercase">IP Address</span>
+              <span class="font-mono">127.0.0.1</span>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <button
+              type="button"
+              class="w-full bg-primary-container text-on-primary-container font-black py-4 flex items-center justify-center gap-3 active:scale-95 transition-transform"
+              @click="handleLogout"
+            >
+              <span class="material-symbols-outlined">logout</span>
+              <span class="tracking-widest">LOGOUT</span>
+            </button>
+            <button
+              type="button"
+              class="w-full bg-transparent text-secondary border border-secondary py-3 flex items-center justify-center gap-3 active:scale-95 transition-transform mt-1"
+              @click="openPasswordModal"
+            >
+              <span class="material-symbols-outlined text-sm font-bold">key</span>
+              <span class="text-[10px] font-bold tracking-[0.2em]">CHANGE_PASSWORD</span>
+            </button>
+          </div>
+
+          <div
+            class="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-primary-container"
+          ></div>
+          <div class="absolute -top-1 -right-1 w-2 h-2 bg-primary-container"></div>
+          <div class="absolute bottom-0 right-0 p-1">
+            <div class="text-[8px] opacity-20 font-mono">OHARA_SYS_EXIT</div>
+          </div>
         </div>
       </div>
 

@@ -12,6 +12,7 @@ import (
 
 type DB struct {
 	*sql.DB
+	defaultAdminCreated bool
 }
 
 func Init(dataDir string) (*DB, error) {
@@ -30,14 +31,20 @@ func Init(dataDir string) (*DB, error) {
 		return nil, err
 	}
 
-	if err := migrate(conn); err != nil {
+	defaultAdminCreated, err := migrate(conn)
+	if err != nil {
 		conn.Close()
 		return nil, err
 	}
 
-	return &DB{conn}, nil
+	return &DB{DB: conn, defaultAdminCreated: defaultAdminCreated}, nil
 }
-func migrate(conn *sql.DB) error {
+
+func (db *DB) DefaultAdminCreated() bool {
+	return db.defaultAdminCreated
+}
+
+func migrate(conn *sql.DB) (bool, error) {
 	_, err := conn.Exec(`
 		CREATE TABLE IF NOT EXISTS user (
 			id            INTEGER  PRIMARY KEY AUTOINCREMENT,
@@ -45,15 +52,17 @@ func migrate(conn *sql.DB) error {
 			password_hash TEXT     NOT NULL,
 			role          TEXT     NOT NULL DEFAULT 'user',
 			is_approved   BOOLEAN  NOT NULL DEFAULT 0,
+			pfp           INTEGER  NOT NULL DEFAULT 0,
 			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
 		);
 	`)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	if err := seedDefaultAdmin(conn); err != nil {
-		return err
+	defaultAdminCreated, err := seedDefaultAdmin(conn)
+	if err != nil {
+		return false, err
 	}
 
 	_, err = conn.Exec(`
@@ -162,35 +171,43 @@ func migrate(conn *sql.DB) error {
 		ON deployments(deployed_at DESC);
 	`)
 	if err != nil {
-		return err
+		return false, err
 	}
 
+	if err := addColumnIfMissing(conn, "user", "pfp", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return false, err
+	}
 	if err := addColumnIfMissing(conn, "video", "width", "INTEGER NOT NULL DEFAULT 0"); err != nil {
-		return err
+		return false, err
 	}
 	if err := addColumnIfMissing(conn, "video", "height", "INTEGER NOT NULL DEFAULT 0"); err != nil {
-		return err
+		return false, err
 	}
 
-	return nil
+	return defaultAdminCreated, nil
 }
 
-func seedDefaultAdmin(conn *sql.DB) error {
+func seedDefaultAdmin(conn *sql.DB) (bool, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	_, err = conn.Exec(`
+	result, err := conn.Exec(`
 		INSERT INTO user (username, password_hash, role, is_approved)
 		VALUES ('admin', ?, 'admin', 1)
 		ON CONFLICT(username) DO NOTHING
 	`, string(hash))
 	if err != nil {
-		return fmt.Errorf("failed to seed default admin user: %w", err)
+		return false, fmt.Errorf("failed to seed default admin user: %w", err)
 	}
 
-	return nil
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to verify default admin seed result: %w", err)
+	}
+
+	return rowsAffected > 0, nil
 }
 
 func addColumnIfMissing(conn *sql.DB, table, column, definition string) error {
