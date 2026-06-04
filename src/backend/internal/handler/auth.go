@@ -26,6 +26,11 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
+type UpdatePasswordRequest struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewPassword     string `json:"newPassword"`
+}
+
 func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -136,6 +141,64 @@ func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		MaxAge:   -1,
 	})
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *AuthHandler) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) {
+	var req UpdatePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if h.Log != nil {
+			h.Log.Warn("[auth] password update request decode failed err=%v", err)
+		}
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.CurrentPassword == "" || req.NewPassword == "" {
+		if h.Log != nil {
+			h.Log.Warn("[auth] password update rejected missing fields")
+		}
+		http.Error(w, "Current password and new password required", http.StatusBadRequest)
+		return
+	}
+
+	user := GetUser(r.Context())
+	if user == nil {
+		if h.Log != nil {
+			h.Log.Warn("[auth] password update missing user context")
+		}
+		http.Error(w, "Not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.CurrentPassword)); err != nil {
+		if h.Log != nil {
+			h.Log.Warn("[auth] password update failed invalid current password username=%s", user.Username)
+		}
+		http.Error(w, "Invalid current password", http.StatusUnauthorized)
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		if h.Log != nil {
+			h.Log.Error("[auth] password update hash failed username=%s err=%v", user.Username, err)
+		}
+		http.Error(w, "Internal error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.DB.UpdateUserPassword(user.ID, string(hash)); err != nil {
+		if h.Log != nil {
+			h.Log.Error("[auth] password update failed username=%s err=%v", user.Username, err)
+		}
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	if h.Log != nil {
+		h.Log.Info("[auth] password update success username=%s", user.Username)
+	}
 	w.WriteHeader(http.StatusOK)
 }
 

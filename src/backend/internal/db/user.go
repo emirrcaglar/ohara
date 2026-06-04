@@ -53,3 +53,11 @@ func (db *DB) GetUserByUsername(username string) (*User, error) {
 	}
 	return &u, nil
 }
+
+func (db *DB) UpdateUserPassword(userID int64, passwordHash string) error {
+	_, err := db.Exec(`
+		UPDATE user SET password_hash = ?
+		WHERE id = ?
+	`, passwordHash, userID)
+	return err
+}

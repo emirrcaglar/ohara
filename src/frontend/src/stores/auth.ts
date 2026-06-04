@@ -42,6 +42,13 @@ export const useAuthStore = defineStore('auth', () => {
     })
   }
 
+  async function changePassword(currentPassword: string, newPassword: string) {
+    await fetchJson('/api/auth/password', {
+      method: 'PUT',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    })
+  }
+
   async function logout() {
     await fetchJson('/api/auth/logout', { method: 'POST' })
     user.value = null
@@ -55,6 +62,7 @@ export const useAuthStore = defineStore('auth', () => {
     checkAuth,
     login,
     register,
+    changePassword,
     logout,
   }
 })

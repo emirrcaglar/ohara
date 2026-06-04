@@ -81,6 +81,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	mux.HandleFunc("POST /api/auth/login", authHandler.HandleLogin)
 	mux.HandleFunc("POST /api/auth/register", authHandler.HandleRegister)
 	mux.HandleFunc("POST /api/auth/logout", authHandler.HandleLogout)
+	mux.HandleFunc("PUT /api/auth/password", WithAuth(database, log, authHandler.HandleUpdatePassword))
 	mux.HandleFunc("GET /api/auth/me", authHandler.HandleMe)
 
 	// Admin routes
