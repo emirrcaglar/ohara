@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>OHARA</title>
+    <script>
+      ;(() => {
+        const reloadKey = 'ohara:stale-bundle-reload'
+        const reloadParam = '__ohara_reload'
+
+        function hasAlreadyRetried() {
+          try {
+            return sessionStorage.getItem(reloadKey) === '1'
+          } catch {
+            return new URL(location.href).searchParams.has(reloadParam)
+          }
+        }
+
+        function markRetried() {
+          try {
+            sessionStorage.setItem(reloadKey, '1')
+          } catch {}
+        }
+
+        function isStaleBundleFailure(value) {
+          const message = String(value?.message || value?.reason?.message || value || '')
+          return (
+            message.includes('Failed to fetch dynamically imported module') ||
+            message.includes('Importing a module script failed') ||
+            message.includes('error loading dynamically imported module') ||
+            message.includes('Loading CSS chunk') ||
+            message.includes('ChunkLoadError')
+          )
+        }
+
+        function recoverFromStaleBundle() {
+          if (hasAlreadyRetried()) return
+
+          markRetried()
+          const nextUrl = new URL(location.href)
+          nextUrl.searchParams.set(reloadParam, Date.now().toString(36))
+          location.replace(nextUrl.toString())
+        }
+
+        window.addEventListener(
+          'error',
+          (event) => {
+            const target = event.target
+            if (
+              target &&
+              target !== window &&
+              (target.src?.includes('/assets/') || target.href?.includes('/assets/'))
+            ) {
+              recoverFromStaleBundle()
+              return
+            }
+
+            if (isStaleBundleFailure(event.error || event.message)) {
+              recoverFromStaleBundle()
+            }
+          },
+          true,
+        )
+
+        window.addEventListener('unhandledrejection', (event) => {
+          if (isStaleBundleFailure(event.reason)) {
+            recoverFromStaleBundle()
+          }
+        })
+      })()
+    </script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

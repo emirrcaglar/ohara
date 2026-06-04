@@ -10,16 +10,15 @@
 deploy/deploy.conf
 deploy/.deploy.conf
 
-frontend/node_modules/
-frontend/dist/
-backend/app-data/
-backend/.storage/
-backend/tmp/
-backend/ui/dist/
+src/frontend/node_modules/
+src/frontend/dist/
+src/backend/app-data/
+src/backend/.storage/
+src/backend/tmp/
+src/backend/ui/dist/
 
 dist/
 build/
-ohara
 
 logs/
 *.log

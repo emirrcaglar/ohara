@@ -3,20 +3,20 @@
 FROM node:22-bookworm-slim AS frontend-builder
 WORKDIR /src
 
-COPY frontend/package*.json ./frontend/
+COPY src/frontend/package*.json ./frontend/
 RUN npm --prefix frontend ci
 
-COPY frontend ./frontend
+COPY src/frontend ./frontend
 RUN npm --prefix frontend run build:embed \
     && test -f /src/backend/ui/dist/index.html
 
 FROM golang:1.24-bookworm AS backend-builder
 WORKDIR /src/backend
 
-COPY backend/go.mod backend/go.sum ./
+COPY src/backend/go.mod src/backend/go.sum ./
 RUN go mod download
 
-COPY backend ./
+COPY src/backend ./
 COPY --from=frontend-builder /src/backend/ui/dist ./ui/dist
 RUN test -f ./ui/dist/index.html
 

@@ -83,19 +83,20 @@ SSH_CMD=(sshpass -p "$DEPLOY_PASSWORD" ssh "${SSH_OPTS[@]}")
 SCP_CMD=(sshpass -p "$DEPLOY_PASSWORD" scp "${SSH_OPTS[@]}")
 
 echo "Building the binary..."
-if [[ ! -x "frontend/node_modules/.bin/vite" ]]; then
+if [[ ! -x "src/frontend/node_modules/.bin/vite" ]]; then
 	echo "Installing frontend dependencies..."
-	npm --prefix frontend install
+	npm --prefix src/frontend install
 fi
-npm --prefix frontend run build:embed
+npm --prefix src/frontend run build:embed
 
-cd backend
-GOOS=linux GOARCH=amd64 go build -o "../$BINARY_NAME" ./cmd
-cd ..
+mkdir -p dist
+cd src/backend
+GOOS=linux GOARCH=amd64 go build -o "../../dist/$BINARY_NAME" ./cmd
+cd ../..
 
 echo "Step 1/3: Uploading binary to temporary storage..."
 # We upload to /tmp because the non-root users always have permission there.
-"${SCP_CMD[@]}" "./$BINARY_NAME" "$SERVER:/tmp/$BINARY_NAME.tmp"
+"${SCP_CMD[@]}" "./dist/$BINARY_NAME" "$SERVER:/tmp/$BINARY_NAME.tmp"
 
 echo "Step 2/3: Generating and uploading service file..."
 SERVICE_FILE_TMP="/tmp/$SERVICE_NAME.service"
