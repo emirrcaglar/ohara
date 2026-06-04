@@ -66,6 +66,15 @@ function closePfpSelector() {
   pfpError.value = ''
 }
 
+function closeUserModal() {
+  closePfpSelector()
+  emit('close')
+}
+
+function closePfpSelectorFromUserModal() {
+  if (showPfpSelector.value) closePfpSelector()
+}
+
 async function handlePfpSelect(pfp: number) {
   pfpError.value = ''
   selectedPfp.value = pfp
@@ -140,21 +149,14 @@ onUnmounted(() => {
   <Teleport to="body">
     <div
       v-if="props.open"
-      class="fixed inset-0 bg-background/80 backdrop-blur-sm z-60 flex flex-col-reverse items-start justify-start gap-4 overflow-y-auto p-6 md:flex-row md:items-end"
-      @click.self="emit('close')"
+      class="fixed inset-0 bg-background/80 backdrop-blur-[1px] z-60 flex flex-col-reverse items-start justify-start gap-4 overflow-y-auto p-6 md:flex-row md:items-end"
+      @click.self="closeUserModal"
     >
       <div class="relative w-full max-w-72">
-        <button
-          v-if="showPfpSelector"
-          type="button"
-          class="fixed inset-0 z-5 cursor-default"
-          aria-label="Close avatar selector"
-          @click="closePfpSelector"
-        ></button>
-
         <div
           v-if="showPfpSelector"
-          class="absolute left-0 bottom-full z-10 w-full bg-surface-container-lowest border-2 border-primary-container border-b-0 p-4 shadow-[0px_0px_40px_-10px_rgba(255,140,0,0.4)]"
+          class="absolute left-0 bottom-full z-10 w-full bg-surface-container-lowest border-2 border-primary-container border-b-0 p-4"
+          @click.stop
         >
           <div class="mb-3 flex justify-between items-center"></div>
 
@@ -201,14 +203,15 @@ onUnmounted(() => {
         </div>
 
         <div
-          class="w-full bg-surface-container-lowest border-2 border-primary-container p-6 shadow-[0px_0px_40px_-10px_rgba(255,140,0,0.4)] relative"
+          class="w-full bg-surface-container-lowest border-2 border-primary-container p-6 relative"
+          @click="closePfpSelectorFromUserModal"
         >
           <div class="flex items-center gap-4 mb-8">
             <button
               type="button"
               class="relative w-14 h-14 bg-surface-container-high border border-outline-variant flex items-center justify-center shrink-0 overflow-hidden group"
               aria-label="Change avatar"
-              @click="openPfpSelector"
+              @click.stop="openPfpSelector"
             >
               <img
                 v-if="currentPfpUrl"
@@ -240,12 +243,6 @@ onUnmounted(() => {
               <span class="opacity-60 uppercase">System Time</span>
               <span class="font-mono">{{ currentTime }}</span>
             </div>
-            <div
-              class="flex justify-between text-[10px] border-b border-surface-container-high pb-1"
-            >
-              <span class="opacity-60 uppercase">IP Address</span>
-              <span class="font-mono">127.0.0.1</span>
-            </div>
           </div>
 
           <div class="flex flex-col gap-2">
@@ -271,15 +268,13 @@ onUnmounted(() => {
             class="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-primary-container"
           ></div>
           <div class="absolute -top-1 -right-1 w-2 h-2 bg-primary-container"></div>
-          <div class="absolute bottom-0 right-0 p-1">
-            <div class="text-[8px] opacity-20 font-mono">OHARA_SYS_EXIT</div>
-          </div>
+          <div class="absolute bottom-0 right-0 p-1"></div>
         </div>
       </div>
 
       <form
         v-if="showPasswordModal"
-        class="w-full max-w-80 bg-surface-container-lowest border-2 border-secondary p-6 shadow-[0px_0px_40px_-10px_rgba(255,177,196,0.5)] relative"
+        class="w-full max-w-80 bg-surface-container-lowest border-2 border-secondary p-6 relative"
         @submit.prevent="handlePasswordSubmit"
       >
         <div class="flex items-center gap-3 mb-6 border-b border-surface-container-high pb-4">
