@@ -2,7 +2,6 @@ version: 2
 
 before:
   hooks:
-    # Build frontend once (same for all platforms)
     - npm --prefix src/frontend ci
     - npm --prefix src/frontend run build:embed
 

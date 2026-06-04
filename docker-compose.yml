@@ -1,0 +1,14 @@
+services:
+  ohara:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ohara:local
+    ports:
+      - "3000:3000"
+    volumes:
+      - ohara-data:/var/lib/ohara
+    restart: unless-stopped
+
+volumes:
+  ohara-data:
