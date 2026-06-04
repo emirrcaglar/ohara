@@ -93,9 +93,6 @@ if [ -d /etc/systemd/system ] && [ "$OS" = "linux" ]; then
     # Create environment file for configuration
     sudo tee "$CONFIG_DIR/environment" > /dev/null <<EOF
 # Ohara configuration
-# Uncomment and set these for production deployments:
-# OHARA_ADMIN_USER=admin
-# OHARA_ADMIN_PASS=changeme
 # OHARA_DEPLOYED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 EOF
     sudo chown ohara:ohara "$CONFIG_DIR/environment"

@@ -38,21 +38,7 @@ By default, Ohara runs on port 8080. Visit `http://localhost:8080` in your brows
 
 ## Configuration
 
-Ohara can be configured via environment variables:
-
-```bash
-export OHARA_ADMIN_USER=admin
-export OHARA_ADMIN_PASS=yourpassword
-ohara
-```
-
-## Dependency model
-
-Ohara aims for self-contained deployment.
-
-- Local/source builds use the tools available on your machine.
-- Production deploys should not pollute the VPS with global media packages.
-- Runtime helpers, when needed, should be managed inside Ohara's own install directory.
+On first database setup, Ohara creates a default admin account with username `admin` and password `admin`. Change this password immediately after logging in.
 
 ## Development
 

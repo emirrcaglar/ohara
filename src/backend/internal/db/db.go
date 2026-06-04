@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
 )
 
@@ -48,6 +49,10 @@ func migrate(conn *sql.DB) error {
 		);
 	`)
 	if err != nil {
+		return err
+	}
+
+	if err := seedDefaultAdmin(conn); err != nil {
 		return err
 	}
 
@@ -165,6 +170,24 @@ func migrate(conn *sql.DB) error {
 	}
 	if err := addColumnIfMissing(conn, "video", "height", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func seedDefaultAdmin(conn *sql.DB) error {
+	hash, err := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	_, err = conn.Exec(`
+		INSERT INTO user (username, password_hash, role, is_approved)
+		VALUES ('admin', ?, 'admin', 1)
+		ON CONFLICT(username) DO NOTHING
+	`, string(hash))
+	if err != nil {
+		return fmt.Errorf("failed to seed default admin user: %w", err)
 	}
 
 	return nil

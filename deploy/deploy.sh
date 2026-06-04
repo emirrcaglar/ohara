@@ -102,10 +102,6 @@ echo "Step 2/3: Generating and uploading service file..."
 SERVICE_FILE_TMP="/tmp/$SERVICE_NAME.service"
 SERVICE_USER="$("${SSH_CMD[@]}" "$SERVER" "whoami")"
 
-# Escape $ for systemd (needs $$)
-ESC_ADMIN_USER=$(echo "${ADMIN_USERNAME:-admin}" | sed 's/\$/$$/g')
-ESC_ADMIN_PASS=$(echo "${ADMIN_PASSWORD:-}" | sed 's/\$/$$/g')
-
 # Generate the service file using printf to avoid shell expansion issues in heredoc
 {
 	echo "[Unit]"
@@ -117,8 +113,6 @@ ESC_ADMIN_PASS=$(echo "${ADMIN_PASSWORD:-}" | sed 's/\$/$$/g')
 	echo "User=$SERVICE_USER"
 	echo "WorkingDirectory=$DATA_DIR"
 	echo "ExecStart=$REMOTE_DIR/$BINARY_NAME -data $DATA_DIR"
-	echo "Environment=\"OHARA_ADMIN_USER=$ESC_ADMIN_USER\""
-	echo "Environment=\"OHARA_ADMIN_PASS=$ESC_ADMIN_PASS\""
 	echo "Environment=\"OHARA_DEPLOYED_AT=$DEPLOYED_AT\""
 	echo "Restart=always"
 	echo "RestartSec=3"

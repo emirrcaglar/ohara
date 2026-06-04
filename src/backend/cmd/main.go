@@ -38,25 +38,6 @@ func main() {
 		}
 	}
 
-	// Bootstrap admin user
-	if *domain == "" {
-		if err := database.EnsureAdmin("admin", "admin"); err != nil {
-			log.Error("[main] failed to bootstrap local admin user err=%v", err)
-		} else {
-			log.Info("[main] local admin bootstrap complete username=admin")
-		}
-	} else {
-		adminUser := os.Getenv("OHARA_ADMIN_USER")
-		adminPass := os.Getenv("OHARA_ADMIN_PASS")
-		if adminUser != "" && adminPass != "" {
-			if err := database.EnsureAdmin(adminUser, adminPass); err != nil {
-				log.Error("[main] failed to bootstrap admin user err=%v", err)
-			} else {
-				log.Info("[main] admin bootstrap complete username=%s", adminUser)
-			}
-		}
-	}
-
 	r := router.SetupRoutes(database, *dataDir, log)
 
 	log.Info("[main] Ohara listening on port %s", *port)
