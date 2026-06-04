@@ -4,47 +4,89 @@ Minimal personal media server for manga, audio, and video.
 
 ## Installation
 
-### Quick Install (Recommended)
+### Quick install
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/emirrcaglar/ohara/main/install.sh | bash
 ```
 
-This downloads the pre-built binary for your OS and installs it to `/usr/local/bin`.
+The installer downloads the latest pre-built binary for Linux or macOS and installs it to `/usr/local/bin` by default.
 
-### Manual Download
+On Linux systems with systemd, it also creates and starts an `ohara` service using these paths:
 
-Download the appropriate binary for your system from [GitHub Releases](https://github.com/emirrcaglar/ohara/releases):
+- Binary: `/usr/local/bin/ohara`
+- Data: `/var/lib/ohara`
+- Config: `/etc/ohara`
+- Cache: `/var/cache/ohara`
 
-```bash
-# Linux x64
-curl -LO https://github.com/emirrcaglar/ohara/releases/latest/download/ohara_linux_amd64.tar.gz
-tar xzf ohara_linux_amd64.tar.gz
-sudo mv ohara /usr/local/bin/
+### Manual download
 
-# macOS Apple Silicon
-curl -LO https://github.com/emirrcaglar/ohara/releases/latest/download/ohara_darwin_arm64.tar.gz
-tar xzf ohara_darwin_arm64.tar.gz
-sudo mv ohara /usr/local/bin/
+Download the appropriate archive from [GitHub Releases](https://github.com/emirrcaglar/ohara/releases). Release assets are named with the version, OS, and architecture, for example:
+
+```text
+ohara_<version>_linux_amd64.tar.gz
+ohara_<version>_darwin_arm64.tar.gz
+ohara_<version>_windows_amd64.zip
 ```
 
-### Run
+Then extract the archive and place the `ohara` binary somewhere on your `PATH`.
+
+### Docker
+
+```bash
+docker compose up -d
+```
+
+This builds the local image and serves Ohara on `http://localhost:3000`, storing data in the `ohara-data` Docker volume.
+
+## Running
 
 ```bash
 ohara
 ```
 
-By default, Ohara runs on port 8080. Visit `http://localhost:8080` in your browser.
+Ohara stores data in its working directory and listens on port `3000`:
 
-## Configuration
+```text
+http://localhost:3000
+```
 
-On first database setup, Ohara creates a default admin account with username `admin` and password `admin`. Change this password immediately after logging in.
+The installed systemd service and Docker image both use `/var/lib/ohara` as the working directory.
+
+## First login
+
+On first database setup, Ohara creates a default admin account:
+
+- Username: `admin`
+- Password: `admin`
+
+Change this password immediately after logging in.
 
 ## Development
 
-### Deploy from source (for developers)
+### Requirements
 
-#### 1. Create your config
+- Go `1.24.4` or newer compatible `1.24.x`
+- Node.js `20.19+` or `22.12+`
+- npm
+
+### Build from source
+
+```bash
+npm --prefix src/frontend install
+npm --prefix src/frontend run build:embed
+go -C src/backend build -o ../../dist/ohara ./cmd
+```
+
+Run the built binary:
+
+```bash
+./dist/ohara
+```
+
+### Deploy from source
+
+Create a local deploy config:
 
 ```bash
 cp deploy/deploy.conf.example deploy/deploy.conf
@@ -53,22 +95,20 @@ cp deploy/deploy.conf.example deploy/deploy.conf
 Edit `deploy/deploy.conf`:
 
 ```bash
-DEPLOY_SERVER="you@your-server"
+DEPLOY_SERVER="user@your-vps"
 DEPLOY_PASSWORD="yourpassword"
 ```
 
-#### 2. Run
+Then deploy:
 
 ```bash
 ./deploy/deploy.sh
 ```
 
-The script builds locally, uploads the release to the server, and registers/restarts the systemd service — no further prompts.
+The deploy script builds the frontend and Linux `amd64` backend locally, uploads the binary to the target server, installs it under `/opt/ohara`, and registers/restarts the systemd service.
 
-The VPS receives Ohara, not your local build toolchain.
+`deploy/deploy.conf` is gitignored. See `deploy/deploy.conf.example` for optional path and service-name overrides.
 
-`deploy.conf` is gitignored. See `deploy/deploy.conf.example` for all available config keys.
+## Documentation
 
----
-
-For development setup, architecture, API reference, and project structure see [docs/](docs/).
+Additional notes live in [docs/](docs/).
