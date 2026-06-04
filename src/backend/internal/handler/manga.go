@@ -49,6 +49,7 @@ func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
 	for _, m := range mangas {
 		items = append(items, MangaResponse{
 			ID:            m.ID,
+			CatalogID:     m.CatalogID,
 			Title:         m.Title,
 			PageCount:     m.PageCount,
 			CurrentPage:   m.Progress,
@@ -67,6 +68,7 @@ func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
 
 type MangaResponse struct {
 	ID            int64  `json:"id"`
+	CatalogID     *int64 `json:"catalogId"`
 	Title         string `json:"title"`
 	PageCount     int    `json:"pageCount"`
 	CurrentPage   int    `json:"currentPage"`
@@ -76,6 +78,10 @@ type MangaResponse struct {
 type MangaLibraryResponse struct {
 	Items []MangaResponse `json:"items"`
 	Total int             `json:"total"`
+}
+
+type MediaCatalogUpdateRequest struct {
+	CatalogID *int64 `json:"catalogId"`
 }
 
 func (h *MangaHandler) compressPage(m *db.MangaRow, pageIdx int) ([]byte, bool, error) {
@@ -166,6 +172,33 @@ func (h *MangaHandler) HandleMangaDelete(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *MangaHandler) HandleMangaCatalogUpdate(w http.ResponseWriter, r *http.Request) {
+	m, status, err := h.mangaByID(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	var req MediaCatalogUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if !validMediaCatalog(w, h.DB, req.CatalogID) {
+		return
+	}
+
+	if err := h.DB.UpdateMangaCatalog(m.ID, req.CatalogID); err != nil {
+		if h.Log != nil {
+			h.Log.Error("[manga] catalog update failed manga=%d catalog=%v err=%v", m.ID, req.CatalogID, err)
+		}
+		http.Error(w, "Failed to move manga", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *MangaHandler) HandleMangaProgress(w http.ResponseWriter, r *http.Request) {
 	m, status, err := h.mangaByID(r.PathValue("id"))
 	if err != nil {
@@ -201,6 +234,7 @@ func (h *MangaHandler) HandleMangaInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(MangaDetailResponse{
 		ID:          m.ID,
+		CatalogID:   m.CatalogID,
 		Title:       m.Title,
 		Path:        m.Path,
 		PageCount:   m.PageCount,
@@ -210,6 +244,7 @@ func (h *MangaHandler) HandleMangaInfo(w http.ResponseWriter, r *http.Request) {
 
 type MangaDetailResponse struct {
 	ID          int64  `json:"id"`
+	CatalogID   *int64 `json:"catalogId"`
 	Title       string `json:"title"`
 	Path        string `json:"path"`
 	PageCount   int    `json:"pageCount"`

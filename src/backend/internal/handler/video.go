@@ -19,6 +19,7 @@ type VideoHandler struct {
 
 type VideoResponse struct {
 	ID            int64  `json:"id"`
+	CatalogID     *int64 `json:"catalogId"`
 	Title         string `json:"title"`
 	Duration      int    `json:"duration"`
 	Width         int    `json:"width"`
@@ -31,6 +32,7 @@ type VideoResponse struct {
 
 type VideoDetailResponse struct {
 	ID            int64  `json:"id"`
+	CatalogID     *int64 `json:"catalogId"`
 	Title         string `json:"title"`
 	Path          string `json:"path"`
 	Duration      int    `json:"duration"`
@@ -59,6 +61,7 @@ type VideoLibraryResponse struct {
 func videoResponse(video db.VideoRow) VideoResponse {
 	return VideoResponse{
 		ID:            video.ID,
+		CatalogID:     video.CatalogID,
 		Title:         video.Title,
 		Duration:      video.Duration,
 		Width:         video.Width,
@@ -124,6 +127,7 @@ func (h *VideoHandler) HandleVideoInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(VideoDetailResponse{
 		ID:            video.ID,
+		CatalogID:     video.CatalogID,
 		Title:         video.Title,
 		Path:          video.Path,
 		Duration:      video.Duration,
@@ -232,6 +236,33 @@ func (h *VideoHandler) HandleVideoStream(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Accept-Ranges", "bytes")
 	http.ServeContent(w, r, stat.Name(), stat.ModTime(), file)
+}
+
+func (h *VideoHandler) HandleVideoCatalogUpdate(w http.ResponseWriter, r *http.Request) {
+	video, status := h.videoByID(r, r.PathValue("id"))
+	if status != 0 {
+		http.Error(w, "Video not found", status)
+		return
+	}
+
+	var req MediaCatalogUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if !validMediaCatalog(w, h.DB, req.CatalogID) {
+		return
+	}
+
+	if err := h.DB.UpdateVideoCatalog(video.ID, req.CatalogID); err != nil {
+		if h.Log != nil {
+			h.Log.Error("[video] catalog update failed video=%d catalog=%v err=%v", video.ID, req.CatalogID, err)
+		}
+		http.Error(w, "Failed to move video", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *VideoHandler) HandleVideoDelete(w http.ResponseWriter, r *http.Request) {

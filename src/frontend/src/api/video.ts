@@ -16,6 +16,13 @@ export async function saveVideoState(id: number, state: VideoStateUpdate): Promi
   })
 }
 
+export async function moveVideoToCatalog(id: number, catalogId: number | null): Promise<void> {
+  await fetchJson<void>(`${API_BASE}/video/${id}/catalog`, {
+    method: 'PUT',
+    body: JSON.stringify({ catalogId }),
+  })
+}
+
 export async function deleteVideo(id: number): Promise<void> {
   await fetchJson<void>(`${API_BASE}/video/${id}`, {
     method: 'DELETE',

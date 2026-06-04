@@ -30,6 +30,10 @@ func Init(dataDir string) (*DB, error) {
 		conn.Close()
 		return nil, err
 	}
+	if _, err := conn.Exec(`PRAGMA foreign_keys=ON`); err != nil {
+		conn.Close()
+		return nil, err
+	}
 
 	defaultAdminCreated, err := migrate(conn)
 	if err != nil {
@@ -66,9 +70,18 @@ func migrate(conn *sql.DB) (bool, error) {
 	}
 
 	_, err = conn.Exec(`
+		CREATE TABLE IF NOT EXISTS catalog (
+			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
+			parent_id  INTEGER  REFERENCES catalog(id) ON DELETE CASCADE,
+			name       TEXT     NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
 		CREATE TABLE IF NOT EXISTS manga (
 			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
 			path       TEXT     NOT NULL UNIQUE,
+			catalog_id INTEGER  REFERENCES catalog(id) ON DELETE SET NULL,
 			title      TEXT     NOT NULL,
 			page_count INTEGER  NOT NULL DEFAULT 0,
 			indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -93,6 +106,7 @@ func migrate(conn *sql.DB) (bool, error) {
 		CREATE TABLE IF NOT EXISTS audio (
 			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
 			path       TEXT     NOT NULL UNIQUE,
+			catalog_id INTEGER  REFERENCES catalog(id) ON DELETE SET NULL,
 			title      TEXT     NOT NULL,
 			artist     TEXT     NOT NULL DEFAULT '',
 			album      TEXT     NOT NULL DEFAULT '',
@@ -103,6 +117,7 @@ func migrate(conn *sql.DB) (bool, error) {
 		CREATE TABLE IF NOT EXISTS video (
 			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
 			path       TEXT     NOT NULL UNIQUE,
+			catalog_id INTEGER  REFERENCES catalog(id) ON DELETE SET NULL,
 			title      TEXT     NOT NULL,
 			duration   INTEGER  NOT NULL DEFAULT 0,
 			width      INTEGER  NOT NULL DEFAULT 0,
@@ -143,6 +158,7 @@ func migrate(conn *sql.DB) (bool, error) {
 			total_chunks  INTEGER  NOT NULL,
 			status        TEXT     NOT NULL DEFAULT 'active',
 			target_path    TEXT     NOT NULL DEFAULT '',
+			catalog_id    INTEGER  REFERENCES catalog(id) ON DELETE SET NULL,
 			error_message TEXT,
 			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -168,7 +184,7 @@ func migrate(conn *sql.DB) (bool, error) {
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_deployments_deployed_at
-		ON deployments(deployed_at DESC);
+			ON deployments(deployed_at DESC);
 	`)
 	if err != nil {
 		return false, err
@@ -181,6 +197,49 @@ func migrate(conn *sql.DB) (bool, error) {
 		return false, err
 	}
 	if err := addColumnIfMissing(conn, "video", "height", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return false, err
+	}
+	if err := addColumnIfMissing(conn, "catalog", "parent_id", "INTEGER REFERENCES catalog(id) ON DELETE CASCADE"); err != nil {
+		return false, err
+	}
+	if err := addColumnIfMissing(conn, "manga", "catalog_id", "INTEGER REFERENCES catalog(id) ON DELETE SET NULL"); err != nil {
+		return false, err
+	}
+	if err := addColumnIfMissing(conn, "audio", "catalog_id", "INTEGER REFERENCES catalog(id) ON DELETE SET NULL"); err != nil {
+		return false, err
+	}
+	if err := addColumnIfMissing(conn, "video", "catalog_id", "INTEGER REFERENCES catalog(id) ON DELETE SET NULL"); err != nil {
+		return false, err
+	}
+	if err := addColumnIfMissing(conn, "upload_sessions", "catalog_id", "INTEGER REFERENCES catalog(id) ON DELETE SET NULL"); err != nil {
+		return false, err
+	}
+
+	_, err = conn.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_catalog_parent_id
+		ON catalog(parent_id);
+
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_catalog_root_name
+		ON catalog(name)
+		WHERE parent_id IS NULL;
+
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_catalog_parent_name
+		ON catalog(parent_id, name)
+		WHERE parent_id IS NOT NULL;
+
+		CREATE INDEX IF NOT EXISTS idx_manga_catalog_id
+		ON manga(catalog_id);
+
+		CREATE INDEX IF NOT EXISTS idx_audio_catalog_id
+		ON audio(catalog_id);
+
+		CREATE INDEX IF NOT EXISTS idx_video_catalog_id
+		ON video(catalog_id);
+
+		CREATE INDEX IF NOT EXISTS idx_upload_sessions_catalog_id
+		ON upload_sessions(catalog_id);
+	`)
+	if err != nil {
 		return false, err
 	}
 

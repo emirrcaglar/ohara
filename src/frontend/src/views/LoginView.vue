@@ -60,9 +60,6 @@ async function handleSubmit() {
             </h2>
             <div class="h-[2px] w-8 bg-secondary-container mt-1"></div>
           </div>
-          <span class="text-[9px] font-mono text-secondary-fixed-dim bg-on-secondary py-0.5 px-1.5">
-            SECURE_NODE_01
-          </span>
         </div>
 
         <div

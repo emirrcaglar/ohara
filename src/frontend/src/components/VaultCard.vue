@@ -18,9 +18,15 @@ const props = defineProps<{
   category?: string
 }>()
 
+interface MenuAnchor {
+  top: number
+  right: number
+}
+
 const emit = defineEmits<{
   click: [item: MangaRow | AudioRow | VideoRow]
-  delete: [item: MangaRow | VideoRow]
+  move: [item: MangaRow | AudioRow | VideoRow]
+  delete: [item: MangaRow | VideoRow, anchor: MenuAnchor]
 }>()
 
 const menuOpen = ref(false)
@@ -61,12 +67,32 @@ function toggleMenu() {
   menuOpen.value = !menuOpen.value
 }
 
-function deleteItem() {
+function currentItem() {
+  return props.manga || props.audio || props.video
+}
+
+function moveItem() {
+  const item = currentItem()
+  if (!item) return
+
+  menuOpen.value = false
+  emit('move', item)
+}
+
+function menuAnchor(event: MouseEvent): MenuAnchor {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  return {
+    top: rect.top,
+    right: window.innerWidth - rect.right,
+  }
+}
+
+function deleteItem(event: MouseEvent) {
   const item = props.manga || props.video
   if (!item) return
 
   menuOpen.value = false
-  emit('delete', item)
+  emit('delete', item, menuAnchor(event))
 }
 </script>
 
@@ -111,11 +137,11 @@ function deleteItem() {
           >{{ manga?.fileExtension || audio?.fileExtension || video?.fileExtension }}</span
         >
 
-        <div v-if="manga || video" class="relative">
+        <div v-if="manga || audio || video" class="relative">
           <button
             class="flex h-7 w-7 items-center justify-center bg-surface-container-high/90 text-on-surface transition-colors hover:bg-surface-container-highest"
             type="button"
-            :aria-label="manga ? 'Open manga actions' : 'Open video actions'"
+            :aria-label="`Open ${manga ? 'manga' : audio ? 'audio' : 'video'} actions`"
             @click.stop="toggleMenu"
           >
             <span class="material-symbols-outlined text-base">more_vert</span>
@@ -127,6 +153,15 @@ function deleteItem() {
             @click.stop
           >
             <button
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-on-surface transition-colors hover:bg-surface-container-high"
+              type="button"
+              @click="moveItem"
+            >
+              <span class="material-symbols-outlined text-sm">drive_file_move</span>
+              Move
+            </button>
+            <button
+              v-if="manga || video"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-error transition-colors hover:bg-error/10"
               type="button"
               @click="deleteItem"

@@ -5,6 +5,7 @@ import "database/sql"
 type VideoRow struct {
 	ID        int64
 	Path      string
+	CatalogID *int64
 	Title     string
 	Duration  int
 	Width     int
@@ -16,7 +17,7 @@ type VideoRow struct {
 
 func (db *DB) ListVideo(userID int64) ([]VideoRow, error) {
 	rows, err := db.Query(`
-		SELECT v.id, v.path, v.title, v.duration, v.width, v.height,
+		SELECT v.id, v.path, v.catalog_id, v.title, v.duration, v.width, v.height,
 		       COALESCE(p.position, 0), COALESCE(p.completed, 0), COALESCE(p.last_error, '')
 		FROM video v
 		LEFT JOIN video_progress p ON p.video_id = v.id AND p.user_id = ?
@@ -30,8 +31,12 @@ func (db *DB) ListVideo(userID int64) ([]VideoRow, error) {
 	var list []VideoRow
 	for rows.Next() {
 		var v VideoRow
-		if err := rows.Scan(&v.ID, &v.Path, &v.Title, &v.Duration, &v.Width, &v.Height, &v.Position, &v.Completed, &v.LastError); err != nil {
+		var catalogID sql.NullInt64
+		if err := rows.Scan(&v.ID, &v.Path, &catalogID, &v.Title, &v.Duration, &v.Width, &v.Height, &v.Position, &v.Completed, &v.LastError); err != nil {
 			return nil, err
+		}
+		if catalogID.Valid {
+			v.CatalogID = &catalogID.Int64
 		}
 		list = append(list, v)
 	}
@@ -40,26 +45,34 @@ func (db *DB) ListVideo(userID int64) ([]VideoRow, error) {
 
 func (db *DB) GetVideoByID(userID, id int64) (*VideoRow, error) {
 	row := db.QueryRow(`
-		SELECT v.id, v.path, v.title, v.duration, v.width, v.height,
+		SELECT v.id, v.path, v.catalog_id, v.title, v.duration, v.width, v.height,
 		       COALESCE(p.position, 0), COALESCE(p.completed, 0), COALESCE(p.last_error, '')
 		FROM video v
 		LEFT JOIN video_progress p ON p.video_id = v.id AND p.user_id = ?
 		WHERE v.id = ?
 	`, userID, id)
 	var v VideoRow
-	if err := row.Scan(&v.ID, &v.Path, &v.Title, &v.Duration, &v.Width, &v.Height, &v.Position, &v.Completed, &v.LastError); err != nil {
+	var catalogID sql.NullInt64
+	if err := row.Scan(&v.ID, &v.Path, &catalogID, &v.Title, &v.Duration, &v.Width, &v.Height, &v.Position, &v.Completed, &v.LastError); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
 	}
+	if catalogID.Valid {
+		v.CatalogID = &catalogID.Int64
+	}
 	return &v, nil
 }
 
 func (db *DB) InsertVideo(path, title string, duration int) error {
+	return db.InsertVideoWithCatalog(path, title, duration, nil)
+}
+
+func (db *DB) InsertVideoWithCatalog(path, title string, duration int, catalogID *int64) error {
 	_, err := db.Exec(
-		`INSERT OR IGNORE INTO video (path, title, duration) VALUES (?, ?, ?)`,
-		path, title, duration,
+		`INSERT OR IGNORE INTO video (path, title, duration, catalog_id) VALUES (?, ?, ?, ?)`,
+		path, title, duration, catalogID,
 	)
 	return err
 }
@@ -72,6 +85,16 @@ func (db *DB) UpdateVideoMetadata(id int64, duration, width, height int) error {
 		    height = CASE WHEN ? > 0 THEN ? ELSE height END
 		WHERE id = ?
 	`, duration, duration, width, width, height, height, id)
+	return err
+}
+
+func (db *DB) UpdateVideoCatalog(id int64, catalogID *int64) error {
+	if catalogID == nil {
+		_, err := db.Exec(`UPDATE video SET catalog_id = NULL WHERE id = ?`, id)
+		return err
+	}
+
+	_, err := db.Exec(`UPDATE video SET catalog_id = ? WHERE id = ?`, *catalogID, id)
 	return err
 }
 

@@ -1,7 +1,13 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { MangaRow, MangaInfo } from '../types/api'
-import { deleteManga, fetchMangaLibrary, fetchMangaInfo, saveMangaProgress } from '../api/manga'
+import {
+  deleteManga,
+  fetchMangaInfo,
+  fetchMangaLibrary,
+  moveMangaToCatalog,
+  saveMangaProgress,
+} from '../api/manga'
 
 export const useMangaStore = defineStore('manga', () => {
   const items = ref<MangaRow[]>([])
@@ -45,6 +51,20 @@ export const useMangaStore = defineStore('manga', () => {
     }
   }
 
+  async function moveManga(id: number, catalogId: number | null) {
+    const item = items.value.find((m) => m.id === id)
+    const previousCatalogId = item?.catalogId
+    if (item) item.catalogId = catalogId
+
+    try {
+      await moveMangaToCatalog(id, catalogId)
+    } catch (e) {
+      if (item) item.catalogId = previousCatalogId ?? null
+      error.value = e instanceof Error ? e.message : 'Failed to move manga'
+      throw e
+    }
+  }
+
   async function removeManga(id: number) {
     const previousItems = items.value
     const previousTotal = total.value
@@ -71,6 +91,7 @@ export const useMangaStore = defineStore('manga', () => {
     fetchLibrary,
     getMangaInfo,
     updateProgress,
+    moveManga,
     removeManga,
   }
 })

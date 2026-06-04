@@ -63,15 +63,19 @@ func NewScanner(db *db.DB, cbzService cbz.ICBZService, cacheWorker *worker.Cache
 }
 
 func (s *Scanner) Index(targetPath string) error {
+	return s.IndexWithCatalog(targetPath, nil)
+}
+
+func (s *Scanner) IndexWithCatalog(targetPath string, catalogID *int64) error {
 	fileType := strings.ToLower(filepath.Ext(targetPath))
 
 	switch fileType {
 	case ".cbz":
-		return s.indexManga(targetPath)
+		return s.indexManga(targetPath, catalogID)
 	case ".mp3", ".flac", ".ogg", ".m4a", ".wav", ".aac":
-		return s.indexAudio(targetPath)
+		return s.indexAudio(targetPath, catalogID)
 	case ".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v":
-		return s.indexVideo(targetPath)
+		return s.indexVideo(targetPath, catalogID)
 	default:
 		return fmt.Errorf("unsupported file type: %s", fileType)
 	}
@@ -137,7 +141,7 @@ func (s *Scanner) scanManga() (int, error) {
 		if _, exists := indexed[absPath]; exists {
 			continue
 		}
-		if err := s.indexManga(absPath); err == nil {
+		if err := s.indexManga(absPath, nil); err == nil {
 			added++
 		} else if s.log != nil {
 			s.log.Error("[scanner] manga index failed path=%s err=%v", absPath, err)
@@ -172,7 +176,7 @@ func (s *Scanner) scanAudio() (int, error) {
 			if _, exists := indexed[absPath]; exists {
 				continue
 			}
-			if err := s.indexAudio(absPath); err != nil {
+			if err := s.indexAudio(absPath, nil); err != nil {
 				if s.log != nil {
 					s.log.Error("[scanner] audio index failed path=%s err=%v", absPath, err)
 				}
@@ -184,14 +188,14 @@ func (s *Scanner) scanAudio() (int, error) {
 	return added, nil
 }
 
-func (s *Scanner) indexManga(absPath string) error {
+func (s *Scanner) indexManga(absPath string, catalogID *int64) error {
 	manga, err := s.CBZService.Open(absPath)
 	if err != nil {
 		return fmt.Errorf("indexer: skipping %s: %v", absPath, err)
 	}
 	defer s.CBZService.Close()
 
-	mangaID, err := s.db.InsertManga(absPath, manga.Title, manga.PageCount)
+	mangaID, err := s.db.InsertMangaWithCatalog(absPath, manga.Title, manga.PageCount, catalogID)
 	if err != nil {
 		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)
 	}
@@ -209,13 +213,13 @@ func (s *Scanner) indexManga(absPath string) error {
 	return nil
 }
 
-func (s *Scanner) indexAudio(absPath string) error {
+func (s *Scanner) indexAudio(absPath string, catalogID *int64) error {
 	audio, err := audio.Open(absPath)
 	if err != nil {
 		return fmt.Errorf("indexer: skipping %s: %v", absPath, err)
 	}
 
-	if err := s.db.InsertAudio(audio); err != nil {
+	if err := s.db.InsertAudioWithCatalog(audio, catalogID); err != nil {
 		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)
 	}
 
@@ -245,7 +249,7 @@ func (s *Scanner) scanVideo() (int, error) {
 			if _, exists := indexed[absPath]; exists {
 				continue
 			}
-			if err := s.indexVideo(absPath); err != nil {
+			if err := s.indexVideo(absPath, nil); err != nil {
 				if s.log != nil {
 					s.log.Error("[scanner] video index failed path=%s err=%v", absPath, err)
 				}
@@ -257,9 +261,9 @@ func (s *Scanner) scanVideo() (int, error) {
 	return added, nil
 }
 
-func (s *Scanner) indexVideo(absPath string) error {
+func (s *Scanner) indexVideo(absPath string, catalogID *int64) error {
 	title := strings.TrimSuffix(filepath.Base(absPath), filepath.Ext(absPath))
-	if err := s.db.InsertVideo(absPath, title, 0); err != nil {
+	if err := s.db.InsertVideoWithCatalog(absPath, title, 0, catalogID); err != nil {
 		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)
 	}
 	return nil

@@ -27,6 +27,7 @@ func (h *AudioHandler) HandleAudioList(w http.ResponseWriter, r *http.Request) {
 	for _, t := range tracks {
 		items = append(items, AudioResponse{
 			ID:            t.ID,
+			CatalogID:     t.CatalogID,
 			Title:         t.Title,
 			Artist:        t.Artist,
 			Album:         t.Album,
@@ -46,6 +47,7 @@ func (h *AudioHandler) HandleAudioList(w http.ResponseWriter, r *http.Request) {
 
 type AudioResponse struct {
 	ID            int64  `json:"id"`
+	CatalogID     *int64 `json:"catalogId"`
 	Title         string `json:"title"`
 	Artist        string `json:"artist"`
 	Album         string `json:"album"`
@@ -58,21 +60,54 @@ type AudioLibraryResponse struct {
 	Total int             `json:"total"`
 }
 
-func (h *AudioHandler) HandleAudioStream(w http.ResponseWriter, r *http.Request) {
-	idStr := r.PathValue("id")
+func (h *AudioHandler) audioByID(idStr string) (*db.AudioRow, int) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid ID", http.StatusBadRequest)
-		return
+		return nil, http.StatusBadRequest
 	}
 
 	track, err := h.DB.GetAudioByID(id)
 	if err != nil {
-		http.Error(w, "Database error", http.StatusInternalServerError)
-		return
+		return nil, http.StatusInternalServerError
 	}
 	if track == nil {
-		http.Error(w, "Track not found", http.StatusNotFound)
+		return nil, http.StatusNotFound
+	}
+
+	return track, 0
+}
+
+func (h *AudioHandler) HandleAudioCatalogUpdate(w http.ResponseWriter, r *http.Request) {
+	track, status := h.audioByID(r.PathValue("id"))
+	if status != 0 {
+		http.Error(w, "Track not found", status)
+		return
+	}
+
+	var req MediaCatalogUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+	if !validMediaCatalog(w, h.DB, req.CatalogID) {
+		return
+	}
+
+	if err := h.DB.UpdateAudioCatalog(track.ID, req.CatalogID); err != nil {
+		if h.Log != nil {
+			h.Log.Error("[audio] catalog update failed audio=%d catalog=%v err=%v", track.ID, req.CatalogID, err)
+		}
+		http.Error(w, "Failed to move audio", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *AudioHandler) HandleAudioStream(w http.ResponseWriter, r *http.Request) {
+	track, status := h.audioByID(r.PathValue("id"))
+	if status != 0 {
+		http.Error(w, "Track not found", status)
 		return
 	}
 

@@ -1,206 +1,119 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
 import VaultHeader from '../components/VaultHeader.vue'
 import VaultCard from '../components/VaultCard.vue'
-import DropZone from '../components/uploads/DropZone.vue'
-import TransferItem from '../components/uploads/TransferItem.vue'
+import LibraryMoveDialog from '../components/library/LibraryMoveDialog.vue'
+import LibraryTransfersPanel from '../components/library/LibraryTransfersPanel.vue'
 
-import activeTransfersIcon from '../assets/active-transfers.svg'
-import { useMangaStore } from '../stores/manga'
-import { useAudioStore } from '../stores/audio'
-import { useVideoStore } from '../stores/video'
-import { usePlayerStore } from '../stores/player'
-import { useUploadStore } from '../stores/upload'
 import { getMangaPageUrl } from '../api/manga'
-import type { MangaRow, AudioRow, VideoRow } from '../types/api'
+import { useLibraryView } from '../composables/useLibraryView'
 
-const router = useRouter()
-const mangaStore = useMangaStore()
-const audioStore = useAudioStore()
-const videoStore = useVideoStore()
-const playerStore = usePlayerStore()
-
-const uploadStore = useUploadStore()
-
-const selectedTab = ref<'ALL' | 'CBZ' | 'AUDIO' | 'VIDEO'>('ALL')
-const showUploadDialog = ref(false)
-const showTransfersPanel = ref(false)
-
-const filteredManga = computed(() => {
-  if (selectedTab.value === 'ALL' || selectedTab.value === 'CBZ') {
-    return mangaStore.items
-  }
-  return []
-})
-
-const filteredAudio = computed(() => {
-  if (selectedTab.value === 'ALL' || selectedTab.value === 'AUDIO') {
-    return audioStore.items
-  }
-  return []
-})
-
-const filteredVideo = computed(() => {
-  if (selectedTab.value === 'ALL' || selectedTab.value === 'VIDEO') {
-    return videoStore.items
-  }
-  return []
-})
-
-const totalMedia = computed(() => mangaStore.total + audioStore.total + videoStore.total)
-
-const floatingButtonsBottomClass = computed(() => {
-  return playerStore.currentTrack
-    ? 'bottom-[calc(7rem+env(safe-area-inset-bottom))]'
-    : 'bottom-[calc(1.5rem+env(safe-area-inset-bottom))]'
-})
-
-onMounted(() => {
-  mangaStore.fetchLibrary()
-  audioStore.fetchLibrary()
-  videoStore.fetchLibrary()
-  uploadStore.fetchPendingTransfers()
-  window.addEventListener('keydown', handleGlobalKeydown)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('keydown', handleGlobalKeydown)
-})
-
-function openManga(manga: MangaRow) {
-  router.push({
-    path: '/reader',
-    query: {
-      manga: manga.id,
-      page: manga.currentPage || 0,
-      total: manga.pageCount,
-    },
-  })
-}
-
-function playAudio(audio: AudioRow) {
-  playerStore.setQueue(audioStore.items)
-  playerStore.play(audio)
-}
-
-function openVideo(video: VideoRow) {
-  router.push({
-    path: `/video/${video.id}`,
-  })
-}
-
-function formatDuration(seconds: number) {
-  if (!seconds) return ''
-
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const remainingSeconds = seconds % 60
-
-  if (hours) {
-    return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
-  }
-  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`
-}
-
-function videoStats(video: VideoRow) {
-  if (video.completed) return 'WATCHED'
-
-  const parts: string[] = []
-  if (video.duration) parts.push(formatDuration(video.duration))
-  if (video.width && video.height) parts.push(`${video.height}P`)
-  if (video.position && video.duration) {
-    parts.push(`${Math.round((video.position / video.duration) * 100)}%`)
-  }
-
-  return parts.length ? parts.join(' · ') : 'READY'
-}
-
-function handleMangaClick(item: MangaRow | AudioRow | VideoRow) {
-  if ('pageCount' in item) {
-    openManga(item)
-  }
-}
-
-async function deleteManga(item: MangaRow | VideoRow) {
-  if (!('pageCount' in item)) return
-
-  const confirmed = window.confirm(
-    `Delete "${item.title}" from the library? This removes its index, reading progress, and cached pages.`,
-  )
-  if (!confirmed) return
-
-  await mangaStore.removeManga(item.id)
-}
-
-async function deleteVideo(item: MangaRow | VideoRow) {
-  if ('pageCount' in item) return
-
-  const confirmed = window.confirm(
-    `Delete "${item.title}" from the library? This removes its index but keeps the video file on disk.`,
-  )
-  if (!confirmed) return
-
-  await videoStore.removeVideo(item.id)
-}
-
-function openUploadDialog() {
-  showUploadDialog.value = true
-}
-
-function closeUploadDialog() {
-  showUploadDialog.value = false
-}
-
-function openTransfersPanel() {
-  showTransfersPanel.value = true
-  uploadStore.fetchPendingTransfers()
-}
-
-function closeTransfersPanel() {
-  showTransfersPanel.value = false
-}
-
-function handleFilesSelected(files: File[]) {
-  uploadStore.enqueue(files)
-}
-
-function clearQueue() {
-  uploadStore.clearQueue()
-}
-
-function processAll() {
-  closeUploadDialog()
-  uploadStore.setOnComplete(() => {
-    mangaStore.fetchLibrary()
-    audioStore.fetchLibrary()
-    videoStore.fetchLibrary()
-  })
-  uploadStore.processAll()
-  openTransfersPanel()
-}
-
-function handleGlobalKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Escape') return
-
-  if (showUploadDialog.value) {
-    closeUploadDialog()
-  }
-
-  if (showTransfersPanel.value) {
-    closeTransfersPanel()
-  }
-}
+const {
+  mangaStore,
+  audioStore,
+  videoStore,
+  uploadStore,
+  catalogStore,
+  selectedTab,
+  showActionDialog,
+  showUploadDialog,
+  showCatalogDialog,
+  showRenameCatalogDialog,
+  showDeleteCatalogDialog,
+  showTransfersPanel,
+  showMoveDialog,
+  fileInputRef,
+  newCatalogInputRef,
+  newCatalogName,
+  renameCatalogName,
+  renamingFolder,
+  deletingFolder,
+  deletingMedia,
+  expandedBreadcrumbs,
+  filteredManga,
+  filteredAudio,
+  filteredVideo,
+  totalMedia,
+  hasVisibleMedia,
+  floatingButtonsBottomClass,
+  moveDestinationOptions,
+  movingSubjectName,
+  deletingSubjectName,
+  deletingSubjectType,
+  deletingImpactText,
+  deleteDialogStyle,
+  openFolder,
+  openRoot,
+  catalogName,
+  breadcrumbKey,
+  breadcrumbParts,
+  visibleBreadcrumbParts,
+  isBreadcrumbCollapsed,
+  toggleBreadcrumb,
+  closeMoveDialog,
+  selectMoveDestination,
+  videoStats,
+  handleMangaClick,
+  playAudio,
+  openVideo,
+  moveMedia,
+  deleteManga,
+  deleteVideo,
+  toggleActionDialog,
+  closeFloatingDialogs,
+  openUploadDialog,
+  openCatalogDialog,
+  closeCatalogDialog,
+  closeRenameCatalogDialog,
+  closeDeleteCatalogDialog,
+  openFilePicker,
+  createFolderFromCatalogDialog,
+  renameFolderFromCatalogDialog,
+  deleteFromCatalogDialog,
+  openTransfersPanel,
+  closeTransfersPanel,
+  handleFileInputChange,
+  rejectUploadQueue,
+  processAll,
+} = useLibraryView()
 </script>
 
 <template>
   <div class="h-full flex flex-col">
     <main class="flex-1 overflow-y-auto">
       <section class="min-h-full p-4 md:p-8 flex-1 bg-surface">
-        <VaultHeader v-model="selectedTab" :totalManga="totalMedia" />
+        <div class="mb-8 flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-2">
+          <button
+            class="px-2 py-1 text-xs font-bold uppercase tracking-widest text-on-surface-variant transition-colors hover:text-primary"
+            type="button"
+            @click="openRoot"
+          >
+            CENTRAL
+          </button>
+          <template v-for="folder in catalogStore.path" :key="folder.id">
+            <span class="material-symbols-outlined text-[14px] text-primary-container">
+              chevron_right
+            </span>
+            <button
+              class="bg-surface-container-low px-2 py-1 text-xs font-bold uppercase tracking-widest text-primary-container transition-colors hover:bg-surface-container-high"
+              type="button"
+              @click="openFolder(folder)"
+            >
+              {{ folder.name }}
+            </button>
+          </template>
+        </div>
+
+        <VaultHeader
+          v-model="selectedTab"
+          :totalManga="totalMedia"
+          :catalogs="catalogStore.folders"
+          @openCatalog="openFolder"
+        />
 
         <div
-          v-if="mangaStore.loading || audioStore.loading || videoStore.loading"
+          v-if="
+            mangaStore.loading || audioStore.loading || videoStore.loading || catalogStore.loading
+          "
           class="text-secondary"
         >
           Loading...
@@ -208,240 +121,324 @@ function handleGlobalKeydown(event: KeyboardEvent) {
         <div v-else-if="mangaStore.error" class="text-error">{{ mangaStore.error }}</div>
         <div v-else-if="audioStore.error" class="text-error">{{ audioStore.error }}</div>
         <div v-else-if="videoStore.error" class="text-error">{{ videoStore.error }}</div>
+        <div v-else-if="catalogStore.error" class="text-error">
+          {{ catalogStore.error }}
+        </div>
 
-        <div v-else class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-6">
-          <VaultCard
-            v-for="manga in filteredManga"
-            :key="`manga-${manga.id}`"
-            :manga="manga"
-            :coverUrl="getMangaPageUrl(manga.id, 0)"
-            category="MANGA_ARCHIVE"
-            :stats="`${manga.currentPage} / ${manga.pageCount} PAGES`"
-            @click="handleMangaClick"
-            @delete="deleteManga"
-          />
+        <div v-else class="space-y-12">
+          <section class="space-y-6">
+            <div
+              v-if="hasVisibleMedia"
+              class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 md:gap-6"
+            >
+              <VaultCard
+                v-for="manga in filteredManga"
+                :key="`manga-${manga.id}`"
+                :manga="manga"
+                :coverUrl="getMangaPageUrl(manga.id, 0)"
+                category="MANGA_ARCHIVE"
+                :stats="`${manga.currentPage} / ${manga.pageCount} PAGES`"
+                @click="handleMangaClick"
+                @move="moveMedia"
+                @delete="deleteManga"
+              />
 
-          <VaultCard
-            v-for="audio in filteredAudio"
-            :key="`audio-${audio.id}`"
-            :audio="audio"
-            category="AUDIO_ARCHIVE"
-            :stats="`${Math.floor(audio.duration / 60)}:${String(audio.duration % 60).padStart(2, '0')} MIN`"
-            @click="() => playAudio(audio)"
-          />
+              <VaultCard
+                v-for="audio in filteredAudio"
+                :key="`audio-${audio.id}`"
+                :audio="audio"
+                category="AUDIO_ARCHIVE"
+                :stats="`${Math.floor(audio.duration / 60)}:${String(audio.duration % 60).padStart(2, '0')} MIN`"
+                @click="() => playAudio(audio)"
+                @move="moveMedia"
+              />
 
-          <VaultCard
-            v-for="video in filteredVideo"
-            :key="`video-${video.id}`"
-            :video="video"
-            category="VIDEO_ARCHIVE"
-            :stats="videoStats(video)"
-            @click="() => openVideo(video)"
-            @delete="deleteVideo"
-          />
+              <VaultCard
+                v-for="video in filteredVideo"
+                :key="`video-${video.id}`"
+                :video="video"
+                category="VIDEO_ARCHIVE"
+                :stats="videoStats(video)"
+                @click="() => openVideo(video)"
+                @move="moveMedia"
+                @delete="deleteVideo"
+              />
+            </div>
+          </section>
         </div>
       </section>
 
+      <button
+        v-if="
+          showActionDialog ||
+          showUploadDialog ||
+          showCatalogDialog ||
+          showRenameCatalogDialog ||
+          showDeleteCatalogDialog
+        "
+        class="fixed inset-0 z-30 cursor-default bg-transparent"
+        type="button"
+        aria-label="Close floating actions"
+        @click="closeFloatingDialogs"
+      ></button>
+
       <div class="fixed right-6 z-40 flex flex-col gap-3" :class="floatingButtonsBottomClass">
         <button
-          class="relative h-14 w-14 rounded-full bg-surface-container-high border border-white/10 flex items-center justify-center overflow-hidden hover:border-primary-container hover:bg-surface-container-highest transition-colors shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+          class="relative flex h-14 w-14 items-center justify-center overflow-hidden bg-surface-container-high transition-colors hover:bg-surface-container-highest"
           type="button"
           aria-label="Open active transfers panel"
           @click="openTransfersPanel"
         >
-          <img
-            :src="activeTransfersIcon"
-            alt="Active transfers"
-            class="h-7 w-7 object-contain [filter:invert(92%)_sepia(6%)_saturate(194%)_hue-rotate(320deg)_brightness(98%)_contrast(90%)]"
-          />
+          <i class="pi pi-upload text-s text-on-surface" aria-hidden="true"></i>
         </button>
 
-        <button
-          class="h-14 w-14 rounded-full bg-primary-container text-on-primary-container text-3xl font-black leading-none hover:bg-primary transition-colors shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
-          type="button"
-          aria-label="Open upload modal"
-          @click="openUploadDialog"
-        >
-          +
-        </button>
-      </div>
+        <div class="relative">
+          <div
+            v-if="showUploadDialog"
+            class="absolute bottom-48 right-0 w-64 bg-surface-container-highest/80 p-2 shadow-[0_0_28px_rgba(14,14,14,0.4)] backdrop-blur"
+          >
+            <input
+              ref="fileInputRef"
+              class="hidden"
+              type="file"
+              multiple
+              accept=".cbz,.mp3,.wav,.flac,.ogg,.m4a,.aac,.mp4,.mkv,.webm,.mov,.avi,.m4v"
+              @change="handleFileInputChange"
+            />
 
-      <section
-        v-if="showUploadDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]"
-      >
-        <button
-          class="absolute inset-0 bg-surface-container-lowest/60 backdrop-blur-sm"
-          type="button"
-          aria-label="Close upload dialog"
-          @click="closeUploadDialog"
-        ></button>
-
-        <div
-          class="relative w-full max-w-4xl max-h-[90dvh] overflow-auto border-t-4 border-primary-container bg-surface-container-low p-6 md:p-8"
-        >
-          <header class="mb-8 flex items-start justify-between">
-            <div>
-              <h2
-                class="text-2xl font-bold uppercase tracking-tighter text-primary-container leading-none"
-              >
-                Upload_Media
-              </h2>
-              <p class="mt-2 text-xs font-mono uppercase tracking-widest text-on-surface-variant">
-                Awaiting local stream...
-              </p>
-            </div>
             <button
-              class="text-on-surface-variant transition-colors hover:text-on-surface"
-              aria-label="Close upload dialog"
+              class="flex h-28 w-full items-center justify-center bg-surface-container-low text-5xl font-black leading-none text-primary-container transition-colors hover:bg-surface-container-high"
               type="button"
-              @click="closeUploadDialog"
+              aria-label="Select upload files"
+              @click="openFilePicker"
             >
-              <span class="material-symbols-outlined">close</span>
+              +
             </button>
-          </header>
 
-          <div class="space-y-8">
-            <DropZone @filesSelected="handleFilesSelected" />
+            <div v-if="uploadStore.queuedItems.length" class="mt-2 bg-surface-container-low p-2">
+              <div class="mb-2 flex items-center justify-between">
+                <span class="text-[8px] font-black uppercase tracking-widest text-secondary">
+                  In_Queue
+                </span>
+                <span class="font-mono text-[8px] font-bold text-primary-container">
+                  {{ String(uploadStore.queuedItems.length).padStart(2, '0') }}
+                </span>
+              </div>
 
-            <section class="space-y-4">
-              <p class="text-[10px] font-bold uppercase tracking-widest text-secondary">
-                Queued_Operations
-              </p>
-
-              <p
-                v-if="uploadStore.rejectedItems.length > 0"
-                class="text-xs text-error uppercase tracking-widest"
-              >
-                Unsupported file skipped: {{ uploadStore.rejectedItems.join(', ') }}
-              </p>
-
-              <article
-                v-for="item in uploadStore.queuedItems"
-                :key="item.id"
-                class="flex flex-col gap-2 bg-surface-container-high p-3"
-              >
-                <div class="flex items-center justify-between">
-                  <div class="flex min-w-0 items-center gap-3">
-                    <span
-                      class="bg-secondary-container px-1 text-[10px] font-bold text-on-secondary-container"
-                      >{{ item.ext }}</span
-                    >
-                    <span class="max-w-[200px] truncate text-sm font-medium tracking-tight">{{
-                      item.name
-                    }}</span>
+              <div class="space-y-1.5">
+                <div
+                  v-for="(item, index) in uploadStore.queuedItems"
+                  :key="item.id"
+                  class="grid grid-cols-[1fr_auto] items-center gap-2"
+                >
+                  <div class="h-1.5 bg-surface-container-high">
+                    <div
+                      class="h-full bg-primary-container"
+                      :class="[
+                        index % 4 === 0
+                          ? 'w-full'
+                          : index % 4 === 1
+                            ? 'w-10/12'
+                            : index % 4 === 2
+                              ? 'w-8/12'
+                              : 'w-11/12',
+                      ]"
+                    ></div>
                   </div>
-                  <span class="text-xs font-mono text-primary-container">{{ item.progress }}%</span>
+                  <span class="h-1.5 w-1.5 bg-secondary-container"></span>
                 </div>
+              </div>
+            </div>
 
-                <div class="h-1 w-full bg-surface">
-                  <div
-                    class="h-full bg-primary-container"
-                    :style="{ width: `${item.progress}%` }"
-                  ></div>
-                </div>
-              </article>
-            </section>
+            <p
+              v-if="uploadStore.rejectedItems.length > 0"
+              class="mt-2 text-[9px] font-bold uppercase tracking-widest text-error"
+            >
+              Rejected: {{ uploadStore.rejectedItems.join(', ') }}
+            </p>
 
-            <footer class="flex justify-end gap-4 pt-4 border-t border-surface-container-highest">
+            <div v-if="uploadStore.queuedItems.length" class="mt-2 grid grid-cols-2 gap-2">
               <button
-                class="px-4 py-2 text-xs font-bold uppercase text-on-surface-variant transition-colors hover:text-on-surface"
+                class="bg-surface-container-high px-3 py-2 text-[10px] font-black uppercase tracking-widest text-on-surface transition-colors hover:bg-surface-container-low"
                 type="button"
-                @click="clearQueue"
+                @click="rejectUploadQueue"
               >
-                Clear Queue
+                Reject
               </button>
               <button
-                class="bg-primary-container px-6 py-2 text-xs font-bold uppercase text-on-primary-container transition-colors hover:bg-primary"
+                class="bg-primary-container px-3 py-2 text-[10px] font-black uppercase tracking-widest text-on-primary-container transition-colors hover:bg-primary"
                 type="button"
                 @click="processAll"
               >
-                Commit Upload
+                Confirm
               </button>
-            </footer>
+            </div>
           </div>
-        </div>
-      </section>
 
-      <section v-if="showTransfersPanel" class="fixed inset-0 z-50 flex justify-end">
-        <button
-          class="absolute inset-0 bg-surface-container-lowest/50 backdrop-blur-sm"
-          type="button"
-          aria-label="Close transfers panel"
-          @click="closeTransfersPanel"
-        ></button>
+          <form
+            v-if="showCatalogDialog"
+            class="absolute bottom-48 right-0 w-64 bg-surface-container-highest/80 p-2 shadow-[0_0_28px_rgba(14,14,14,0.4)] backdrop-blur"
+            @submit.prevent="createFolderFromCatalogDialog"
+          >
+            <label class="block text-[10px] font-black uppercase tracking-widest text-secondary">
+              New_Catalog
+            </label>
+            <input
+              ref="newCatalogInputRef"
+              v-model="newCatalogName"
+              class="mt-2 w-full bg-surface-container-high px-3 py-3 text-sm font-bold uppercase tracking-tight text-on-surface outline-none focus:border-b-2 focus:border-primary-container"
+              type="text"
+              autocomplete="off"
+              placeholder="CATALOG_NAME"
+            />
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <button
+                class="bg-surface-container-high px-3 py-2 text-[10px] font-black uppercase tracking-widest text-on-surface transition-colors hover:bg-surface-container-low"
+                type="button"
+                @click="closeCatalogDialog"
+              >
+                Reject
+              </button>
+              <button
+                class="bg-primary-container px-3 py-2 text-[10px] font-black uppercase tracking-widest text-on-primary-container transition-colors hover:bg-primary disabled:opacity-50"
+                type="submit"
+                :disabled="!newCatalogName.trim()"
+              >
+                Confirm
+              </button>
+            </div>
+          </form>
 
-        <aside
-          class="relative h-dvh w-full max-w-md bg-surface-container-low border-l border-white/10 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
-        >
-          <div class="p-6 border-b border-white/10 flex items-center justify-between">
-            <h3 class="text-xs font-black uppercase tracking-widest text-primary">
-              Active_Transfers
-            </h3>
-            <button
-              class="text-on-surface-variant hover:text-on-surface"
-              type="button"
-              @click="closeTransfersPanel"
+          <form
+            v-if="showRenameCatalogDialog"
+            class="absolute bottom-48 right-0 w-64 bg-surface-container-highest/80 p-2 shadow-[0_0_28px_rgba(14,14,14,0.4)] backdrop-blur"
+            @submit.prevent="renameFolderFromCatalogDialog"
+          >
+            <label class="block text-[10px] font-black uppercase tracking-widest text-secondary">
+              Rename_Catalog
+            </label>
+            <p
+              class="mt-1 truncate text-[9px] font-bold uppercase tracking-widest text-on-surface-variant"
             >
-              <span class="material-symbols-outlined">close</span>
+              {{ renamingFolder?.name }}
+            </p>
+            <input
+              v-model="renameCatalogName"
+              class="mt-2 w-full bg-surface-container-high px-3 py-3 text-sm font-bold uppercase tracking-tight text-on-surface outline-none focus:border-b-2 focus:border-primary-container"
+              type="text"
+              autocomplete="off"
+              placeholder="CATALOG_NAME"
+            />
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <button
+                class="bg-surface-container-high px-3 py-2 text-[10px] font-black uppercase tracking-widest text-on-surface transition-colors hover:bg-surface-container-low"
+                type="button"
+                @click="closeRenameCatalogDialog"
+              >
+                Reject
+              </button>
+              <button
+                class="bg-primary-container px-3 py-2 text-[10px] font-black uppercase tracking-widest text-on-primary-container transition-colors hover:bg-primary disabled:opacity-50"
+                type="submit"
+                :disabled="!renameCatalogName.trim()"
+              >
+                Confirm
+              </button>
+            </div>
+          </form>
+
+          <form
+            v-if="showDeleteCatalogDialog"
+            class="fixed z-40 w-72 bg-surface-container-highest/80 p-2 shadow-[0_0_28px_rgba(14,14,14,0.4)] backdrop-blur"
+            :style="deleteDialogStyle"
+            @submit.prevent="deleteFromCatalogDialog"
+          >
+            <label class="block text-[10px] font-black uppercase tracking-widest text-error">
+              Delete_{{ deletingSubjectType }}
+            </label>
+            <div class="mt-2 bg-surface-container-low p-3">
+              <p class="truncate text-sm font-black uppercase tracking-tight text-on-surface">
+                {{ deletingSubjectName }}
+              </p>
+              <p
+                class="mt-2 text-[9px] font-bold uppercase leading-relaxed tracking-widest text-on-surface-variant"
+              >
+                {{ deletingImpactText }}
+              </p>
+            </div>
+            <div class="mt-2 grid grid-cols-2 gap-2">
+              <button
+                class="bg-surface-container-high px-3 py-2 text-[10px] font-black uppercase tracking-widest text-on-surface transition-colors hover:bg-surface-container-low"
+                type="button"
+                @click="closeDeleteCatalogDialog"
+              >
+                Reject
+              </button>
+              <button
+                class="bg-error px-3 py-2 text-[10px] font-black uppercase tracking-widest text-on-error transition-colors hover:bg-secondary-container hover:text-on-secondary-container disabled:opacity-50"
+                type="submit"
+                :disabled="!deletingFolder && !deletingMedia"
+              >
+                Delete
+              </button>
+            </div>
+          </form>
+
+          <div
+            v-if="showActionDialog"
+            class="absolute bottom-16 right-0 w-48 bg-surface-container-highest/80 p-2 shadow-[0_0_28px_rgba(14,14,14,0.4)] backdrop-blur"
+          >
+            <button
+              class="flex w-full items-center gap-3 bg-primary-container px-3 py-3 text-left text-[10px] font-black uppercase tracking-widest text-on-primary-container transition-colors hover:bg-primary"
+              type="button"
+              @click="openUploadDialog"
+            >
+              <span class="material-symbols-outlined text-lg">upload_file</span>
+              Upload_File
+            </button>
+            <button
+              class="mt-2 flex w-full items-center gap-3 bg-surface-container-high px-3 py-3 text-left text-[10px] font-black uppercase tracking-widest text-on-surface transition-colors hover:bg-surface-container-low"
+              type="button"
+              @click="openCatalogDialog"
+            >
+              <span class="material-symbols-outlined text-lg text-primary-container"
+                >create_new_folder</span
+              >
+              New_Catalog
             </button>
           </div>
 
-          <div class="flex-1 overflow-y-auto p-6 space-y-6">
-            <p
-              v-if="uploadStore.loadingTransfers"
-              class="text-xs text-on-surface-variant uppercase tracking-widest"
-            >
-              Loading transfers...
-            </p>
-            <p
-              v-else-if="uploadStore.transfersError"
-              class="text-xs text-error uppercase tracking-widest"
-            >
-              {{ uploadStore.transfersError }}
-            </p>
-            <p
-              v-else-if="uploadStore.visibleTransfers.length === 0"
-              class="text-xs text-on-surface-variant uppercase tracking-widest"
-            >
-              No active transfers
-            </p>
-            <TransferItem
-              v-for="transfer in uploadStore.visibleTransfers"
-              :key="transfer.id"
-              :name="transfer.name"
-              :progress="transfer.progress"
-              :sizeInfo="transfer.sizeInfo"
-              :status="transfer.status"
-              :eta="transfer.eta"
-              :speed="transfer.speed"
-              :storagePath="transfer.storagePath"
-              :canMoveUp="uploadStore.canMoveTransferUp(transfer.id)"
-              :canMoveDown="uploadStore.canMoveTransferDown(transfer.id)"
-              @cancel="uploadStore.cancelTransfer(transfer.id)"
-              @moveUp="uploadStore.moveTransferUp(transfer.id)"
-              @moveDown="uploadStore.moveTransferDown(transfer.id)"
-            />
-          </div>
+          <button
+            class="h-14 w-14 bg-primary-container text-on-primary-container text-3xl font-black leading-none transition-colors hover:bg-primary shadow-[0_0_32px_rgba(14,14,14,0.4)]"
+            type="button"
+            aria-label="Open catalog actions"
+            @click="toggleActionDialog"
+          >
+            +
+          </button>
+        </div>
+      </div>
 
-          <div class="p-6 bg-surface-container-lowest border-t border-white/10">
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <p class="text-[9px] text-secondary uppercase font-bold">Total Bandwidth</p>
-                <p class="text-lg font-black text-primary leading-none mt-1">
-                  {{ uploadStore.totalBandwidth }}
-                </p>
-              </div>
-              <div>
-                <p class="text-[9px] text-secondary uppercase font-bold">Files in Queue</p>
-                <p class="text-lg font-black text-on-surface leading-none mt-1">
-                  {{ uploadStore.visibleTransfers.length }}
-                </p>
-              </div>
-            </div>
-          </div>
-        </aside>
-      </section>
+      <LibraryMoveDialog
+        v-if="showMoveDialog"
+        :movingSubjectName="movingSubjectName"
+        :moveDestinationOptions="moveDestinationOptions"
+        :expandedBreadcrumbs="expandedBreadcrumbs"
+        :catalogName="catalogName"
+        :breadcrumbKey="breadcrumbKey"
+        :breadcrumbParts="breadcrumbParts"
+        :visibleBreadcrumbParts="visibleBreadcrumbParts"
+        :isBreadcrumbCollapsed="isBreadcrumbCollapsed"
+        @close="closeMoveDialog"
+        @selectDestination="selectMoveDestination"
+        @toggleBreadcrumb="toggleBreadcrumb"
+      />
+
+      <LibraryTransfersPanel
+        v-if="showTransfersPanel"
+        :uploadStore="uploadStore"
+        @close="closeTransfersPanel"
+      />
     </main>
   </div>
 </template>

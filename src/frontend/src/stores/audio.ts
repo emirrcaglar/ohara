@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { AudioRow } from '../types/api'
-import { fetchAudioLibrary } from '../api/audio'
+import { fetchAudioLibrary, moveAudioToCatalog } from '../api/audio'
 
 export const useAudioStore = defineStore('audio', () => {
   const items = ref<AudioRow[]>([])
@@ -25,12 +25,27 @@ export const useAudioStore = defineStore('audio', () => {
     }
   }
 
+  async function moveAudio(id: number, catalogId: number | null) {
+    const item = items.value.find((a) => a.id === id)
+    const previousCatalogId = item?.catalogId
+    if (item) item.catalogId = catalogId
+
+    try {
+      await moveAudioToCatalog(id, catalogId)
+    } catch (e) {
+      if (item) item.catalogId = previousCatalogId ?? null
+      error.value = e instanceof Error ? e.message : 'Failed to move audio'
+      throw e
+    }
+  }
+
   return {
     items,
     loading,
     error,
     total,
     totalItems,
-    fetchLibrary
+    fetchLibrary,
+    moveAudio,
   }
 })

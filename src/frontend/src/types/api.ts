@@ -1,5 +1,6 @@
 export interface MangaRow {
   id: number
+  catalogId: number | null
   title: string
   path: string
   pageCount: number
@@ -9,6 +10,7 @@ export interface MangaRow {
 
 export interface MangaInfo {
   id: number
+  catalogId: number | null
   title: string
   path: string
   pageCount: number
@@ -25,6 +27,7 @@ export interface MangaPage {
 
 export interface AudioRow {
   id: number
+  catalogId: number | null
   title: string
   artist: string
   album: string
@@ -34,6 +37,7 @@ export interface AudioRow {
 
 export interface VideoRow {
   id: number
+  catalogId: number | null
   title: string
   duration: number
   width: number
@@ -46,6 +50,7 @@ export interface VideoRow {
 
 export interface VideoInfo {
   id: number
+  catalogId: number | null
   title: string
   path: string
   duration: number
@@ -64,6 +69,18 @@ export interface VideoStateUpdate {
   position: number
   completed: boolean
   lastError: string
+}
+
+export interface CatalogFolder {
+  id: number
+  parentId: number | null
+  name: string
+  objectCount: number
+}
+
+export interface CatalogListResponse {
+  items: CatalogFolder[]
+  path: CatalogFolder[]
 }
 
 export interface AudioLibraryResponse {

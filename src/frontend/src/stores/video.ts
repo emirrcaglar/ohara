@@ -1,7 +1,13 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { VideoInfo, VideoRow, VideoStateUpdate } from '../types/api'
-import { deleteVideo, fetchVideoInfo, fetchVideoLibrary, saveVideoState } from '../api/video'
+import {
+  deleteVideo,
+  fetchVideoInfo,
+  fetchVideoLibrary,
+  moveVideoToCatalog,
+  saveVideoState,
+} from '../api/video'
 
 export const useVideoStore = defineStore('video', () => {
   const items = ref<VideoRow[]>([])
@@ -47,6 +53,20 @@ export const useVideoStore = defineStore('video', () => {
     item.lastError = state.lastError
   }
 
+  async function moveVideo(id: number, catalogId: number | null) {
+    const item = items.value.find((v) => v.id === id)
+    const previousCatalogId = item?.catalogId
+    if (item) item.catalogId = catalogId
+
+    try {
+      await moveVideoToCatalog(id, catalogId)
+    } catch (e) {
+      if (item) item.catalogId = previousCatalogId ?? null
+      error.value = e instanceof Error ? e.message : 'Failed to move video'
+      throw e
+    }
+  }
+
   async function removeVideo(id: number) {
     const previousItems = items.value
     const previousTotal = total.value
@@ -73,6 +93,7 @@ export const useVideoStore = defineStore('video', () => {
     fetchLibrary,
     getVideoInfo,
     updateVideoState,
+    moveVideo,
     removeVideo,
   }
 })

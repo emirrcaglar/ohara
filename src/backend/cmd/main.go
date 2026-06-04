@@ -10,7 +10,7 @@ import (
 	"ohara/src/internal/server"
 )
 
-const dataDir = "."
+const dataDir = "app-data"
 
 func main() {
 	log := logger.New(500)

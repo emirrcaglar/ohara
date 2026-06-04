@@ -7,6 +7,7 @@ import (
 type MangaRow struct {
 	ID        int64
 	Path      string
+	CatalogID *int64
 	Title     string
 	PageCount int
 	Progress  int
@@ -32,7 +33,7 @@ func (db *DB) IndexedPaths() (map[string]struct{}, error) {
 
 func (db *DB) ListManga(userID int64) ([]MangaRow, error) {
 	rows, err := db.Query(`
-		SELECT m.id, m.path, m.title, m.page_count, COALESCE(p.page, 0)
+		SELECT m.id, m.path, m.catalog_id, m.title, m.page_count, COALESCE(p.page, 0)
 		FROM manga m
 		LEFT JOIN manga_progress p ON p.manga_id = m.id AND p.user_id = ?
 		ORDER BY m.title
@@ -45,8 +46,12 @@ func (db *DB) ListManga(userID int64) ([]MangaRow, error) {
 	var list []MangaRow
 	for rows.Next() {
 		var m MangaRow
-		if err := rows.Scan(&m.ID, &m.Path, &m.Title, &m.PageCount, &m.Progress); err != nil {
+		var catalogID sql.NullInt64
+		if err := rows.Scan(&m.ID, &m.Path, &catalogID, &m.Title, &m.PageCount, &m.Progress); err != nil {
 			return nil, err
+		}
+		if catalogID.Valid {
+			m.CatalogID = &catalogID.Int64
 		}
 		list = append(list, m)
 	}
@@ -54,13 +59,17 @@ func (db *DB) ListManga(userID int64) ([]MangaRow, error) {
 }
 
 func (db *DB) GetMangaByID(id int64) (*MangaRow, error) {
-	row := db.QueryRow(`SELECT id, path, title, page_count FROM manga WHERE id = ?`, id)
+	row := db.QueryRow(`SELECT id, path, catalog_id, title, page_count FROM manga WHERE id = ?`, id)
 	var m MangaRow
-	if err := row.Scan(&m.ID, &m.Path, &m.Title, &m.PageCount); err != nil {
+	var catalogID sql.NullInt64
+	if err := row.Scan(&m.ID, &m.Path, &catalogID, &m.Title, &m.PageCount); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
+	}
+	if catalogID.Valid {
+		m.CatalogID = &catalogID.Int64
 	}
 	return &m, nil
 }
@@ -115,12 +124,29 @@ func (db *DB) UpsertProgress(userID, mangaID int64, page int) error {
 }
 
 func (db *DB) InsertManga(path, title string, pageCount int) (int64, error) {
+	return db.InsertMangaWithCatalog(path, title, pageCount, nil)
+}
+
+func (db *DB) InsertMangaWithCatalog(path, title string, pageCount int, catalogID *int64) (int64, error) {
 	sq, err := db.Exec(
-		`INSERT OR IGNORE INTO manga (path, title, page_count) VALUES (?, ?, ?)`,
-		path, title, pageCount,
+		`INSERT OR IGNORE INTO manga (path, title, page_count, catalog_id) VALUES (?, ?, ?, ?)`,
+		path, title, pageCount, catalogID,
 	)
+	if err != nil {
+		return 0, err
+	}
 	id, err := sq.LastInsertId()
 	return id, err
+}
+
+func (db *DB) UpdateMangaCatalog(id int64, catalogID *int64) error {
+	if catalogID == nil {
+		_, err := db.Exec(`UPDATE manga SET catalog_id = NULL WHERE id = ?`, id)
+		return err
+	}
+
+	_, err := db.Exec(`UPDATE manga SET catalog_id = ? WHERE id = ?`, *catalogID, id)
+	return err
 }
 
 func (db *DB) DeleteManga(id int64) error {

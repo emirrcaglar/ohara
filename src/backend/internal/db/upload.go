@@ -22,6 +22,7 @@ type UploadSession struct {
 	TotalChunks  int64
 	Status       string
 	TargetPath   string
+	CatalogID    *int64
 	ErrorMessage sql.NullString
 	CreatedAt    string
 	UpdatedAt    string
@@ -37,34 +38,35 @@ func (db *DB) CreateUploadSession(s UploadSession) error {
 	_, err := db.Exec(`
 		INSERT INTO upload_sessions (
 			id, user_id, filename, size, profile, last_modified, chunk_size, total_chunks,
-			status, target_path, created_at, updated_at
+			status, target_path, catalog_id, created_at, updated_at
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, s.ID, s.UserID, s.Filename, s.Size, s.Profile, s.LastModified, s.ChunkSize, s.TotalChunks, s.Status, s.TargetPath)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, s.ID, s.UserID, s.Filename, s.Size, s.Profile, s.LastModified, s.ChunkSize, s.TotalChunks, s.Status, s.TargetPath, s.CatalogID)
 	return err
 }
 
-func (db *DB) FindResumableUploadSession(userID int64, filename string, size, lastModified int64, profile string) (*UploadSession, error) {
+func (db *DB) FindResumableUploadSession(userID int64, filename string, size, lastModified int64, profile string, catalogID *int64) (*UploadSession, error) {
 	row := db.QueryRow(`
 		SELECT id, user_id, filename, size, profile, last_modified, chunk_size, total_chunks,
-			status, target_path, error_message, created_at, updated_at, completed_at
+			status, target_path, catalog_id, error_message, created_at, updated_at, completed_at
 		FROM upload_sessions
 		WHERE user_id = ?
 			AND filename = ?
 			AND size = ?
 			AND last_modified = ?
 			AND profile = ?
+			AND (catalog_id = ? OR (catalog_id IS NULL AND ? IS NULL))
 			AND status IN ('active', 'paused', 'failed')
 		ORDER BY updated_at DESC
 		LIMIT 1
-	`, userID, filename, size, lastModified, profile)
+	`, userID, filename, size, lastModified, profile, catalogID, catalogID)
 	return scanUploadSession(row)
 }
 
 func (db *DB) GetUploadSession(id string, userID int64) (*UploadSession, error) {
 	row := db.QueryRow(`
 		SELECT id, user_id, filename, size, profile, last_modified, chunk_size, total_chunks,
-			status, target_path, error_message, created_at, updated_at, completed_at
+			status, target_path, catalog_id, error_message, created_at, updated_at, completed_at
 		FROM upload_sessions
 		WHERE id = ? AND user_id = ?
 	`, id, userID)
@@ -74,7 +76,7 @@ func (db *DB) GetUploadSession(id string, userID int64) (*UploadSession, error) 
 func (db *DB) ListPendingUploadSessions(userID int64) ([]PendingUploadSession, error) {
 	rows, err := db.Query(`
 		SELECT s.id, s.user_id, s.filename, s.size, s.profile, s.last_modified, s.chunk_size,
-			s.total_chunks, s.status, s.target_path, s.error_message, s.created_at, s.updated_at,
+			s.total_chunks, s.status, s.target_path, s.catalog_id, s.error_message, s.created_at, s.updated_at,
 			s.completed_at, COUNT(c.chunk_index) AS uploaded_count
 		FROM upload_sessions s
 		LEFT JOIN upload_chunks c ON c.upload_id = s.id
@@ -102,6 +104,7 @@ func (db *DB) ListPendingUploadSessions(userID int64) ([]PendingUploadSession, e
 			&upload.TotalChunks,
 			&upload.Status,
 			&upload.TargetPath,
+			&upload.CatalogID,
 			&upload.ErrorMessage,
 			&upload.CreatedAt,
 			&upload.UpdatedAt,
@@ -214,6 +217,7 @@ func scanUploadSession(row *sql.Row) (*UploadSession, error) {
 		&s.TotalChunks,
 		&s.Status,
 		&s.TargetPath,
+		&s.CatalogID,
 		&s.ErrorMessage,
 		&s.CreatedAt,
 		&s.UpdatedAt,

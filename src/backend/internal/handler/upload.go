@@ -86,6 +86,7 @@ type ChunkedUploadInitRequest struct {
 	Size         int64  `json:"size"`
 	Profile      string `json:"profile"`
 	LastModified int64  `json:"lastModified"`
+	CatalogID    *int64 `json:"catalogId"`
 }
 
 type ChunkedUploadMetadata struct {
@@ -131,6 +132,7 @@ func (h *UploadHandler) HandleUploadsList(w http.ResponseWriter, r *http.Request
 			"uploadedChunks": uploaded,
 			"uploadedCount":  len(uploaded),
 			"status":         session.Status,
+			"catalogId":      session.CatalogID,
 			"complete":       int64(len(uploaded)) == session.TotalChunks,
 			"createdAt":      session.CreatedAt,
 			"updatedAt":      session.UpdatedAt,
@@ -166,9 +168,12 @@ func (h *UploadHandler) HandleChunkedUploadInit(w http.ResponseWriter, r *http.R
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	if !h.validUploadCatalog(w, req.CatalogID) {
+		return
+	}
 
 	resumed := false
-	session, err := h.DB.FindResumableUploadSession(user.ID, fileName, req.Size, req.LastModified, req.Profile)
+	session, err := h.DB.FindResumableUploadSession(user.ID, fileName, req.Size, req.LastModified, req.Profile, req.CatalogID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -191,6 +196,7 @@ func (h *UploadHandler) HandleChunkedUploadInit(w http.ResponseWriter, r *http.R
 			TotalChunks:  totalChunksForSize(req.Size, DefaultUploadChunkSize),
 			Status:       db.UploadStatusActive,
 			TargetPath:   h.defaultTargetPath(fileName),
+			CatalogID:    req.CatalogID,
 		}
 		if err := h.DB.CreateUploadSession(*session); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -231,6 +237,7 @@ func (h *UploadHandler) HandleChunkedUploadInit(w http.ResponseWriter, r *http.R
 		"totalChunks":    session.TotalChunks,
 		"uploadedChunks": uploaded,
 		"status":         session.Status,
+		"catalogId":      session.CatalogID,
 		"resumed":        resumed,
 	})
 }
@@ -386,13 +393,14 @@ func (h *UploadHandler) HandleChunkedUploadComplete(w http.ResponseWriter, r *ht
 	go func() {
 		defer os.RemoveAll(h.chunkedUploadDir(uploadID))
 		defer h.DB.DeleteUploadChunks(uploadID)
-		h.indexPath(targetPath)
+		h.indexPath(targetPath, session.CatalogID)
 	}()
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"success":  true,
-		"filename": session.Filename,
-		"indexing": "queued",
+		"success":   true,
+		"filename":  session.Filename,
+		"catalogId": session.CatalogID,
+		"indexing":  "queued",
 	})
 }
 
@@ -434,6 +442,7 @@ func (h *UploadHandler) HandleChunkedUploadStatus(w http.ResponseWriter, r *http
 		"uploadedChunks": uploaded,
 		"uploadedCount":  len(uploaded),
 		"status":         session.Status,
+		"catalogId":      session.CatalogID,
 		"complete":       int64(len(uploaded)) == session.TotalChunks,
 		"missingChunks":  missingChunkIndexes(uploaded, session.TotalChunks),
 	})
@@ -542,10 +551,33 @@ func (h *UploadHandler) assembleChunkedUpload(session *db.UploadSession, targetP
 	return os.Rename(tmpTarget, targetPath)
 }
 
-func (h *UploadHandler) indexPath(targetPath string) {
-	if err := h.sc.Index(targetPath); err != nil && h.Log != nil {
+func (h *UploadHandler) indexPath(targetPath string, catalogID *int64) {
+	if err := h.sc.IndexWithCatalog(targetPath, catalogID); err != nil && h.Log != nil {
 		h.Log.Error("[upload] index failed path=%s err=%v", targetPath, err)
 	}
+}
+
+func (h *UploadHandler) validUploadCatalog(w http.ResponseWriter, catalogID *int64) bool {
+	if catalogID == nil {
+		return true
+	}
+	if *catalogID <= 0 {
+		http.Error(w, "Invalid folder id", http.StatusBadRequest)
+		return false
+	}
+	catalog, err := h.DB.GetCatalogByID(*catalogID)
+	if err != nil {
+		if h.Log != nil {
+			h.Log.Error("[upload] catalog lookup failed id=%d err=%v", *catalogID, err)
+		}
+		http.Error(w, "Failed to validate folder", http.StatusInternalServerError)
+		return false
+	}
+	if catalog == nil {
+		http.Error(w, "Folder not found", http.StatusBadRequest)
+		return false
+	}
+	return true
 }
 
 func detectFileType(file string) FileExtension {

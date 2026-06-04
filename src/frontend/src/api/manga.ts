@@ -15,6 +15,13 @@ export async function saveMangaProgress(id: number, page: number): Promise<void>
   })
 }
 
+export async function moveMangaToCatalog(id: number, catalogId: number | null): Promise<void> {
+  await fetchJson<void>(`${API_BASE}/manga/${id}/catalog`, {
+    method: 'PUT',
+    body: JSON.stringify({ catalogId }),
+  })
+}
+
 export async function deleteManga(id: number): Promise<void> {
   await fetchJson<void>(`${API_BASE}/manga/${id}`, {
     method: 'DELETE',

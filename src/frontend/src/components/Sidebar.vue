@@ -4,7 +4,6 @@ import { useRoute } from 'vue-router'
 import { Library, Settings, Terminal, ShieldCheck } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
 import { getUserPfpUrl } from '../utils/userPfp'
-import StatusBar from './StatusBar.vue'
 import UserModal from './UserModal.vue'
 
 defineOptions({
@@ -57,23 +56,23 @@ const userPfpUrl = computed(() => getUserPfpUrl(authStore.user?.pfp))
         <component :is="item.icon" class="w-5 h-5" />
         <span class="uppercase tracking-tight text-sm">{{ item.name }}</span>
       </RouterLink>
-
-      <div v-if="authStore.user?.role === 'admin'" class="mt-8 px-4">
-        <RouterLink
-          to="/admin/approvals"
-          class="w-full py-4 px-4 bg-secondary-container text-on-secondary-container font-bold uppercase tracking-tighter text-sm text-left flex justify-between items-center group transition-transform active:translate-x-1"
-          @click="emit('close')"
-        >
-          <div class="flex items-center gap-3">
-            <ShieldCheck class="w-4 h-4" />
-            USER_APPROVALS
-          </div>
-          <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">
-            chevron_right
-          </span>
-        </RouterLink>
-      </div>
     </nav>
+
+    <div v-if="authStore.user?.role === 'admin'" class="px-4 pb-3">
+      <RouterLink
+        to="/admin/approvals"
+        class="w-full py-4 px-4 bg-surface-container-high text-primary-container font-bold uppercase tracking-tighter text-sm text-left flex justify-between items-center group transition-transform active:translate-x-1 hover:bg-surface-container-highest"
+        @click="emit('close')"
+      >
+        <div class="flex items-center gap-3">
+          <ShieldCheck class="w-4 h-4" />
+          USER_APPROVALS
+        </div>
+        <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">
+          chevron_right
+        </span>
+      </RouterLink>
+    </div>
 
     <button
       type="button"
@@ -100,8 +99,6 @@ const userPfpUrl = computed(() => getUserPfpUrl(authStore.user?.pfp))
         </div>
       </div>
     </button>
-
-    <StatusBar />
 
     <UserModal :open="showUserModal" @close="showUserModal = false" />
   </aside>
