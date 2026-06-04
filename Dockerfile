@@ -42,4 +42,3 @@ VOLUME ["/var/lib/ohara"]
 EXPOSE 3000
 
 ENTRYPOINT ["/usr/local/bin/ohara"]
-CMD ["-data", "/var/lib/ohara", "-port", "3000"]

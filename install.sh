@@ -112,7 +112,7 @@ Group=ohara
 WorkingDirectory=$DATA_DIR
 
 # Paths
-ExecStart=$INSTALL_DIR/ohara -data $DATA_DIR
+ExecStart=$INSTALL_DIR/ohara
 EnvironmentFile=-$CONFIG_DIR/environment
 
 # Restart policy
