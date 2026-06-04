@@ -101,11 +101,11 @@ const {
 <template>
   <div
     ref="readerRef"
-    class="relative flex-1 flex flex-col bg-black overflow-hidden overscroll-none"
+    class="relative flex-1 flex flex-col bg-surface overflow-hidden overscroll-none"
   >
     <div
       v-if="!scrollReadingForManga"
-      class="md:hidden fixed inset-0 overflow-hidden bg-black touch-none select-none"
+      class="md:hidden fixed inset-0 overflow-hidden bg-surface touch-none select-none"
       :class="mobileReaderClass"
       @touchstart="handleTouchStart"
       @touchmove="handleTouchMove"
@@ -116,7 +116,7 @@ const {
         <div
           v-for="mobilePage in mobilePages"
           :key="mobilePage.page"
-          class="flex h-dvh w-screen shrink-0 items-center justify-center overflow-hidden bg-black"
+          class="flex h-dvh w-screen shrink-0 items-center justify-center overflow-hidden bg-surface"
         >
           <img
             v-if="mobilePage.src"
@@ -133,7 +133,7 @@ const {
 
       <div
         v-if="showPageSkeleton"
-        class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-black"
+        class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-surface"
       >
         <div class="h-dvh w-screen animate-pulse bg-surface-container-lowest/40" />
       </div>
@@ -150,7 +150,7 @@ const {
     <div
       v-else
       ref="mobileScrollRef"
-      class="fixed inset-0 overflow-y-auto bg-black overscroll-contain select-none md:static md:flex-1 md:min-h-0"
+      class="fixed inset-0 overflow-y-auto bg-surface overscroll-contain select-none md:static md:flex-1 md:min-h-0"
       :class="mobileReaderClass"
       @click="toggleMobileChrome"
       @mousemove="handleScrollAreaMouseMove"
@@ -161,7 +161,7 @@ const {
         :key="mobilePage.page"
         :ref="(el) => setMobileScrollPageRef(el, index)"
         :data-page="mobilePage.page"
-        class="flex min-h-dvh w-full items-center justify-center bg-black"
+        class="flex min-h-dvh w-full items-center justify-center bg-surface"
         :class="getScrollPageClass(mobilePage.page)"
         @mousemove="updateZoomOriginForPage(mobilePage.page, $event)"
         @mouseleave="onScrollPageMouseLeave(mobilePage.page)"
@@ -211,7 +211,7 @@ const {
         />
         <div
           v-if="showPageSkeleton"
-          class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black"
+          class="pointer-events-none absolute inset-0 flex items-center justify-center bg-surface"
         >
           <div class="h-full w-full animate-pulse bg-surface-container-lowest/40" />
         </div>
