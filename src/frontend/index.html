@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" class="dark" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta
@@ -7,6 +7,18 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
     />
     <title>OHARA</title>
+    <script>
+      ;(() => {
+        try {
+          const theme = localStorage.getItem('ohara:theme')
+          if (theme === 'light' || theme === 'dark') {
+            document.documentElement.dataset.theme = theme
+            document.documentElement.classList.toggle('dark', theme === 'dark')
+            document.documentElement.classList.toggle('light', theme === 'light')
+          }
+        } catch {}
+      })()
+    </script>
     <script>
       ;(() => {
         const reloadKey = 'ohara:stale-bundle-reload'

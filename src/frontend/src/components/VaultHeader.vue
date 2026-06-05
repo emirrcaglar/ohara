@@ -29,7 +29,7 @@ const tabs = ['ALL', 'CBZ', 'AUDIO', 'VIDEO'] as const
           :class="
             modelValue === tab
               ? 'bg-primary-container text-on-primary-container'
-              : 'bg-surface-hover text-secondary hover:text-white'
+              : 'bg-surface-hover text-secondary hover:text-on-surface'
           "
         >
           {{ tab }}
@@ -38,7 +38,7 @@ const tabs = ['ALL', 'CBZ', 'AUDIO', 'VIDEO'] as const
         <button
           v-for="catalog in catalogs"
           :key="catalog.id"
-          class="flex items-center gap-2 bg-surface-hover px-3 py-2 text-xs font-bold uppercase leading-none text-primary-container transition-colors hover:text-white md:px-6"
+          class="flex items-center gap-2 bg-surface-hover px-3 py-2 text-xs font-bold uppercase leading-none text-primary-container transition-colors hover:text-on-surface md:px-6"
           type="button"
           @click="$emit('openCatalog', catalog)"
         >

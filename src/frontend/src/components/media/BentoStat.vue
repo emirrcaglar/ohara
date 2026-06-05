@@ -6,7 +6,9 @@ defineProps<{
 </script>
 
 <template>
-  <div class="bg-surface-container-low p-4 aspect-square flex flex-col justify-between border border-white/5">
+  <div
+    class="bg-surface-container-low p-4 aspect-square flex flex-col justify-between border border-outline/20"
+  >
     <span class="text-[10px] font-bold uppercase" :class="labelColor || 'text-secondary'">
       {{ label }}
     </span>

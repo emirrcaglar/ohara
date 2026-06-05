@@ -57,7 +57,7 @@ function handleClose() {
         </button>
       </div>
 
-      <div class="px-6 py-3 border-b border-white/10">
+      <div class="px-6 py-3 border-b border-outline/30">
         <p class="text-[10px] font-mono uppercase tracking-widest text-secondary mb-1">
           Now Playing
         </p>
@@ -92,7 +92,7 @@ function handleClose() {
 
   <!-- Compact bar -->
   <div
-    class="bg-surface-container-low border-t border-white/10 px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
+    class="bg-surface-container-low border-t border-outline/30 px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
   >
     <div class="flex items-center gap-4">
       <!-- Track info — tappable on mobile to expand -->

@@ -409,7 +409,7 @@ const {
           </div>
 
           <button
-            class="h-14 w-14 bg-primary-container text-on-primary-container text-3xl font-black leading-none transition-colors hover:bg-primary shadow-[0_0_32px_rgba(14,14,14,0.4)]"
+            class="h-14 w-14 bg-primary-container text-on-primary-container text-3xl font-black leading-none transition-colors hover:bg-primary"
             type="button"
             aria-label="Open catalog actions"
             @click="toggleActionDialog"

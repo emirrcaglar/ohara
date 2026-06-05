@@ -27,14 +27,14 @@ async function handleSubmit() {
 
 <template>
   <div
-    class="bg-surface-container-lowest text-on-background min-h-dvh flex items-center justify-center p-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] antialiased selection:bg-secondary-container selection:text-white"
+    class="bg-surface-container-lowest text-on-background min-h-dvh flex items-center justify-center p-6 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] antialiased selection:bg-secondary-container selection:text-on-secondary-container"
   >
     <main class="w-full max-w-md z-10">
       <div class="flex flex-col items-center mb-12">
         <div
           class="relative w-24 h-24 mb-6 bg-surface-container flex items-center justify-center [filter:drop-shadow(0_0_15px_rgba(255,140,0,0.3))]"
         >
-          <span class="material-symbols-outlined text-5xl" style="color: #ff8c00">terminal</span>
+          <span class="material-symbols-outlined text-5xl text-primary-container">terminal</span>
         </div>
         <h1 class="flex w-full flex-col items-center uppercase leading-none">
           <span
@@ -173,6 +173,6 @@ async function handleSubmit() {
 
 <style scoped>
 .sharp-focus:focus-within {
-  border-bottom: 2px solid #ff8c00;
+  border-bottom: 2px solid var(--color-primary-container);
 }
 </style>

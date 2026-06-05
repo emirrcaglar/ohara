@@ -219,7 +219,7 @@ onUnmounted(() => {
                 class="w-full h-full object-cover grayscale brightness-75 contrast-125 group-hover:grayscale-0 group-hover:brightness-100 transition-all"
                 alt="Current user avatar"
               />
-              <span v-else class="material-symbols-outlined text-4xl" style="color: #ff8c00"
+              <span v-else class="material-symbols-outlined text-4xl text-primary-container"
                 >person</span
               >
               <span
@@ -382,6 +382,6 @@ onUnmounted(() => {
 
 <style scoped>
 .password-field:focus {
-  border-bottom: 2px solid #ffb1c4;
+  border-bottom: 2px solid var(--color-secondary);
 }
 </style>

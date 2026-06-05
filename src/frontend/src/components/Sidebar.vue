@@ -50,7 +50,7 @@ const userPfpUrl = computed(() => getUserPfpUrl(authStore.user?.pfp))
         :class="
           route.path === item.path
             ? 'text-primary-container font-black border-l-4 border-primary-container bg-surface-container-high'
-            : 'text-white/60 hover:bg-surface-container-high hover:text-primary'
+            : 'text-on-surface-variant hover:bg-surface-container-high hover:text-primary'
         "
       >
         <component :is="item.icon" class="w-5 h-5" />
@@ -88,7 +88,7 @@ const userPfpUrl = computed(() => getUserPfpUrl(authStore.user?.pfp))
           class="w-full h-full object-cover grayscale brightness-75 contrast-125"
           alt="User avatar"
         />
-        <span v-else class="material-symbols-outlined" style="color: #ff8c00">person</span>
+        <span v-else class="material-symbols-outlined text-primary-container">person</span>
       </div>
       <div class="flex-1 overflow-hidden">
         <div class="truncate font-bold text-[10px] text-on-surface uppercase tracking-widest">

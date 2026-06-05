@@ -68,12 +68,12 @@ function handleVolumeChange(event: Event) {
       <div class="flex items-center gap-2 md:gap-5">
         <button
           :class="expanded ? '' : 'hidden md:block'"
-          class="text-white/60 hover:text-secondary"
+          class="text-on-surface-variant hover:text-secondary"
         >
           <span class="material-symbols-outlined">shuffle</span>
         </button>
         <button
-          class="text-primary hover:text-primary-container scale-125 disabled:text-white/25 disabled:hover:text-white/25 disabled:cursor-not-allowed"
+          class="text-primary hover:text-primary-container scale-125 disabled:text-on-surface-variant/40 disabled:hover:text-on-surface-variant/40 disabled:cursor-not-allowed"
           :disabled="!canSkip"
           @click="emit('previous')"
         >
@@ -90,7 +90,7 @@ function handleVolumeChange(event: Event) {
           >
         </button>
         <button
-          class="text-primary hover:text-primary-container scale-125 disabled:text-white/25 disabled:hover:text-white/25 disabled:cursor-not-allowed"
+          class="text-primary hover:text-primary-container scale-125 disabled:text-on-surface-variant/40 disabled:hover:text-on-surface-variant/40 disabled:cursor-not-allowed"
           :disabled="!canSkip"
           @click="emit('next')"
         >
@@ -98,7 +98,7 @@ function handleVolumeChange(event: Event) {
         </button>
         <button
           :class="expanded ? '' : 'hidden md:block'"
-          class="text-white/60 hover:text-secondary"
+          class="text-on-surface-variant hover:text-secondary"
         >
           <span class="material-symbols-outlined">repeat</span>
         </button>
@@ -144,9 +144,9 @@ function handleVolumeChange(event: Event) {
   width: 0.75rem;
   height: 0.75rem;
   border-radius: 9999px;
-  background: #fff;
+  background: var(--color-on-surface);
   margin-top: 0rem;
-  box-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-primary-container) 50%, transparent);
 }
 
 .media-progress-slider::-moz-range-track,
@@ -161,8 +161,8 @@ function handleVolumeChange(event: Event) {
   height: 0.75rem;
   border: 0;
   border-radius: 9999px;
-  background: #fff;
-  box-shadow: 0 0 10px rgba(255, 140, 0, 0.5);
+  background: var(--color-on-surface);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-primary-container) 50%, transparent);
 }
 
 .media-progress-slider:disabled,

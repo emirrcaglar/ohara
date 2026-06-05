@@ -21,9 +21,9 @@ const emit = defineEmits<{
     ></button>
 
     <aside
-      class="relative h-dvh w-full max-w-md bg-surface-container-low border-l border-white/10 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+      class="relative h-dvh w-full max-w-md bg-surface-container-low border-l border-outline/30 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
     >
-      <div class="p-6 border-b border-white/10 flex items-center justify-between">
+      <div class="p-6 border-b border-outline/30 flex items-center justify-between">
         <h3 class="text-xs font-black uppercase tracking-widest text-primary">Active_Transfers</h3>
         <button
           class="text-on-surface-variant hover:text-on-surface"
@@ -71,7 +71,7 @@ const emit = defineEmits<{
         />
       </div>
 
-      <div class="p-6 bg-surface-container-lowest border-t border-white/10">
+      <div class="p-6 bg-surface-container-lowest border-t border-outline/30">
         <div class="grid grid-cols-2 gap-4">
           <div>
             <p class="text-[9px] text-secondary uppercase font-bold">Total Bandwidth</p>

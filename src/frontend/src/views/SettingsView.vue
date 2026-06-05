@@ -2,8 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { usePreferencesStore } from '../stores/preferences'
+import { useTheme } from '../composables/useTheme'
 
 const preferencesStore = usePreferencesStore()
+const { isLight, toggleTheme } = useTheme()
 const { rightToLeftSwipeForManga, scrollReadingForManga, isLoading, error } =
   storeToRefs(preferencesStore)
 
@@ -62,6 +64,72 @@ async function toggleScrollReadingForManga() {
           <p class="font-body text-secondary text-xs font-bold tracking-[0.2em] mt-2 uppercase">
             SYSTEM_CONFIGURATION
           </p>
+        </div>
+      </div>
+
+      <div class="bg-surface p-8">
+        <div class="bg-surface-container-low p-8 grid gap-8 md:grid-cols-[1fr_18rem]">
+          <div class="space-y-3">
+            <span
+              class="font-body text-secondary text-[10px] font-bold uppercase tracking-[0.24em]"
+            >
+              INTERFACE
+            </span>
+            <h2 class="font-display text-2xl font-black text-on-surface uppercase tracking-tighter">
+              Appearance
+            </h2>
+            <p class="font-body text-on-surface-variant text-sm leading-6 max-w-xl">
+              Switch between the default dark terminal palette and the Kinetic Terminal Light
+              design. This setting is saved locally on this device.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            class="w-full bg-surface-container-high p-6 text-left transition-colors hover:bg-surface-container-highest active:scale-[0.99]"
+            role="switch"
+            :aria-checked="isLight"
+            :aria-label="isLight ? 'Switch to dark mode' : 'Switch to light mode'"
+            @click="toggleTheme"
+          >
+            <div class="flex h-full flex-col justify-between gap-8">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p
+                    class="font-body text-[10px] font-bold text-secondary uppercase tracking-widest"
+                  >
+                    THEME_MODE
+                  </p>
+                  <p
+                    class="font-display mt-2 text-lg font-black text-on-surface uppercase tracking-tighter"
+                  >
+                    {{ isLight ? 'Light mode' : 'Dark mode' }}
+                  </p>
+                </div>
+
+                <div
+                  class="w-14 h-7 bg-surface-container-lowest p-1 flex transition-all duration-75 shrink-0"
+                  :class="isLight ? 'justify-end' : 'justify-start'"
+                >
+                  <div
+                    class="w-5 h-5 transition-colors"
+                    :class="isLight ? 'bg-primary-container' : 'bg-outline-variant/40'"
+                  ></div>
+                </div>
+              </div>
+
+              <div class="flex items-end justify-between gap-4">
+                <span
+                  class="font-body text-[10px] text-on-surface-variant uppercase tracking-widest"
+                >
+                  {{ isLight ? 'KINETIC_TERMINAL_LIGHT' : 'TERMINAL_DARK' }}
+                </span>
+                <span class="material-symbols-outlined text-primary-container">
+                  {{ isLight ? 'light_mode' : 'dark_mode' }}
+                </span>
+              </div>
+            </div>
+          </button>
         </div>
       </div>
 

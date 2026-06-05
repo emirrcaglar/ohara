@@ -4,6 +4,9 @@ import App from './App.vue'
 import router from './router'
 import './assets/main.css'
 import 'primeicons/primeicons.css'
+import { initializeTheme } from './composables/useTheme'
+
+initializeTheme()
 
 const app = createApp(App)
 
