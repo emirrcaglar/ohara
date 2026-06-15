@@ -8,6 +8,7 @@ import {
   moveVideoToCatalog,
   saveVideoState,
 } from '../api/video'
+import { compareByNaturalText } from '../utils/naturalSort'
 
 export const useVideoStore = defineStore('video', () => {
   const items = ref<VideoRow[]>([])
@@ -22,7 +23,7 @@ export const useVideoStore = defineStore('video', () => {
     error.value = null
     try {
       const response = await fetchVideoLibrary()
-      items.value = response.items
+      items.value = [...response.items].sort(compareByNaturalText((item) => item.title))
       total.value = response.total
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch video library'

@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { AudioRow } from '../types/api'
 import { fetchAudioLibrary, moveAudioToCatalog } from '../api/audio'
+import { compareByNaturalText } from '../utils/naturalSort'
 
 export const useAudioStore = defineStore('audio', () => {
   const items = ref<AudioRow[]>([])
@@ -16,7 +17,7 @@ export const useAudioStore = defineStore('audio', () => {
     error.value = null
     try {
       const response = await fetchAudioLibrary()
-      items.value = response.items
+      items.value = [...response.items].sort(compareByNaturalText((item) => item.title))
       total.value = response.total
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch audio library'

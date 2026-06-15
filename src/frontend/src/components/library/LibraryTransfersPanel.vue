@@ -82,7 +82,7 @@ const emit = defineEmits<{
           <div>
             <p class="text-[9px] text-secondary uppercase font-bold">Files in Queue</p>
             <p class="text-lg font-black text-on-surface leading-none mt-1">
-              {{ uploadStore.visibleTransfers.length }}
+              {{ uploadStore.queuedItems.length }}
             </p>
           </div>
         </div>

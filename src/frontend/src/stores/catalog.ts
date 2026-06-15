@@ -8,6 +8,9 @@ import {
   fetchCatalog,
   updateCatalogFolder,
 } from '../api/catalog'
+import { compareByNaturalText } from '../utils/naturalSort'
+
+const compareCatalogFolders = compareByNaturalText<CatalogFolder>((folder) => folder.name)
 
 export const useCatalogStore = defineStore('catalog', () => {
   const folders = ref<CatalogFolder[]>([])
@@ -22,7 +25,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     error.value = null
     try {
       const response = await fetchCatalog(parentId)
-      folders.value = response.items
+      folders.value = [...response.items].sort(compareCatalogFolders)
       path.value = response.path
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch catalog'
@@ -35,8 +38,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     error.value = null
     try {
       const response = await fetchAllCatalogs()
-      allFolders.value = response.items
-      return response.items
+      allFolders.value = [...response.items].sort(compareCatalogFolders)
+      return allFolders.value
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch catalogs'
       throw e
@@ -47,8 +50,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     error.value = null
     try {
       const folder = await createCatalogFolder(name, parentId)
-      folders.value = [...folders.value, folder].sort((a, b) => a.name.localeCompare(b.name))
-      allFolders.value = [...allFolders.value, folder].sort((a, b) => a.name.localeCompare(b.name))
+      folders.value = [...folders.value, folder].sort(compareCatalogFolders)
+      allFolders.value = [...allFolders.value, folder].sort(compareCatalogFolders)
       return folder
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to create folder'
@@ -60,7 +63,12 @@ export const useCatalogStore = defineStore('catalog', () => {
     error.value = null
     try {
       const folder = await updateCatalogFolder(id, name, parentId)
-      allFolders.value = allFolders.value.map((item) => (item.id === id ? folder : item))
+      allFolders.value = allFolders.value
+        .map((item) => (item.id === id ? folder : item))
+        .sort(compareCatalogFolders)
+      folders.value = folders.value
+        .map((item) => (item.id === id ? folder : item))
+        .sort(compareCatalogFolders)
       return folder
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to update folder'

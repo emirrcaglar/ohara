@@ -8,6 +8,7 @@ import {
   moveMangaToCatalog,
   saveMangaProgress,
 } from '../api/manga'
+import { compareByNaturalText } from '../utils/naturalSort'
 
 export const useMangaStore = defineStore('manga', () => {
   const items = ref<MangaRow[]>([])
@@ -22,7 +23,7 @@ export const useMangaStore = defineStore('manga', () => {
     error.value = null
     try {
       const response = await fetchMangaLibrary()
-      items.value = response.items
+      items.value = [...response.items].sort(compareByNaturalText((item) => item.title))
       total.value = response.total
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch manga library'

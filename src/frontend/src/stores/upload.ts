@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { cancelUpload, listPendingUploads, pauseUpload, uploadFile } from '../api/upload'
 import type { PendingUpload } from '../api/upload'
+import { compareByNaturalText } from '../utils/naturalSort'
 
 export type UploadStatus = 'queued' | 'active' | 'complete'
 
@@ -411,13 +412,9 @@ export const useUploadStore = defineStore('upload', () => {
     }
   }
 
-  function compareQueueItemNames(a: UploadQueueItem, b: UploadQueueItem): number {
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
-  }
+  const compareQueueItemNames = compareByNaturalText<UploadQueueItem>((item) => item.name)
 
-  function compareTransferNames(a: TransferItemData, b: TransferItemData): number {
-    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
-  }
+  const compareTransferNames = compareByNaturalText<TransferItemData>((item) => item.name)
 
   function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === 'AbortError'
