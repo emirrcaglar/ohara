@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Library, Settings, Terminal, ShieldCheck } from 'lucide-vue-next'
+import { House, Library, Settings, Terminal, ShieldCheck } from 'lucide-vue-next'
 import { useAuthStore } from '../stores/auth'
 import { getUserPfpUrl } from '../utils/userPfp'
 import UserModal from './UserModal.vue'
@@ -17,6 +17,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 
 const navItems = [
+  { name: 'Home', icon: House, path: '/' },
   { name: 'Library', icon: Library, path: '/library' },
   { name: 'Settings', icon: Settings, path: '/settings', adminOnly: true },
   { name: 'Logs', icon: Terminal, path: '/logs', adminOnly: true },

@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"time"
 )
 
 type MangaRow struct {
@@ -11,6 +12,7 @@ type MangaRow struct {
 	Title     string
 	PageCount int
 	Progress  int
+	UpdatedAt *time.Time
 }
 
 func (db *DB) IndexedPaths() (map[string]struct{}, error) {
@@ -33,7 +35,7 @@ func (db *DB) IndexedPaths() (map[string]struct{}, error) {
 
 func (db *DB) ListManga(userID int64) ([]MangaRow, error) {
 	rows, err := db.Query(`
-		SELECT m.id, m.path, m.catalog_id, m.title, m.page_count, COALESCE(p.page, 0)
+		SELECT m.id, m.path, m.catalog_id, m.title, m.page_count, COALESCE(p.page, 0), p.updated_at
 		FROM manga m
 		LEFT JOIN manga_progress p ON p.manga_id = m.id AND p.user_id = ?
 		ORDER BY m.title
@@ -47,7 +49,7 @@ func (db *DB) ListManga(userID int64) ([]MangaRow, error) {
 	for rows.Next() {
 		var m MangaRow
 		var catalogID sql.NullInt64
-		if err := rows.Scan(&m.ID, &m.Path, &catalogID, &m.Title, &m.PageCount, &m.Progress); err != nil {
+		if err := rows.Scan(&m.ID, &m.Path, &catalogID, &m.Title, &m.PageCount, &m.Progress, &m.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if catalogID.Valid {

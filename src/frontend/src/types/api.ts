@@ -6,6 +6,7 @@ export interface MangaRow {
   pageCount: number
   currentPage: number
   fileExtension: string
+  updatedAt: string | null
 }
 
 export interface MangaInfo {

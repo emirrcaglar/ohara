@@ -5,7 +5,7 @@ import { useAuthStore } from '../stores/auth'
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/library',
+    component: () => import('../views/HomeView.vue'),
   },
   {
     path: '/library',

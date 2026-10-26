@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"ohara/src/internal/db"
 	"ohara/src/internal/logger"
@@ -53,6 +54,7 @@ func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
 			Title:         m.Title,
 			PageCount:     m.PageCount,
 			CurrentPage:   m.Progress,
+			UpdatedAt:     m.UpdatedAt,
 			FileExtension: filepath.Ext(m.Path),
 		})
 	}
@@ -67,12 +69,13 @@ func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
 }
 
 type MangaResponse struct {
-	ID            int64  `json:"id"`
-	CatalogID     *int64 `json:"catalogId"`
-	Title         string `json:"title"`
-	PageCount     int    `json:"pageCount"`
-	CurrentPage   int    `json:"currentPage"`
-	FileExtension string `json:"fileExtension"`
+	ID            int64      `json:"id"`
+	CatalogID     *int64     `json:"catalogId"`
+	Title         string     `json:"title"`
+	PageCount     int        `json:"pageCount"`
+	CurrentPage   int        `json:"currentPage"`
+	FileExtension string     `json:"fileExtension"`
+	UpdatedAt     *time.Time `json:"updatedAt"`
 }
 
 type MangaLibraryResponse struct {
