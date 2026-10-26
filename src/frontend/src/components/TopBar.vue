@@ -4,7 +4,7 @@ defineEmits(['toggleSidebar'])
 
 <template>
   <header
-    class="flex md:hidden items-center px-4 h-16 w-full bg-surface-dim z-30 pt-[env(safe-area-inset-top)] box-content"
+    class="flex md:hidden items-center px-4 h-16 bg-surface-dim z-30 pt-[env(safe-area-inset-top)] box-content"
   >
     <button
       class="text-on-surface-variant hover:text-on-surface p-1"
