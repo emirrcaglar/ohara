@@ -109,6 +109,19 @@ The deploy script builds the frontend and Linux `amd64` backend locally, uploads
 
 `deploy/deploy.conf` is gitignored. See `deploy/deploy.conf.example` for optional path and service-name overrides.
 
+On Windows, deploy directly from PowerShell using Windows installations of Go,
+Node.js/npm, and OpenSSH (`ssh` and `scp`):
+
+```powershell
+.\deploy\deploy.ps1
+```
+
+The PowerShell script reads the same `deploy/deploy.conf` settings as literal
+values. It uses SSH keys or interactive password prompts for SSH and sudo;
+`DEPLOY_PASSWORD` is only used by the Bash script. You can override the target
+with `.\deploy\deploy.ps1 user@your-vps`, or build locally without connecting
+to the VPS with `.\deploy\deploy.ps1 -BuildOnly`.
+
 ## Documentation
 
 Additional notes live in [docs/](docs/).

@@ -8,10 +8,10 @@ if [[ ! -f "$CONFIG_FILE" && -f "$SCRIPT_DIR/.deploy.conf" ]]; then
 	CONFIG_FILE="$SCRIPT_DIR/.deploy.conf"
 fi
 
-# Load deploy defaults from local config if present.
+# Normalize Windows line endings before loading the local config.
 # shellcheck source=/dev/null
 if [[ -f "$CONFIG_FILE" ]]; then
-	source "$CONFIG_FILE"
+	source <(sed 's/\r$//' "$CONFIG_FILE")
 fi
 
 SERVER="${1:-${DEPLOY_SERVER:-}}"
