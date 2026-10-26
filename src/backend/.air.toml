@@ -32,6 +32,11 @@ tmp_dir = "tmp"
   rerun_delay = 500
   send_interrupt = false
 
+  [build.windows]
+    bin = "./tmp/main.exe"
+    cmd = "go build -o ./tmp/main.exe ./cmd"
+    entrypoint = ["./tmp/main.exe"]
+
 [color]
   app = ""
   build = "yellow"
