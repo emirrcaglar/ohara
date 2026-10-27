@@ -128,28 +128,6 @@ const {
 
         <div v-else class="space-y-12">
           <section class="space-y-6">
-            <label
-              v-if="selectedTab === 'ALL' || selectedTab === 'CBZ'"
-              class="block max-w-md text-xs text-on-surface-variant"
-            >
-              Search manga
-              <input
-                v-model="mangaSearch"
-                type="search"
-                placeholder="Title, chapter, or filename"
-                class="mt-2 w-full bg-surface-container-low px-3 py-2 text-sm text-on-surface outline-primary-container"
-              />
-            </label>
-            <p
-              v-if="
-                mangaSearch.trim() &&
-                !filteredManga.length &&
-                (selectedTab === 'ALL' || selectedTab === 'CBZ')
-              "
-              class="text-sm text-on-surface-variant"
-            >
-              No manga match your search.
-            </p>
             <div
               v-if="hasVisibleMedia"
               class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 md:gap-6"
