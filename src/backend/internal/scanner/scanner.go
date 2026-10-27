@@ -8,8 +8,7 @@ import (
 	"ohara/src/internal/db"
 	"ohara/src/internal/logger"
 	"ohara/src/internal/media/audio"
-	"ohara/src/internal/media/cbz"
-	mangameta "ohara/src/internal/media/manga"
+	"ohara/src/internal/media/manga"
 	"ohara/src/internal/worker"
 )
 
@@ -19,8 +18,6 @@ type Scanner struct {
 	scanType    ScanType
 	log         *logger.Logger
 	cacheWorker *worker.CacheWorker
-
-	CBZService cbz.ICBZService
 }
 
 type ScannerOption func(*Scanner)
@@ -46,10 +43,9 @@ func WithScanType(scanType ScanType) ScannerOption {
 	}
 }
 
-func NewScanner(db *db.DB, cbzService cbz.ICBZService, cacheWorker *worker.CacheWorker, log *logger.Logger, opts ...ScannerOption) *Scanner {
+func NewScanner(database *db.DB, cacheWorker *worker.CacheWorker, log *logger.Logger, opts ...ScannerOption) *Scanner {
 	scanner := &Scanner{
-		db:          db,
-		CBZService:  cbzService,
+		db:          database,
 		cacheWorker: cacheWorker,
 		scanDir:     ".",
 		scanType:    ScanTypeAll,
@@ -125,7 +121,7 @@ func (s *Scanner) scanManga() (int, error) {
 		return 0, err
 	}
 
-	indexed, err := s.db.IndexedPaths()
+	indexed, err := s.db.IndexedMangaPaths()
 	if err != nil {
 		return 0, err
 	}
@@ -190,14 +186,14 @@ func (s *Scanner) scanAudio() (int, error) {
 }
 
 func (s *Scanner) indexManga(absPath string, catalogID *int64) error {
-	manga, err := s.CBZService.Open(absPath)
+	archive, err := manga.Open(absPath)
 	if err != nil {
 		return fmt.Errorf("indexer: skipping %s: %v", absPath, err)
 	}
-	defer manga.Close()
+	defer archive.Close()
 
-	seriesTitle, metadata := mangameta.ParseFilename(absPath)
-	mangaID, err := s.db.InsertMangaWithMetadata(absPath, manga.Title, manga.PageCount, catalogID, seriesTitle, &metadata, mangameta.ParserVersion)
+	seriesTitle, metadata := manga.ParseFilename(absPath)
+	mangaID, err := s.db.InsertMangaWithMetadata(absPath, archive.Title, archive.PageCount, catalogID, seriesTitle, &metadata, manga.ParserVersion)
 	if err != nil {
 		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)
 	}
@@ -207,8 +203,10 @@ func (s *Scanner) indexManga(absPath string, catalogID *int64) error {
 		return fmt.Errorf("indexer: failed to check manga progress %s: %v", absPath, err)
 	}
 	if !hasProgress {
-		for i := 0; i < manga.PageCount; i++ {
-			s.cacheWorker.SubmitJob(mangaID, i)
+		for pageIndex := 0; pageIndex < archive.PageCount; pageIndex++ {
+			if err := s.cacheWorker.EnqueuePage(mangaID, pageIndex); err != nil {
+				return fmt.Errorf("indexer: failed to enqueue page cache for %s: %w", absPath, err)
+			}
 		}
 	}
 
@@ -216,12 +214,12 @@ func (s *Scanner) indexManga(absPath string, catalogID *int64) error {
 }
 
 func (s *Scanner) indexAudio(absPath string, catalogID *int64) error {
-	audio, err := audio.Open(absPath)
+	track, err := audio.Open(absPath)
 	if err != nil {
 		return fmt.Errorf("indexer: skipping %s: %v", absPath, err)
 	}
 
-	if err := s.db.InsertAudioWithCatalog(audio, catalogID); err != nil {
+	if err := s.db.InsertAudioWithCatalog(track, catalogID); err != nil {
 		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)
 	}
 

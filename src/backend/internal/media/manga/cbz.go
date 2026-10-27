@@ -1,29 +1,17 @@
-package cbz
+// Package manga reads manga archives and parses manga filename metadata.
+package manga
 
 import (
 	"archive/zip"
 	"fmt"
 	"io"
-	"ohara/src/internal/db"
 	"path/filepath"
 	"sort"
 	"strings"
 )
 
-type CBZService struct {
-	db *db.DB
-}
-
-type ICBZService interface {
-	SaveCBZ(cbz *CBZ) error
-	Open(path string) (*CBZ, error)
-}
-
-func NewCBZService(db *db.DB) *CBZService {
-	return &CBZService{db: db}
-}
-
-type CBZ struct {
+// Archive owns an open CBZ file. Its caller must close it after all page readers.
+type Archive struct {
 	FilePath  string  `json:"file_path"`
 	Title     string  `json:"title"`
 	PageCount int     `json:"page_count"`
@@ -40,13 +28,14 @@ type Page struct {
 	source *zip.File
 }
 
-func (s *CBZService) Open(path string) (*CBZ, error) {
+// Open opens an independent CBZ archive whose lifetime belongs to the caller.
+func Open(path string) (*Archive, error) {
 	r, err := zip.OpenReader(path)
 	if err != nil {
 		return nil, err
 	}
 
-	cbz := &CBZ{
+	archive := &Archive{
 		FilePath: path,
 		Title:    strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)),
 		closer:   r,
@@ -62,7 +51,7 @@ func (s *CBZService) Open(path string) (*CBZ, error) {
 		return validFiles[i].Name < validFiles[j].Name
 	})
 	for i, f := range validFiles {
-		cbz.Pages = append(cbz.Pages, &Page{
+		archive.Pages = append(archive.Pages, &Page{
 			Index:    i,
 			FileName: f.Name,
 			Size:     f.UncompressedSize64,
@@ -70,27 +59,24 @@ func (s *CBZService) Open(path string) (*CBZ, error) {
 		})
 	}
 
-	cbz.PageCount = len(cbz.Pages)
-	return cbz, nil
+	archive.PageCount = len(archive.Pages)
+	return archive, nil
 }
 
-func (s *CBZService) SaveCBZ(cbz *CBZ) error {
-	return nil
-}
-
-func (cbz *CBZ) GetPageReader(pageIndex int) (io.ReadCloser, error) {
-	if pageIndex < 0 || pageIndex >= len(cbz.Pages) {
+// OpenPage returns a page reader that the caller must close before the archive.
+func (a *Archive) OpenPage(pageIndex int) (io.ReadCloser, error) {
+	if pageIndex < 0 || pageIndex >= len(a.Pages) {
 		return nil, fmt.Errorf("page index out of bounds")
 	}
 
-	return cbz.Pages[pageIndex].source.Open()
+	return a.Pages[pageIndex].source.Open()
 }
 
-func (cbz *CBZ) Close() error {
-	if cbz == nil || cbz.closer == nil {
+func (a *Archive) Close() error {
+	if a == nil || a.closer == nil {
 		return nil
 	}
-	return cbz.closer.Close()
+	return a.closer.Close()
 }
 
 func isImageFile(filename string) bool {

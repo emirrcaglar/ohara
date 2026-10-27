@@ -21,7 +21,7 @@ type MangaRow struct {
 	ParserVersion string
 }
 
-func (db *DB) IndexedPaths() (map[string]struct{}, error) {
+func (db *DB) IndexedMangaPaths() (map[string]struct{}, error) {
 	rows, err := db.Query(`SELECT path FROM manga`)
 	if err != nil {
 		return nil, err
@@ -92,7 +92,7 @@ func (db *DB) GetMangaByID(id int64) (*MangaRow, error) {
 	return &m, nil
 }
 
-func (db *DB) GetProgress(userID, mangaID int64) (int, error) {
+func (db *DB) GetMangaProgress(userID, mangaID int64) (int, error) {
 	var page int
 	err := db.QueryRow(
 		`SELECT page FROM manga_progress WHERE user_id = ? AND manga_id = ?`,
@@ -132,7 +132,7 @@ func (db *DB) MaxMangaProgressByID() (map[int64]int, error) {
 	return progress, rows.Err()
 }
 
-func (db *DB) UpsertProgress(userID, mangaID int64, page int) error {
+func (db *DB) UpsertMangaProgress(userID, mangaID int64, page int) error {
 	_, err := db.Exec(`
 		INSERT INTO manga_progress (user_id, manga_id, page, updated_at)
 		VALUES (?, ?, ?, CURRENT_TIMESTAMP)

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"ohara/src/internal/db"
-	"ohara/src/internal/media/cbz"
+	"ohara/src/internal/media/manga"
 	"ohara/src/internal/utils/imgutil"
 	"os"
 	"path/filepath"
@@ -15,26 +15,18 @@ import (
 	"time"
 )
 
-const MANGA_NOT_FOUND = "manga not found"
 const maxPageCacheSizeBytes int64 = 1 << 30
 
 type CacheWorker struct {
 	dataDir string
 	db      *db.DB
-	cbz     cbz.CBZService
 	wakeUp  chan struct{}
 }
 
-type CompressJob struct {
-	MangaID int64
-	PageIdx int
-}
-
-func NewCacheWorker(dataDir string, db *db.DB, cbz cbz.CBZService) *CacheWorker {
+func NewCacheWorker(dataDir string, database *db.DB) *CacheWorker {
 	return &CacheWorker{
 		dataDir: dataDir,
-		db:      db,
-		cbz:     cbz,
+		db:      database,
 		wakeUp:  make(chan struct{}, 1),
 	}
 }
@@ -42,7 +34,7 @@ func NewCacheWorker(dataDir string, db *db.DB, cbz cbz.CBZService) *CacheWorker 
 func (cw *CacheWorker) Start() {
 	go func() {
 		for {
-			job, err := cw.db.ClaimNextScanJob()
+			job, err := cw.db.ClaimNextCacheJob()
 			if err != nil {
 				if err == sql.ErrNoRows {
 					<-cw.wakeUp
@@ -55,24 +47,24 @@ func (cw *CacheWorker) Start() {
 
 			hasProgress, err := cw.db.HasMangaProgress(job.MangaID)
 			if err != nil {
-				cw.db.MarkScanJobFailed(job.ID, err.Error())
+				cw.db.MarkCacheJobFailed(job.ID, err.Error())
 				fmt.Println("job failed:", err)
 				time.Sleep(500 * time.Millisecond)
 				continue
 			}
 			if hasProgress {
-				cw.db.DeleteScan(job.ID)
+				cw.db.DeleteCacheJob(job.ID)
 				time.Sleep(500 * time.Millisecond)
 				continue
 			}
 
-			err = cw.CompressImg(job.MangaID, job.PageIdx)
+			err = cw.cachePage(job.MangaID, job.PageIndex)
 
 			if err != nil {
-				cw.db.MarkScanJobFailed(job.ID, err.Error())
+				cw.db.MarkCacheJobFailed(job.ID, err.Error())
 				fmt.Println("job failed:", err)
 			} else {
-				cw.db.DeleteScan(job.ID)
+				cw.db.DeleteCacheJob(job.ID)
 			}
 
 			// Explicitly sleep for 500ms after a job to throttle CPU
@@ -81,45 +73,42 @@ func (cw *CacheWorker) Start() {
 	}()
 }
 
-func (cw *CacheWorker) SubmitJob(mangaID int64, pageIdx int) {
-	if err := cw.db.InsertScanJob(mangaID, pageIdx); err != nil {
-		fmt.Println(err)
+func (cw *CacheWorker) EnqueuePage(mangaID int64, pageIndex int) error {
+	if err := cw.db.InsertCacheJob(mangaID, pageIndex); err != nil {
+		return fmt.Errorf("enqueue manga %d page %d: %w", mangaID, pageIndex, err)
 	}
 
 	select {
 	case cw.wakeUp <- struct{}{}:
 	default:
 	}
+	return nil
 }
 
-func (cw *CacheWorker) CompressImg(mangaID int64, pageIdx int) error {
-	manga, err := cw.db.GetMangaByID(mangaID)
-	if err != nil || manga == nil {
-		return fmt.Errorf(MANGA_NOT_FOUND)
+func (cw *CacheWorker) cachePage(mangaID int64, pageIndex int) error {
+	record, err := cw.db.GetMangaByID(mangaID)
+	if err != nil {
+		return fmt.Errorf("load manga %d for page cache: %w", mangaID, err)
 	}
-
-	err = cw.ImgCompressWorker(manga, pageIdx)
-	return err
-}
-
-func (cw *CacheWorker) ImgCompressWorker(m *db.MangaRow, pageIdx int) error {
-	data, err := cw.compressPage(m, pageIdx)
+	if record == nil {
+		return fmt.Errorf("manga not found: %d", mangaID)
+	}
+	data, err := cw.compressPage(record, pageIndex)
 	if err != nil {
 		return err
 	}
 
-	err = cw.writeToFile(m, pageIdx, data)
-	return err
+	return cw.writePage(record, pageIndex, data)
 }
 
-func (cw *CacheWorker) compressPage(m *db.MangaRow, pageIdx int) ([]byte, error) {
-	manga, err := cw.cbz.Open(m.Path)
+func (cw *CacheWorker) compressPage(m *db.MangaRow, pageIndex int) ([]byte, error) {
+	archive, err := manga.Open(m.Path)
 	if err != nil {
 		return nil, err
 	}
-	defer manga.Close()
+	defer archive.Close()
 
-	rc, err := manga.GetPageReader(pageIdx)
+	rc, err := archive.OpenPage(pageIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -130,14 +119,12 @@ func (cw *CacheWorker) compressPage(m *db.MangaRow, pageIdx int) ([]byte, error)
 		return nil, err
 	}
 
-	data := buf.Bytes()
-
-	return data, err
+	return buf.Bytes(), nil
 }
 
-func (cw *CacheWorker) writeToFile(m *db.MangaRow, pageIdx int, data []byte) error {
+func (cw *CacheWorker) writePage(m *db.MangaRow, pageIndex int, data []byte) error {
 	mangaCacheDir := filepath.Join(cw.dataDir, "cache", strconv.FormatInt(m.ID, 10))
-	finalFilePath := filepath.Join(mangaCacheDir, fmt.Sprintf("%d.jpg", pageIdx))
+	finalFilePath := filepath.Join(mangaCacheDir, fmt.Sprintf("%d.jpg", pageIndex))
 
 	if err := os.MkdirAll(mangaCacheDir, 0755); err != nil {
 		return err

@@ -11,17 +11,15 @@ import (
 
 	"ohara/src/internal/db"
 	"ohara/src/internal/logger"
-	"ohara/src/internal/media/cbz"
 	"ohara/src/internal/media/manga"
 	"ohara/src/internal/utils/imgutil"
 )
 
 type MangaHandler struct {
-	DB         *db.DB
-	Cache      *PageCache
-	Inflight   *Inflight
-	CBZService cbz.ICBZService
-	Log        *logger.Logger
+	DB       *db.DB
+	Cache    *PageCache
+	Inflight *Inflight
+	Log      *logger.Logger
 }
 
 func (h *MangaHandler) mangaByID(idStr string) (*db.MangaRow, int, error) {
@@ -41,14 +39,14 @@ func (h *MangaHandler) mangaByID(idStr string) (*db.MangaRow, int, error) {
 
 func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
 	user := GetUser(r.Context())
-	mangas, err := h.DB.ListManga(user.ID)
+	records, err := h.DB.ListManga(user.ID)
 	if err != nil {
 		http.Error(w, "Failed to load library", http.StatusInternalServerError)
 		return
 	}
 
-	items := make([]MangaResponse, 0, len(mangas))
-	for _, m := range mangas {
+	items := make([]MangaResponse, 0, len(records))
+	for _, m := range records {
 		items = append(items, MangaResponse{
 			ID:            m.ID,
 			CatalogID:     m.CatalogID,
@@ -96,23 +94,23 @@ type MediaCatalogUpdateRequest struct {
 	CatalogID *int64 `json:"catalogId"`
 }
 
-func (h *MangaHandler) compressPage(m *db.MangaRow, pageIdx int) ([]byte, bool, error) {
-	if data, ok := h.Cache.Get(m.ID, pageIdx); ok {
-		return data, true, nil
+func (h *MangaHandler) loadPage(m *db.MangaRow, pageIndex int) ([]byte, error) {
+	if data, ok := h.Cache.Get(m.ID, pageIndex); ok {
+		return data, nil
 	}
 
-	data, err := h.Inflight.Do(m.ID, pageIdx, func() ([]byte, error) {
-		if data, ok := h.Cache.Get(m.ID, pageIdx); ok {
+	data, err := h.Inflight.Do(m.ID, pageIndex, func() ([]byte, error) {
+		if data, ok := h.Cache.Get(m.ID, pageIndex); ok {
 			return data, nil
 		}
 
-		manga, err := h.CBZService.Open(m.Path)
+		archive, err := manga.Open(m.Path)
 		if err != nil {
 			return nil, err
 		}
-		defer manga.Close()
+		defer archive.Close()
 
-		rc, err := manga.GetPageReader(pageIdx)
+		rc, err := archive.OpenPage(pageIndex)
 		if err != nil {
 			return nil, err
 		}
@@ -124,12 +122,12 @@ func (h *MangaHandler) compressPage(m *db.MangaRow, pageIdx int) ([]byte, bool, 
 		}
 
 		data := buf.Bytes()
-		h.Cache.Set(m.ID, pageIdx, data)
+		h.Cache.Set(m.ID, pageIndex, data)
 
 		return data, nil
 	})
 
-	return data, false, err
+	return data, err
 }
 
 func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
@@ -140,13 +138,13 @@ func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pageIdx, err := strconv.Atoi(r.PathValue("page"))
-	if err != nil || pageIdx < 0 {
+	pageIndex, err := strconv.Atoi(r.PathValue("page"))
+	if err != nil || pageIndex < 0 {
 		http.Error(w, "Invalid page number", http.StatusBadRequest)
 		return
 	}
 
-	data, _, err := h.compressPage(m, pageIdx)
+	data, err := h.loadPage(m, pageIndex)
 	if err != nil {
 		http.Error(w, "Page not found", http.StatusNotFound)
 		return
@@ -218,16 +216,16 @@ func (h *MangaHandler) HandleMangaProgress(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	pageIdx, err := strconv.Atoi(r.PathValue("page"))
-	if err != nil || pageIdx < 0 {
+	pageIndex, err := strconv.Atoi(r.PathValue("page"))
+	if err != nil || pageIndex < 0 {
 		http.Error(w, "Invalid page number", http.StatusBadRequest)
 		return
 	}
 
 	user := GetUser(r.Context())
-	if err := h.DB.UpsertProgress(user.ID, m.ID, pageIdx); err != nil {
+	if err := h.DB.UpsertMangaProgress(user.ID, m.ID, pageIndex); err != nil {
 		if h.Log != nil {
-			h.Log.Error("[manga] progress save failed manga=%d page=%d err=%v", m.ID, pageIdx, err)
+			h.Log.Error("[manga] progress save failed manga=%d page=%d err=%v", m.ID, pageIndex, err)
 		}
 		http.Error(w, "Failed to save progress", http.StatusInternalServerError)
 		return
@@ -279,7 +277,7 @@ func (h *MangaHandler) HandleMangaResume(w http.ResponseWriter, r *http.Request)
 	}
 
 	user := GetUser(r.Context())
-	page, err := h.DB.GetProgress(user.ID, m.ID)
+	page, err := h.DB.GetMangaProgress(user.ID, m.ID)
 	if err != nil {
 		http.Error(w, "Failed to fetch progress", http.StatusInternalServerError)
 		return
