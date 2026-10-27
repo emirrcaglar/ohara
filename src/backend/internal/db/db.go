@@ -21,16 +21,15 @@ func Init(dataDir string) (*DB, error) {
 	}
 
 	dbPath := filepath.Join(dataDir, "ohara.db")
-	conn, err := sql.Open("sqlite", dbPath)
+	dsn := dbPath + "?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)"
+	conn, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database at %q: %w", dbPath, err)
 	}
 
+	conn.SetMaxOpenConns(1)
+
 	if _, err := conn.Exec(`PRAGMA journal_mode=WAL`); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	if _, err := conn.Exec(`PRAGMA foreign_keys=ON`); err != nil {
 		conn.Close()
 		return nil, err
 	}

@@ -11,15 +11,12 @@ import (
 )
 
 type CBZService struct {
-	db  *db.DB
-	CBZ *CBZ
+	db *db.DB
 }
 
 type ICBZService interface {
 	SaveCBZ(cbz *CBZ) error
-	GetPageReader(pageIndex int) (io.ReadCloser, error)
 	Open(path string) (*CBZ, error)
-	Close() error
 }
 
 func NewCBZService(db *db.DB) *CBZService {
@@ -43,19 +40,6 @@ type Page struct {
 	source *zip.File
 }
 
-func (s *CBZService) GetPageReader(pageIndex int) (io.ReadCloser, error) {
-	return s.CBZ.GetPageReader(pageIndex)
-}
-
-func (s *CBZService) Close() error {
-	if s.CBZ == nil {
-		return nil
-	}
-	err := s.CBZ.Close()
-	s.CBZ = nil
-	return err
-}
-
 func (s *CBZService) Open(path string) (*CBZ, error) {
 	r, err := zip.OpenReader(path)
 	if err != nil {
@@ -68,7 +52,6 @@ func (s *CBZService) Open(path string) (*CBZ, error) {
 		closer:   r,
 		Pages:    make([]*Page, 0),
 	}
-	s.CBZ = cbz
 	var validFiles []*zip.File
 	for _, f := range r.File {
 		if isImageFile(f.Name) {

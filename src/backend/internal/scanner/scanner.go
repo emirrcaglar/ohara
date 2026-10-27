@@ -194,7 +194,7 @@ func (s *Scanner) indexManga(absPath string, catalogID *int64) error {
 	if err != nil {
 		return fmt.Errorf("indexer: skipping %s: %v", absPath, err)
 	}
-	defer s.CBZService.Close()
+	defer manga.Close()
 
 	seriesTitle, metadata := mangameta.ParseFilename(absPath)
 	mangaID, err := s.db.InsertMangaWithMetadata(absPath, manga.Title, manga.PageCount, catalogID, seriesTitle, &metadata, mangameta.ParserVersion)
