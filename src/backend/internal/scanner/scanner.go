@@ -9,6 +9,7 @@ import (
 	"ohara/src/internal/logger"
 	"ohara/src/internal/media/audio"
 	"ohara/src/internal/media/cbz"
+	mangameta "ohara/src/internal/media/manga"
 	"ohara/src/internal/worker"
 )
 
@@ -195,7 +196,8 @@ func (s *Scanner) indexManga(absPath string, catalogID *int64) error {
 	}
 	defer s.CBZService.Close()
 
-	mangaID, err := s.db.InsertMangaWithCatalog(absPath, manga.Title, manga.PageCount, catalogID)
+	seriesTitle, metadata := mangameta.ParseFilename(absPath)
+	mangaID, err := s.db.InsertMangaWithMetadata(absPath, manga.Title, manga.PageCount, catalogID, seriesTitle, &metadata, mangameta.ParserVersion)
 	if err != nil {
 		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)
 	}

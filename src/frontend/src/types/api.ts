@@ -1,4 +1,32 @@
-export interface MangaRow {
+export interface MangaNumber {
+  whole: number
+  decimal: number | null
+}
+
+export interface MangaNumberRange {
+  start: MangaNumber
+  end: MangaNumber | null
+}
+
+export interface MangaMetadata {
+  volume: MangaNumberRange | null
+  chapter: MangaNumberRange | null
+  group: string
+  source: string
+  language: string
+  revision: number | null
+  isOneshot: boolean
+  edition: string
+}
+
+export interface MangaRelease {
+  seriesTitle: string
+  fileName: string
+  metadata: MangaMetadata | null
+  parserVersion: string
+}
+
+export interface MangaRow extends MangaRelease {
   id: number
   catalogId: number | null
   title: string
@@ -9,7 +37,7 @@ export interface MangaRow {
   updatedAt: string | null
 }
 
-export interface MangaInfo {
+export interface MangaInfo extends MangaRelease {
   id: number
   catalogId: number | null
   title: string

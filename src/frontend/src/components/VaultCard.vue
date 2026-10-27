@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { MangaRow, AudioRow, VideoRow } from '../types/api'
+import { mangaTitle, mangaSubtitle } from '../utils/mangaMetadata'
 const AUDIO_COVERS = Object.values(
   import.meta.glob('../assets/audio-cover/*.png', {
     eager: true,
@@ -179,10 +180,38 @@ function deleteItem(event: MouseEvent) {
         {{ category }}
       </p>
       <h3
+        :title="manga ? manga.fileName || manga.title : undefined"
         class="font-bold text-xs md:text-lg leading-tight mb-1 md:mb-2 tracking-tight group-hover:text-primary transition-colors uppercase overflow-hidden wrap-anywhere"
       >
-        {{ manga?.title || audio?.title || video?.title }}
+        {{ manga ? mangaTitle(manga) : audio?.title || video?.title }}
       </h3>
+      <p
+        v-if="manga && mangaSubtitle(manga)"
+        class="mb-2 text-[10px] md:text-xs text-on-surface-variant wrap-anywhere"
+      >
+        {{ mangaSubtitle(manga) }}
+      </p>
+      <details
+        v-if="manga?.metadata"
+        class="mb-3 text-[10px] md:text-xs text-on-surface-variant"
+        @click.stop
+      >
+        <summary class="cursor-pointer hover:text-primary">Release details</summary>
+        <dl class="mt-2 space-y-1 wrap-anywhere">
+          <div>
+            <dt class="font-bold">Filename</dt>
+            <dd>{{ manga.fileName || manga.title }}</dd>
+          </div>
+          <div v-if="manga.metadata.group">
+            <dt class="font-bold">Group</dt>
+            <dd>{{ manga.metadata.group }}</dd>
+          </div>
+          <div v-if="manga.metadata.language">
+            <dt class="font-bold">Language</dt>
+            <dd>{{ manga.metadata.language }}</dd>
+          </div>
+        </dl>
+      </details>
       <div v-if="videoProgressPercent" class="mt-auto pt-1 md:pt-2">
         <div class="mb-2 h-1 bg-surface-container-highest">
           <div class="h-full bg-primary" :style="{ width: `${videoProgressPercent}%` }"></div>

@@ -205,6 +205,16 @@ func migrate(conn *sql.DB) (bool, error) {
 	if err := addColumnIfMissing(conn, "manga", "catalog_id", "INTEGER REFERENCES catalog(id) ON DELETE SET NULL"); err != nil {
 		return false, err
 	}
+
+	for _, column := range []struct{ name, definition string }{
+		{"series_title", "TEXT NOT NULL DEFAULT ''"},
+		{"metadata_json", "TEXT NOT NULL DEFAULT 'null'"},
+		{"parser_version", "TEXT NOT NULL DEFAULT ''"},
+	} {
+		if err := addColumnIfMissing(conn, "manga", column.name, column.definition); err != nil {
+			return false, err
+		}
+	}
 	if err := addColumnIfMissing(conn, "audio", "catalog_id", "INTEGER REFERENCES catalog(id) ON DELETE SET NULL"); err != nil {
 		return false, err
 	}

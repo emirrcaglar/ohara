@@ -12,6 +12,7 @@ import (
 	"ohara/src/internal/db"
 	"ohara/src/internal/logger"
 	"ohara/src/internal/media/cbz"
+	"ohara/src/internal/media/manga"
 	"ohara/src/internal/utils/imgutil"
 )
 
@@ -52,6 +53,10 @@ func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
 			ID:            m.ID,
 			CatalogID:     m.CatalogID,
 			Title:         m.Title,
+			SeriesTitle:   m.SeriesTitle,
+			FileName:      filepath.Base(m.Path),
+			Metadata:      m.Metadata,
+			ParserVersion: m.ParserVersion,
 			PageCount:     m.PageCount,
 			CurrentPage:   m.Progress,
 			UpdatedAt:     m.UpdatedAt,
@@ -69,13 +74,17 @@ func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
 }
 
 type MangaResponse struct {
-	ID            int64      `json:"id"`
-	CatalogID     *int64     `json:"catalogId"`
-	Title         string     `json:"title"`
-	PageCount     int        `json:"pageCount"`
-	CurrentPage   int        `json:"currentPage"`
-	FileExtension string     `json:"fileExtension"`
-	UpdatedAt     *time.Time `json:"updatedAt"`
+	SeriesTitle   string          `json:"seriesTitle"`
+	FileName      string          `json:"fileName"`
+	Metadata      *manga.Metadata `json:"metadata"`
+	ParserVersion string          `json:"parserVersion"`
+	ID            int64           `json:"id"`
+	CatalogID     *int64          `json:"catalogId"`
+	Title         string          `json:"title"`
+	PageCount     int             `json:"pageCount"`
+	CurrentPage   int             `json:"currentPage"`
+	FileExtension string          `json:"fileExtension"`
+	UpdatedAt     *time.Time      `json:"updatedAt"`
 }
 
 type MangaLibraryResponse struct {
@@ -236,22 +245,30 @@ func (h *MangaHandler) HandleMangaInfo(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(MangaDetailResponse{
-		ID:          m.ID,
-		CatalogID:   m.CatalogID,
-		Title:       m.Title,
-		Path:        m.Path,
-		PageCount:   m.PageCount,
-		CurrentPage: m.Progress,
+		ID:            m.ID,
+		CatalogID:     m.CatalogID,
+		Title:         m.Title,
+		SeriesTitle:   m.SeriesTitle,
+		FileName:      filepath.Base(m.Path),
+		Metadata:      m.Metadata,
+		ParserVersion: m.ParserVersion,
+		Path:          m.Path,
+		PageCount:     m.PageCount,
+		CurrentPage:   m.Progress,
 	})
 }
 
 type MangaDetailResponse struct {
-	ID          int64  `json:"id"`
-	CatalogID   *int64 `json:"catalogId"`
-	Title       string `json:"title"`
-	Path        string `json:"path"`
-	PageCount   int    `json:"pageCount"`
-	CurrentPage int    `json:"currentPage"`
+	SeriesTitle   string          `json:"seriesTitle"`
+	FileName      string          `json:"fileName"`
+	Metadata      *manga.Metadata `json:"metadata"`
+	ParserVersion string          `json:"parserVersion"`
+	ID            int64           `json:"id"`
+	CatalogID     *int64          `json:"catalogId"`
+	Title         string          `json:"title"`
+	Path          string          `json:"path"`
+	PageCount     int             `json:"pageCount"`
+	CurrentPage   int             `json:"currentPage"`
 }
 
 func (h *MangaHandler) HandleMangaResume(w http.ResponseWriter, r *http.Request) {

@@ -9,6 +9,7 @@ import { useCatalogStore } from '../stores/catalog'
 import type { MangaRow, AudioRow, VideoRow, CatalogFolder } from '../types/api'
 import { folderSlug } from './useLibrarySlugs'
 import { videoStats } from './useLibraryFormatting'
+import { matchesMangaSearch } from '../utils/mangaMetadata'
 
 interface MenuAnchor {
   top: number
@@ -26,6 +27,7 @@ export function useLibraryView() {
   const catalogStore = useCatalogStore()
 
   const selectedTab = ref<'ALL' | 'CBZ' | 'AUDIO' | 'VIDEO'>('ALL')
+  const mangaSearch = ref('')
   const showActionDialog = ref(false)
   const showUploadDialog = ref(false)
   const showCatalogDialog = ref(false)
@@ -69,7 +71,9 @@ export function useLibraryView() {
   )
 
   const filteredManga = computed(() => {
-    if (selectedTab.value === 'ALL' || selectedTab.value === 'CBZ') return catalogManga.value
+    if (selectedTab.value === 'ALL' || selectedTab.value === 'CBZ') {
+      return catalogManga.value.filter((item) => matchesMangaSearch(item, mangaSearch.value))
+    }
     return []
   })
 
@@ -536,6 +540,7 @@ export function useLibraryView() {
     uploadStore,
     catalogStore,
     selectedTab,
+    mangaSearch,
     showActionDialog,
     showUploadDialog,
     showCatalogDialog,

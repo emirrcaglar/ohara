@@ -2,17 +2,23 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
+
+	"ohara/src/internal/media/manga"
 )
 
 type MangaRow struct {
-	ID        int64
-	Path      string
-	CatalogID *int64
-	Title     string
-	PageCount int
-	Progress  int
-	UpdatedAt *time.Time
+	ID            int64
+	Path          string
+	CatalogID     *int64
+	Title         string
+	PageCount     int
+	Progress      int
+	UpdatedAt     *time.Time
+	SeriesTitle   string
+	Metadata      *manga.Metadata
+	ParserVersion string
 }
 
 func (db *DB) IndexedPaths() (map[string]struct{}, error) {
@@ -35,7 +41,8 @@ func (db *DB) IndexedPaths() (map[string]struct{}, error) {
 
 func (db *DB) ListManga(userID int64) ([]MangaRow, error) {
 	rows, err := db.Query(`
-		SELECT m.id, m.path, m.catalog_id, m.title, m.page_count, COALESCE(p.page, 0), p.updated_at
+		SELECT m.id, m.path, m.catalog_id, m.title, m.page_count, COALESCE(p.page, 0), p.updated_at,
+		       m.series_title, m.metadata_json, m.parser_version
 		FROM manga m
 		LEFT JOIN manga_progress p ON p.manga_id = m.id AND p.user_id = ?
 		ORDER BY m.title
@@ -49,7 +56,12 @@ func (db *DB) ListManga(userID int64) ([]MangaRow, error) {
 	for rows.Next() {
 		var m MangaRow
 		var catalogID sql.NullInt64
-		if err := rows.Scan(&m.ID, &m.Path, &catalogID, &m.Title, &m.PageCount, &m.Progress, &m.UpdatedAt); err != nil {
+		var metadataJSON string
+		if err := rows.Scan(&m.ID, &m.Path, &catalogID, &m.Title, &m.PageCount, &m.Progress, &m.UpdatedAt,
+			&m.SeriesTitle, &metadataJSON, &m.ParserVersion); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(metadataJSON), &m.Metadata); err != nil {
 			return nil, err
 		}
 		if catalogID.Valid {
@@ -61,13 +73,17 @@ func (db *DB) ListManga(userID int64) ([]MangaRow, error) {
 }
 
 func (db *DB) GetMangaByID(id int64) (*MangaRow, error) {
-	row := db.QueryRow(`SELECT id, path, catalog_id, title, page_count FROM manga WHERE id = ?`, id)
+	row := db.QueryRow(`SELECT id, path, catalog_id, title, page_count, series_title, metadata_json, parser_version FROM manga WHERE id = ?`, id)
 	var m MangaRow
 	var catalogID sql.NullInt64
-	if err := row.Scan(&m.ID, &m.Path, &catalogID, &m.Title, &m.PageCount); err != nil {
+	var metadataJSON string
+	if err := row.Scan(&m.ID, &m.Path, &catalogID, &m.Title, &m.PageCount, &m.SeriesTitle, &metadataJSON, &m.ParserVersion); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
+		return nil, err
+	}
+	if err := json.Unmarshal([]byte(metadataJSON), &m.Metadata); err != nil {
 		return nil, err
 	}
 	if catalogID.Valid {
@@ -130,14 +146,23 @@ func (db *DB) InsertManga(path, title string, pageCount int) (int64, error) {
 }
 
 func (db *DB) InsertMangaWithCatalog(path, title string, pageCount int, catalogID *int64) (int64, error) {
-	sq, err := db.Exec(
-		`INSERT OR IGNORE INTO manga (path, title, page_count, catalog_id) VALUES (?, ?, ?, ?)`,
-		path, title, pageCount, catalogID,
-	)
+	return db.InsertMangaWithMetadata(path, title, pageCount, catalogID, "", nil, "")
+}
+
+func (db *DB) InsertMangaWithMetadata(path, title string, pageCount int, catalogID *int64, seriesTitle string, metadata *manga.Metadata, parserVersion string) (int64, error) {
+	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return 0, err
 	}
-	id, err := sq.LastInsertId()
+	// RETURNING avoids a stale LastInsertId when an existing path is imported again.
+	var id int64
+	err = db.QueryRow(`
+		INSERT INTO manga (path, title, page_count, catalog_id, series_title, metadata_json, parser_version)
+		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(path) DO NOTHING RETURNING id
+	`, path, title, pageCount, catalogID, seriesTitle, string(metadataJSON), parserVersion).Scan(&id)
+	if err == sql.ErrNoRows {
+		err = db.QueryRow(`SELECT id FROM manga WHERE path = ?`, path).Scan(&id)
+	}
 	return id, err
 }
 

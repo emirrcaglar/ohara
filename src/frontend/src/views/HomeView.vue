@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ArrowRight, BookOpen, History, RefreshCw } from 'lucide-vue-next'
 import { fetchMangaLibrary, getMangaPageUrl } from '../api/manga'
 import type { MangaRow } from '../types/api'
+import { mangaTitle, mangaSubtitle } from '../utils/mangaMetadata'
 
 const library = ref<MangaRow[]>([])
 const chapters = computed(() =>
@@ -146,10 +147,14 @@ onMounted(loadHistory)
                 <History class="h-4 w-4" aria-hidden="true" /> Last read
               </p>
               <h2
+                :title="latest.fileName || latest.title"
                 class="break-words text-2xl font-bold uppercase leading-tight tracking-tighter group-hover:text-primary md:text-4xl"
               >
-                {{ latest.title }}
+                {{ mangaTitle(latest) }}
               </h2>
+              <p v-if="mangaSubtitle(latest)" class="mt-3 text-sm text-on-surface-variant">
+                {{ mangaSubtitle(latest) }}
+              </p>
               <time
                 :datetime="latest.updatedAt"
                 class="mt-4 block text-xs text-on-surface-variant"
@@ -218,10 +223,14 @@ onMounted(loadHistory)
               </div>
               <div class="flex flex-1 flex-col gap-3 p-3 md:p-5">
                 <h3
+                  :title="chapter.fileName || chapter.title"
                   class="break-words text-sm font-bold uppercase leading-snug tracking-tight group-hover:text-primary md:text-base"
                 >
-                  {{ chapter.title }}
+                  {{ mangaTitle(chapter) }}
                 </h3>
+                <p v-if="mangaSubtitle(chapter)" class="text-xs text-on-surface-variant">
+                  {{ mangaSubtitle(chapter) }}
+                </p>
                 <time :datetime="chapter.updatedAt" class="text-xs text-on-surface-variant">{{
                   readDate(chapter.updatedAt)
                 }}</time>
