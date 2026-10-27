@@ -74,13 +74,22 @@ for cmd in npm go ssh scp sshpass; do
 done
 
 if [[ -z "$DEPLOY_PASSWORD" ]]; then
-	echo "Error: DEPLOY_PASSWORD is not set in $CONFIG_FILE"
-	exit 1
+	IFS= read -r -s -p "SSH password (also used for sudo): " DEPLOY_PASSWORD
+	printf '\n'
+	if [[ -z "$DEPLOY_PASSWORD" ]]; then
+		echo "Error: A deployment password is required."
+		exit 1
+	fi
 fi
 
 SSH_OPTS=(-o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new)
-SSH_CMD=(sshpass -p "$DEPLOY_PASSWORD" ssh "${SSH_OPTS[@]}")
-SCP_CMD=(sshpass -p "$DEPLOY_PASSWORD" scp "${SSH_OPTS[@]}")
+# Keep the password out of process arguments and reuse it for every connection.
+run_ssh() {
+	SSHPASS="$DEPLOY_PASSWORD" sshpass -e ssh "${SSH_OPTS[@]}" "$@"
+}
+run_scp() {
+	SSHPASS="$DEPLOY_PASSWORD" sshpass -e scp "${SSH_OPTS[@]}" "$@"
+}
 
 echo "Building the binary..."
 if [[ ! -x "src/frontend/node_modules/.bin/vite" ]]; then
@@ -96,11 +105,11 @@ cd ../..
 
 echo "Step 1/3: Uploading binary to temporary storage..."
 # We upload to /tmp because the non-root users always have permission there.
-"${SCP_CMD[@]}" "./dist/$BINARY_NAME" "$SERVER:/tmp/$BINARY_NAME.tmp"
+run_scp "./dist/$BINARY_NAME" "$SERVER:/tmp/$BINARY_NAME.tmp"
 
 echo "Step 2/3: Generating and uploading service file..."
 SERVICE_FILE_TMP="/tmp/$SERVICE_NAME.service"
-SERVICE_USER="$("${SSH_CMD[@]}" "$SERVER" "whoami")"
+SERVICE_USER="$(run_ssh "$SERVER" "whoami")"
 
 # Generate the service file using printf to avoid shell expansion issues in heredoc
 {
@@ -121,7 +130,7 @@ SERVICE_USER="$("${SSH_CMD[@]}" "$SERVER" "whoami")"
 	echo "WantedBy=multi-user.target"
 } > "$SERVICE_FILE_TMP"
 
-"${SCP_CMD[@]}" "$SERVICE_FILE_TMP" "$SERVER:/tmp/$SERVICE_NAME.service.tmp"
+run_scp "$SERVICE_FILE_TMP" "$SERVER:/tmp/$SERVICE_NAME.service.tmp"
 rm "$SERVICE_FILE_TMP"
 
 echo "Step 3/3: Running remote installation..."
@@ -163,11 +172,11 @@ fi
 EOF
 
 chmod 700 "$INSTALL_SCRIPT_TMP"
-"${SCP_CMD[@]}" "$INSTALL_SCRIPT_TMP" "$SERVER:$REMOTE_INSTALL_TMP"
+run_scp "$INSTALL_SCRIPT_TMP" "$SERVER:$REMOTE_INSTALL_TMP"
 rm -f "$INSTALL_SCRIPT_TMP"
 INSTALL_SCRIPT_TMP=""
 
-"${SSH_CMD[@]}" -t "$SERVER" "echo '$DEPLOY_PASSWORD' | sudo -S -p '' bash '$REMOTE_INSTALL_TMP'"
+printf '%s\n' "$DEPLOY_PASSWORD" | run_ssh -T "$SERVER" "sudo -S -p '' bash '$REMOTE_INSTALL_TMP'"
 
 elapsed_seconds=$((SECONDS - DEPLOY_START_SECONDS))
 echo "Deployment complete in $(format_duration "$elapsed_seconds")! Your service is now fully managed by systemd."

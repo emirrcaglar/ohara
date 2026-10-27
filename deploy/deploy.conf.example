@@ -1,4 +1,5 @@
 DEPLOY_SERVER="user@your-vps"
+# Optional for Bash; leave empty to enter the password once at the prompt.
 DEPLOY_PASSWORD=""
 
 # code's dependent on these paths for now, better to keep them as is, or change them in the code as well

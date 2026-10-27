@@ -85,6 +85,8 @@ if (!$BuildOnly) {
 }
 $timer = [Diagnostics.Stopwatch]::StartNew()
 $tempDir = $null
+$deployPassword = $null
+$previousSshEnv = @{}
 Push-Location $repoRoot
 try {
     Write-Host 'Building frontend...'
@@ -119,8 +121,36 @@ try {
         return
     }
 
+    $tempDir = Join-Path ([IO.Path]::GetTempPath()) "ohara-deploy-$([Guid]::NewGuid().ToString('N'))"
+    New-Item -ItemType Directory -Path $tempDir | Out-Null
+    $securePassword = Read-Host 'SSH password (also used for sudo; leave empty for SSH keys)' -AsSecureString
+    $passwordPointer = [IntPtr]::Zero
+    try {
+        $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+        $deployPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+    } finally {
+        if ($passwordPointer -ne [IntPtr]::Zero) {
+            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+        }
+        $securePassword.Dispose()
+    }
+    if ($deployPassword) {
+        # The helper contains no credentials; SSH and SCP read the same in-memory password.
+        $askpassFile = Join-Path $tempDir 'askpass.cmd'
+        $askpassShell = Join-Path $PSHOME 'powershell.exe'
+        if (!(Test-Path -LiteralPath $askpassShell)) { $askpassShell = Join-Path $PSHOME 'pwsh.exe' }
+        [IO.File]::WriteAllText($askpassFile, "@echo off`r`n`"$askpassShell`" -NoLogo -NoProfile -NonInteractive -Command `"[Console]::OutputEncoding = [Text.UTF8Encoding]::new(`$false); [Console]::WriteLine(`$env:OHARA_DEPLOY_PASSWORD)`"`r`n")
+        foreach ($name in @('SSH_ASKPASS', 'SSH_ASKPASS_REQUIRE', 'OHARA_DEPLOY_PASSWORD')) {
+            $previousSshEnv[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+        }
+        $env:SSH_ASKPASS = $askpassFile
+        $env:SSH_ASKPASS_REQUIRE = 'force'
+        $env:OHARA_DEPLOY_PASSWORD = $deployPassword
+    }
+
     $sshOptions = @('-o', 'ConnectTimeout=15', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3', '-o', 'StrictHostKeyChecking=accept-new')
-    Write-Host 'Preparing VPS staging directory. SSH may prompt for your password.'
+    if ($deployPassword) { $sshOptions += @('-o', 'NumberOfPasswordPrompts=1') }
+    Write-Host 'Preparing VPS staging directory...'
     $remoteInfo = @(& $ssh @sshOptions $Server 'set -e; id -un; id -gn; mktemp -d /tmp/ohara-deploy.XXXXXXXX')
     if ($LASTEXITCODE -ne 0) { throw 'Failed to prepare the VPS staging directory.' }
     if ($remoteInfo.Count -ne 3 -or $remoteInfo[0] -notmatch '^[A-Za-z_][A-Za-z0-9_.-]*\$?$' -or $remoteInfo[1] -notmatch '^[A-Za-z_][A-Za-z0-9_.-]*\$?$' -or $remoteInfo[2] -notmatch '^/tmp/ohara-deploy\.[A-Za-z0-9]+$') {
@@ -137,8 +167,6 @@ try {
     $binaryName = $settings.DEPLOY_BINARY_NAME
     $deployedAt = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
 
-    $tempDir = Join-Path ([IO.Path]::GetTempPath()) "ohara-deploy-$([Guid]::NewGuid().ToString('N'))"
-    New-Item -ItemType Directory -Path $tempDir | Out-Null
     $serviceFile = Join-Path $tempDir 'ohara.service'
     $installFile = Join-Path $tempDir 'install.sh'
     $stagedBinary = Join-Path $tempDir 'ohara.bin'
@@ -188,12 +216,29 @@ fi
 
     Write-Host 'Uploading binary and service files...'
     Invoke-Checked $scp ($sshOptions + @($stagedBinary, $serviceFile, $installFile, "${Server}:${remoteTemp}/"))
-    Write-Host 'Installing and restarting the service. Enter your sudo password if prompted.'
-    Invoke-Checked $ssh ($sshOptions + @('-t', $Server, "sudo bash '$remoteTemp/install.sh'"))
+    Write-Host 'Installing and restarting the service...'
+    if ($deployPassword) {
+        # Base64 keeps native PowerShell pipe encoding from altering the password.
+        # Remove transport line endings before decoding, and never put it in a remote command.
+        $encodedPassword = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($deployPassword + "`n"))
+        $encodedPassword | & $ssh @sshOptions -T $Server "tr -d '\r\n' | base64 -d | sudo -S -p '' bash '$remoteTemp/install.sh'"
+        if ($LASTEXITCODE -ne 0) { throw "SSH installation failed with exit code $LASTEXITCODE." }
+    } else {
+        Invoke-Checked $ssh ($sshOptions + @('-t', $Server, "sudo bash '$remoteTemp/install.sh'"))
+    }
     Write-Host ('Deployment complete in {0:m\:ss}. Service: {1}' -f $timer.Elapsed, $serviceName)
 } finally {
+    foreach ($name in $previousSshEnv.Keys) {
+        if ($null -eq $previousSshEnv[$name]) {
+            Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
+        } else {
+            [Environment]::SetEnvironmentVariable($name, $previousSshEnv[$name], 'Process')
+        }
+    }
+    $deployPassword = $null
+    $encodedPassword = $null
     if ($tempDir -and (Test-Path -LiteralPath $tempDir)) {
-        foreach ($fileName in @('ohara.bin', 'ohara.service', 'install.sh')) {
+        foreach ($fileName in @('ohara.bin', 'ohara.service', 'install.sh', 'askpass.cmd')) {
             Remove-Item -LiteralPath (Join-Path $tempDir $fileName) -Force -ErrorAction SilentlyContinue
         }
         Remove-Item -LiteralPath $tempDir -ErrorAction SilentlyContinue

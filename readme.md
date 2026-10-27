@@ -96,16 +96,19 @@ Edit `deploy/deploy.conf`:
 
 ```bash
 DEPLOY_SERVER="user@your-vps"
-DEPLOY_PASSWORD="yourpassword"
 ```
 
-Then deploy:
+Then deploy (requires `sshpass` for password authentication):
 
 ```bash
 ./deploy/deploy.sh
 ```
 
 The deploy script builds the frontend and Linux `amd64` backend locally, uploads the binary to the target server, installs it under `/opt/ohara`, and registers/restarts the systemd service.
+
+Enter your SSH password once when prompted; the script reuses it for uploads,
+later SSH connections, and sudo during that deployment. The Bash script also
+accepts `DEPLOY_PASSWORD` in the local config for unattended deployments.
 
 `deploy/deploy.conf` is gitignored. See `deploy/deploy.conf.example` for optional path and service-name overrides.
 
@@ -117,8 +120,9 @@ Node.js/npm, and OpenSSH (`ssh` and `scp`):
 ```
 
 The PowerShell script reads the same `deploy/deploy.conf` settings as literal
-values. It uses SSH keys or interactive password prompts for SSH and sudo;
-`DEPLOY_PASSWORD` is only used by the Bash script. You can override the target
+values. It prompts once for a password and reuses it for SSH, SCP, and sudo.
+Leave the password empty to use SSH keys and an interactive sudo prompt instead.
+`DEPLOY_PASSWORD` in the config is only used by the Bash script. You can override the target
 with `.\deploy\deploy.ps1 user@your-vps`, or build locally without connecting
 to the VPS with `.\deploy\deploy.ps1 -BuildOnly`.
 
