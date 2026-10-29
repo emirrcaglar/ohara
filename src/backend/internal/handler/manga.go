@@ -10,14 +10,16 @@ import (
 	"strconv"
 	"time"
 
+	"ohara/src/internal/covers"
 	"ohara/src/internal/db"
 	"ohara/src/internal/logger"
 	"ohara/src/internal/media/manga"
 )
 
 type MangaHandler struct {
-	DB  *db.DB
-	Log *logger.Logger
+	DB     *db.DB
+	Log    *logger.Logger
+	Covers *covers.Cache
 }
 
 func (h *MangaHandler) mangaByID(idStr string) (*db.MangaRow, int, error) {
@@ -47,7 +49,7 @@ func (h *MangaHandler) HandleMangaList(w http.ResponseWriter, r *http.Request) {
 	for _, m := range records {
 		items = append(items, MangaResponse{
 			ID:            m.ID,
-			CatalogID:     m.CatalogID,
+			FolderID:      m.FolderID,
 			Title:         m.Title,
 			SeriesTitle:   m.SeriesTitle,
 			FileName:      filepath.Base(m.Path),
@@ -75,7 +77,7 @@ type MangaResponse struct {
 	Metadata      *manga.Metadata `json:"metadata"`
 	ParserVersion string          `json:"parserVersion"`
 	ID            int64           `json:"id"`
-	CatalogID     *int64          `json:"catalogId"`
+	FolderID      *int64          `json:"folderId"`
 	Title         string          `json:"title"`
 	PageCount     int             `json:"pageCount"`
 	CurrentPage   int             `json:"currentPage"`
@@ -88,8 +90,8 @@ type MangaLibraryResponse struct {
 	Total int             `json:"total"`
 }
 
-type MediaCatalogUpdateRequest struct {
-	CatalogID *int64 `json:"catalogId"`
+type MediaFolderUpdateRequest struct {
+	FolderID *int64 `json:"folderId"`
 }
 
 func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
@@ -105,7 +107,33 @@ func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid page number", http.StatusBadRequest)
 		return
 	}
+	h.serveMangaPage(w, r, m, pageIndex, "private, no-transform")
+}
 
+func (h *MangaHandler) HandleMangaCover(w http.ResponseWriter, r *http.Request) {
+	m, status, err := h.mangaByID(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), status)
+		return
+	}
+	if h.Covers != nil {
+		if file, err := h.Covers.Open(m.Path); err == nil {
+			defer file.Close()
+			if info, err := file.Stat(); err == nil && info.Mode().IsRegular() && info.Size() > 0 {
+				w.Header().Set("Content-Type", "image/jpeg")
+				w.Header().Set("Cache-Control", "private, no-cache, no-transform")
+				w.Header().Set("ETag", strconv.Quote(info.Name()))
+				w.Header().Set("X-Ohara-Representation", "compressed")
+				w.Header().Set("X-Content-Type-Options", "nosniff")
+				http.ServeContent(w, r, info.Name(), info.ModTime(), file)
+				return
+			}
+		}
+	}
+	h.serveMangaPage(w, r, m, 0, "private, no-store, no-transform")
+}
+
+func (h *MangaHandler) serveMangaPage(w http.ResponseWriter, r *http.Request, m *db.MangaRow, pageIndex int, cacheControl string) {
 	archive, err := manga.Open(m.Path)
 	if err != nil {
 		http.Error(w, "Page not found", http.StatusNotFound)
@@ -138,7 +166,7 @@ func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "private, no-store, no-transform")
+	w.Header().Set("Cache-Control", cacheControl)
 	w.Header().Set("X-Ohara-Representation", "original")
 	w.Header().Set("Content-Length", strconv.FormatUint(archive.Pages[pageIndex].Size, 10))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -168,25 +196,25 @@ func (h *MangaHandler) HandleMangaDelete(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *MangaHandler) HandleMangaCatalogUpdate(w http.ResponseWriter, r *http.Request) {
+func (h *MangaHandler) HandleMangaFolderUpdate(w http.ResponseWriter, r *http.Request) {
 	m, status, err := h.mangaByID(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, err.Error(), status)
 		return
 	}
 
-	var req MediaCatalogUpdateRequest
+	var req MediaFolderUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	if !validMediaCatalog(w, h.DB, req.CatalogID) {
+	if !validMediaFolder(w, h.DB, req.FolderID) {
 		return
 	}
 
-	if err := h.DB.UpdateMangaCatalog(m.ID, req.CatalogID); err != nil {
+	if err := h.DB.UpdateMangaFolder(m.ID, req.FolderID); err != nil {
 		if h.Log != nil {
-			h.Log.Error("[manga] catalog update failed manga=%d catalog=%v err=%v", m.ID, req.CatalogID, err)
+			h.Log.Error("[manga] folder update failed manga=%d folder=%v err=%v", m.ID, req.FolderID, err)
 		}
 		http.Error(w, "Failed to move manga", http.StatusInternalServerError)
 		return
@@ -230,7 +258,7 @@ func (h *MangaHandler) HandleMangaInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(MangaDetailResponse{
 		ID:            m.ID,
-		CatalogID:     m.CatalogID,
+		FolderID:      m.FolderID,
 		Title:         m.Title,
 		SeriesTitle:   m.SeriesTitle,
 		FileName:      filepath.Base(m.Path),
@@ -248,7 +276,7 @@ type MangaDetailResponse struct {
 	Metadata      *manga.Metadata `json:"metadata"`
 	ParserVersion string          `json:"parserVersion"`
 	ID            int64           `json:"id"`
-	CatalogID     *int64          `json:"catalogId"`
+	FolderID      *int64          `json:"folderId"`
 	Title         string          `json:"title"`
 	Path          string          `json:"path"`
 	PageCount     int             `json:"pageCount"`

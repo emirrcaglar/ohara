@@ -1,4 +1,4 @@
-import type { CatalogFolder } from '../types/api'
+import type { Folder } from '../types/api'
 
 export function slugify(value: string) {
   return value
@@ -8,6 +8,6 @@ export function slugify(value: string) {
     .replace(/^-+|-+$/g, '')
 }
 
-export function folderSlug(folder: CatalogFolder) {
+export function folderSlug(folder: Folder) {
   return slugify(folder.name) || String(folder.id)
 }

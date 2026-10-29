@@ -12,6 +12,7 @@ interface ReaderSetupOptions {
   totalPages: Ref<number>
   initialPage: number
   rightToLeftSwipe: Ref<boolean>
+  scrollReadingForManga: Ref<boolean>
   router: Router
   getPageUrl: (page: number) => string
 }
@@ -46,9 +47,20 @@ export function useReaderSetup(options: ReaderSetupOptions) {
     goVisualRight,
   } = navigation
 
-  const pageLoading = useReaderPageLoading(currentPage, options.getPageUrl)
+  const pageLoading = useReaderPageLoading(
+    currentPage,
+    options.totalPages,
+    options.scrollReadingForManga,
+    options.getPageUrl,
+  )
 
-  const { getMobilePageSrc, showPageSkeleton, onMainImageLoaded } = pageLoading
+  const {
+    getPageSrc,
+    getMobilePageSrc,
+    isPageInPrefetchWindow,
+    showPageSkeleton,
+    onMainImageLoaded,
+  } = pageLoading
 
   const zoom = useZoomAndPan(viewportWidth)
 
@@ -142,7 +154,6 @@ export function useReaderSetup(options: ReaderSetupOptions) {
         options.totalPages.value = info.pageCount
       }
     }
-
   })
 
   onBeforeUnmount(() => {
@@ -169,7 +180,9 @@ export function useReaderSetup(options: ReaderSetupOptions) {
     commitPage,
     goVisualLeft,
     goVisualRight,
+    getPageSrc,
     getMobilePageSrc,
+    isPageInPrefetchWindow,
     showPageSkeleton,
     onMainImageLoaded,
     scale,

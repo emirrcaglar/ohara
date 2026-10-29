@@ -123,7 +123,3 @@ The PowerShell script reads the same `deploy/deploy.conf` settings as literal
 values, including `DEPLOY_PASSWORD`. You can override the target
 with `.\deploy\deploy.ps1 user@your-vps`, or build locally without connecting
 to the VPS with `.\deploy\deploy.ps1 -BuildOnly`.
-
-## Documentation
-
-Additional notes live in [docs/](docs/).

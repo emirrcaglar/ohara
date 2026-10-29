@@ -5,16 +5,16 @@ import (
 	"errors"
 )
 
-var ErrCatalogCycle = errors.New("catalog parent cannot be self or descendant")
+var ErrFolderCycle = errors.New("folder parent cannot be self or descendant")
 
-type CatalogRow struct {
+type FolderRow struct {
 	ID          int64
 	ParentID    *int64
 	Name        string
 	ObjectCount int
 }
 
-func (db *DB) ListCatalogChildren(parentID *int64) ([]CatalogRow, error) {
+func (db *DB) ListFolderChildren(parentID *int64) ([]FolderRow, error) {
 	where := "parent_id IS NULL"
 	args := []any{}
 	if parentID != nil {
@@ -25,15 +25,15 @@ func (db *DB) ListCatalogChildren(parentID *int64) ([]CatalogRow, error) {
 	rows, err := db.Query(`
 		SELECT c.id, c.parent_id, c.name,
 		       (
-		         SELECT COUNT(*) FROM catalog child WHERE child.parent_id = c.id
+		         SELECT COUNT(*) FROM folder child WHERE child.parent_id = c.id
 		       ) + (
-		         SELECT COUNT(*) FROM manga m WHERE m.catalog_id = c.id
+		         SELECT COUNT(*) FROM manga m WHERE m.folder_id = c.id
 		       ) + (
-		         SELECT COUNT(*) FROM audio a WHERE a.catalog_id = c.id
+		         SELECT COUNT(*) FROM audio a WHERE a.folder_id = c.id
 		       ) + (
-		         SELECT COUNT(*) FROM video v WHERE v.catalog_id = c.id
+		         SELECT COUNT(*) FROM video v WHERE v.folder_id = c.id
 		       ) AS object_count
-		FROM catalog c
+		FROM folder c
 		WHERE `+where+`
 		ORDER BY c.name
 	`, args...)
@@ -42,9 +42,9 @@ func (db *DB) ListCatalogChildren(parentID *int64) ([]CatalogRow, error) {
 	}
 	defer rows.Close()
 
-	var list []CatalogRow
+	var list []FolderRow
 	for rows.Next() {
-		var row CatalogRow
+		var row FolderRow
 		var parent sql.NullInt64
 		if err := rows.Scan(&row.ID, &parent, &row.Name, &row.ObjectCount); err != nil {
 			return nil, err
@@ -57,19 +57,19 @@ func (db *DB) ListCatalogChildren(parentID *int64) ([]CatalogRow, error) {
 	return list, rows.Err()
 }
 
-func (db *DB) ListCatalogAll() ([]CatalogRow, error) {
+func (db *DB) ListFolderAll() ([]FolderRow, error) {
 	rows, err := db.Query(`
 		SELECT c.id, c.parent_id, c.name,
 		       (
-		         SELECT COUNT(*) FROM catalog child WHERE child.parent_id = c.id
+		         SELECT COUNT(*) FROM folder child WHERE child.parent_id = c.id
 		       ) + (
-		         SELECT COUNT(*) FROM manga m WHERE m.catalog_id = c.id
+		         SELECT COUNT(*) FROM manga m WHERE m.folder_id = c.id
 		       ) + (
-		         SELECT COUNT(*) FROM audio a WHERE a.catalog_id = c.id
+		         SELECT COUNT(*) FROM audio a WHERE a.folder_id = c.id
 		       ) + (
-		         SELECT COUNT(*) FROM video v WHERE v.catalog_id = c.id
+		         SELECT COUNT(*) FROM video v WHERE v.folder_id = c.id
 		       ) AS object_count
-		FROM catalog c
+		FROM folder c
 		ORDER BY c.name
 	`)
 	if err != nil {
@@ -77,9 +77,9 @@ func (db *DB) ListCatalogAll() ([]CatalogRow, error) {
 	}
 	defer rows.Close()
 
-	var list []CatalogRow
+	var list []FolderRow
 	for rows.Next() {
-		var row CatalogRow
+		var row FolderRow
 		var parent sql.NullInt64
 		if err := rows.Scan(&row.ID, &parent, &row.Name, &row.ObjectCount); err != nil {
 			return nil, err
@@ -92,13 +92,13 @@ func (db *DB) ListCatalogAll() ([]CatalogRow, error) {
 	return list, rows.Err()
 }
 
-func (db *DB) GetCatalogPath(id int64) ([]CatalogRow, error) {
+func (db *DB) GetFolderPath(id int64) ([]FolderRow, error) {
 	rows, err := db.Query(`
 		WITH RECURSIVE path(id, parent_id, name, depth) AS (
-			SELECT id, parent_id, name, 0 FROM catalog WHERE id = ?
+			SELECT id, parent_id, name, 0 FROM folder WHERE id = ?
 			UNION ALL
 			SELECT c.id, c.parent_id, c.name, path.depth + 1
-			FROM catalog c
+			FROM folder c
 			JOIN path ON path.parent_id = c.id
 		)
 		SELECT id, parent_id, name, 0 AS object_count
@@ -110,9 +110,9 @@ func (db *DB) GetCatalogPath(id int64) ([]CatalogRow, error) {
 	}
 	defer rows.Close()
 
-	var path []CatalogRow
+	var path []FolderRow
 	for rows.Next() {
-		var row CatalogRow
+		var row FolderRow
 		var parent sql.NullInt64
 		if err := rows.Scan(&row.ID, &parent, &row.Name, &row.ObjectCount); err != nil {
 			return nil, err
@@ -125,13 +125,13 @@ func (db *DB) GetCatalogPath(id int64) ([]CatalogRow, error) {
 	return path, rows.Err()
 }
 
-func (db *DB) InsertCatalog(parentID *int64, name string) (*CatalogRow, error) {
+func (db *DB) InsertFolder(parentID *int64, name string) (*FolderRow, error) {
 	var result sql.Result
 	var err error
 	if parentID == nil {
-		result, err = db.Exec(`INSERT INTO catalog (parent_id, name) VALUES (NULL, ?)`, name)
+		result, err = db.Exec(`INSERT INTO folder (parent_id, name) VALUES (NULL, ?)`, name)
 	} else {
-		result, err = db.Exec(`INSERT INTO catalog (parent_id, name) VALUES (?, ?)`, *parentID, name)
+		result, err = db.Exec(`INSERT INTO folder (parent_id, name) VALUES (?, ?)`, *parentID, name)
 	}
 	if err != nil {
 		return nil, err
@@ -142,56 +142,56 @@ func (db *DB) InsertCatalog(parentID *int64, name string) (*CatalogRow, error) {
 		return nil, err
 	}
 
-	return db.GetCatalogByID(id)
+	return db.GetFolderByID(id)
 }
 
-func (db *DB) GetCatalogByID(id int64) (*CatalogRow, error) {
+func (db *DB) GetFolderByID(id int64) (*FolderRow, error) {
 	row := db.QueryRow(`
 		SELECT c.id, c.parent_id, c.name,
 		       (
-		         SELECT COUNT(*) FROM catalog child WHERE child.parent_id = c.id
+		         SELECT COUNT(*) FROM folder child WHERE child.parent_id = c.id
 		       ) + (
-		         SELECT COUNT(*) FROM manga m WHERE m.catalog_id = c.id
+		         SELECT COUNT(*) FROM manga m WHERE m.folder_id = c.id
 		       ) + (
-		         SELECT COUNT(*) FROM audio a WHERE a.catalog_id = c.id
+		         SELECT COUNT(*) FROM audio a WHERE a.folder_id = c.id
 		       ) + (
-		         SELECT COUNT(*) FROM video v WHERE v.catalog_id = c.id
+		         SELECT COUNT(*) FROM video v WHERE v.folder_id = c.id
 		       ) AS object_count
-		FROM catalog c
+		FROM folder c
 		WHERE c.id = ?
 	`, id)
 
-	var catalog CatalogRow
+	var folder FolderRow
 	var parent sql.NullInt64
-	if err := row.Scan(&catalog.ID, &parent, &catalog.Name, &catalog.ObjectCount); err != nil {
+	if err := row.Scan(&folder.ID, &parent, &folder.Name, &folder.ObjectCount); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
 	}
 	if parent.Valid {
-		catalog.ParentID = &parent.Int64
+		folder.ParentID = &parent.Int64
 	}
-	return &catalog, nil
+	return &folder, nil
 }
 
-func (db *DB) UpdateCatalog(id int64, parentID *int64, name string) (*CatalogRow, error) {
+func (db *DB) UpdateFolder(id int64, parentID *int64, name string) (*FolderRow, error) {
 	if parentID != nil {
-		contains, err := db.catalogContains(id, *parentID)
+		contains, err := db.folderContains(id, *parentID)
 		if err != nil {
 			return nil, err
 		}
 		if contains {
-			return nil, ErrCatalogCycle
+			return nil, ErrFolderCycle
 		}
 	}
 
 	var result sql.Result
 	var err error
 	if parentID == nil {
-		result, err = db.Exec(`UPDATE catalog SET parent_id = NULL, name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, name, id)
+		result, err = db.Exec(`UPDATE folder SET parent_id = NULL, name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, name, id)
 	} else {
-		result, err = db.Exec(`UPDATE catalog SET parent_id = ?, name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, *parentID, name, id)
+		result, err = db.Exec(`UPDATE folder SET parent_id = ?, name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, *parentID, name, id)
 	}
 	if err != nil {
 		return nil, err
@@ -205,11 +205,11 @@ func (db *DB) UpdateCatalog(id int64, parentID *int64, name string) (*CatalogRow
 		return nil, nil
 	}
 
-	return db.GetCatalogByID(id)
+	return db.GetFolderByID(id)
 }
 
-func (db *DB) DeleteCatalog(id int64) (bool, error) {
-	result, err := db.Exec(`DELETE FROM catalog WHERE id = ?`, id)
+func (db *DB) DeleteFolder(id int64) (bool, error) {
+	result, err := db.Exec(`DELETE FROM folder WHERE id = ?`, id)
 	if err != nil {
 		return false, err
 	}
@@ -220,13 +220,13 @@ func (db *DB) DeleteCatalog(id int64) (bool, error) {
 	return rowsAffected > 0, nil
 }
 
-func (db *DB) catalogContains(ancestorID, descendantID int64) (bool, error) {
+func (db *DB) folderContains(ancestorID, descendantID int64) (bool, error) {
 	var exists int
 	err := db.QueryRow(`
 		WITH RECURSIVE descendants(id) AS (
-			SELECT id FROM catalog WHERE id = ?
+			SELECT id FROM folder WHERE id = ?
 			UNION ALL
-			SELECT c.id FROM catalog c
+			SELECT c.id FROM folder c
 			JOIN descendants d ON c.parent_id = d.id
 		)
 		SELECT 1 FROM descendants WHERE id = ? LIMIT 1

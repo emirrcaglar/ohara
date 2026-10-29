@@ -5,10 +5,10 @@ export async function fetchAudioLibrary(): Promise<AudioLibraryResponse> {
   return fetchJson<AudioLibraryResponse>(`${API_BASE}/audio`)
 }
 
-export async function moveAudioToCatalog(id: number, catalogId: number | null): Promise<void> {
-  await fetchJson<void>(`${API_BASE}/audio/${id}/catalog`, {
+export async function moveAudioToFolder(id: number, folderId: number | null): Promise<void> {
+  await fetchJson<void>(`${API_BASE}/audio/${id}/folder`, {
     method: 'PUT',
-    body: JSON.stringify({ catalogId }),
+    body: JSON.stringify({ folderId }),
   })
 }
 

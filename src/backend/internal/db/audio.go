@@ -6,17 +6,17 @@ import (
 )
 
 type AudioRow struct {
-	ID        int64
-	Path      string
-	CatalogID *int64
-	Title     string
-	Artist    string
-	Album     string
-	Duration  int
+	ID       int64
+	Path     string
+	FolderID *int64
+	Title    string
+	Artist   string
+	Album    string
+	Duration int
 }
 
 func (db *DB) ListAudio() ([]AudioRow, error) {
-	rows, err := db.Query(`SELECT id, path, catalog_id, title, artist, album, duration FROM audio ORDER BY title`)
+	rows, err := db.Query(`SELECT id, path, folder_id, title, artist, album, duration FROM audio ORDER BY title`)
 	if err != nil {
 		return nil, err
 	}
@@ -25,12 +25,12 @@ func (db *DB) ListAudio() ([]AudioRow, error) {
 	var list []AudioRow
 	for rows.Next() {
 		var a AudioRow
-		var catalogID sql.NullInt64
-		if err := rows.Scan(&a.ID, &a.Path, &catalogID, &a.Title, &a.Artist, &a.Album, &a.Duration); err != nil {
+		var folderID sql.NullInt64
+		if err := rows.Scan(&a.ID, &a.Path, &folderID, &a.Title, &a.Artist, &a.Album, &a.Duration); err != nil {
 			return nil, err
 		}
-		if catalogID.Valid {
-			a.CatalogID = &catalogID.Int64
+		if folderID.Valid {
+			a.FolderID = &folderID.Int64
 		}
 		list = append(list, a)
 	}
@@ -38,40 +38,40 @@ func (db *DB) ListAudio() ([]AudioRow, error) {
 }
 
 func (db *DB) GetAudioByID(id int64) (*AudioRow, error) {
-	row := db.QueryRow(`SELECT id, path, catalog_id, title, artist, album, duration FROM audio WHERE id = ?`, id)
+	row := db.QueryRow(`SELECT id, path, folder_id, title, artist, album, duration FROM audio WHERE id = ?`, id)
 	var a AudioRow
-	var catalogID sql.NullInt64
-	if err := row.Scan(&a.ID, &a.Path, &catalogID, &a.Title, &a.Artist, &a.Album, &a.Duration); err != nil {
+	var folderID sql.NullInt64
+	if err := row.Scan(&a.ID, &a.Path, &folderID, &a.Title, &a.Artist, &a.Album, &a.Duration); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
 	}
-	if catalogID.Valid {
-		a.CatalogID = &catalogID.Int64
+	if folderID.Valid {
+		a.FolderID = &folderID.Int64
 	}
 	return &a, nil
 }
 
 func (db *DB) InsertAudio(track *audio.Track) error {
-	return db.InsertAudioWithCatalog(track, nil)
+	return db.InsertAudioWithFolder(track, nil)
 }
 
-func (db *DB) InsertAudioWithCatalog(track *audio.Track, catalogID *int64) error {
+func (db *DB) InsertAudioWithFolder(track *audio.Track, folderID *int64) error {
 	_, err := db.Exec(
-		`INSERT OR IGNORE INTO audio (path, title, artist, album, duration, catalog_id) VALUES (?, ?, ?, ?, ?, ?)`,
-		track.FilePath, track.Title, track.Artist, track.Album, track.Duration, catalogID,
+		`INSERT OR IGNORE INTO audio (path, title, artist, album, duration, folder_id) VALUES (?, ?, ?, ?, ?, ?)`,
+		track.FilePath, track.Title, track.Artist, track.Album, track.Duration, folderID,
 	)
 	return err
 }
 
-func (db *DB) UpdateAudioCatalog(id int64, catalogID *int64) error {
-	if catalogID == nil {
-		_, err := db.Exec(`UPDATE audio SET catalog_id = NULL WHERE id = ?`, id)
+func (db *DB) UpdateAudioFolder(id int64, folderID *int64) error {
+	if folderID == nil {
+		_, err := db.Exec(`UPDATE audio SET folder_id = NULL WHERE id = ?`, id)
 		return err
 	}
 
-	_, err := db.Exec(`UPDATE audio SET catalog_id = ? WHERE id = ?`, *catalogID, id)
+	_, err := db.Exec(`UPDATE audio SET folder_id = ? WHERE id = ?`, *folderID, id)
 	return err
 }
 

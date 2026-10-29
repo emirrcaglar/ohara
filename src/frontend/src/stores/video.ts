@@ -5,7 +5,7 @@ import {
   deleteVideo,
   fetchVideoInfo,
   fetchVideoLibrary,
-  moveVideoToCatalog,
+  moveVideoToFolder,
   saveVideoState,
 } from '../api/video'
 import { compareByNaturalText } from '../utils/naturalSort'
@@ -54,15 +54,15 @@ export const useVideoStore = defineStore('video', () => {
     item.lastError = state.lastError
   }
 
-  async function moveVideo(id: number, catalogId: number | null) {
+  async function moveVideo(id: number, folderId: number | null) {
     const item = items.value.find((v) => v.id === id)
-    const previousCatalogId = item?.catalogId
-    if (item) item.catalogId = catalogId
+    const previousFolderId = item?.folderId
+    if (item) item.folderId = folderId
 
     try {
-      await moveVideoToCatalog(id, catalogId)
+      await moveVideoToFolder(id, folderId)
     } catch (e) {
-      if (item) item.catalogId = previousCatalogId ?? null
+      if (item) item.folderId = previousFolderId ?? null
       error.value = e instanceof Error ? e.message : 'Failed to move video'
       throw e
     }

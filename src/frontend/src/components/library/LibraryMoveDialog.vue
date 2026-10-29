@@ -1,26 +1,28 @@
 <script setup lang="ts">
-import type { CatalogFolder } from '../../types/api'
+import type { Folder } from '../../types/api'
 
 interface MoveDestinationOption {
   id: number | null
-  folder: CatalogFolder | null
+  folder: Folder | null
 }
 
 defineProps<{
+  error?: string | null
+  pending?: boolean
   movingSubjectName: string
   moveDestinationOptions: MoveDestinationOption[]
   expandedBreadcrumbs: Set<string>
-  catalogName: (folder: CatalogFolder) => string
-  breadcrumbKey: (folder: CatalogFolder | null) => string
-  breadcrumbParts: (folder: CatalogFolder | null) => CatalogFolder[]
-  visibleBreadcrumbParts: (folder: CatalogFolder | null) => CatalogFolder[]
-  isBreadcrumbCollapsed: (folder: CatalogFolder | null) => boolean
+  folderName: (folder: Folder) => string
+  breadcrumbKey: (folder: Folder | null) => string
+  breadcrumbParts: (folder: Folder | null) => Folder[]
+  visibleBreadcrumbParts: (folder: Folder | null) => Folder[]
+  isBreadcrumbCollapsed: (folder: Folder | null) => boolean
 }>()
 
 const emit = defineEmits<{
   close: []
-  selectDestination: [catalogId: number | null]
-  toggleBreadcrumb: [folder: CatalogFolder | null]
+  selectDestination: [folderId: number | null]
+  toggleBreadcrumb: [folder: Folder | null]
 }>()
 </script>
 
@@ -29,7 +31,7 @@ const emit = defineEmits<{
     <button
       class="absolute inset-0 bg-surface-container-lowest/70 backdrop-blur-sm"
       type="button"
-      aria-label="Close catalog move dialog"
+      aria-label="Close folder move dialog"
       @click="emit('close')"
     ></button>
 
@@ -37,14 +39,14 @@ const emit = defineEmits<{
       class="relative w-full max-w-2xl bg-surface-container-highest/80 p-3 shadow-[0_0_40px_rgba(14,14,14,0.4)] backdrop-blur"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="move-catalog-title"
+      aria-labelledby="move-folder-title"
     >
       <div class="bg-surface-container-low p-5 md:p-6">
         <div class="flex items-start justify-between gap-6">
           <div>
-            <p class="text-[9px] font-black uppercase tracking-widest text-secondary">Catalogs</p>
+            <p class="text-[9px] font-black uppercase tracking-widest text-secondary">Folders</p>
             <h3
-              id="move-catalog-title"
+              id="move-folder-title"
               class="mt-1 text-2xl font-black uppercase italic tracking-tighter text-on-surface"
             >
               Move_Target
@@ -53,7 +55,7 @@ const emit = defineEmits<{
           <button
             class="bg-surface-container-high px-3 py-2 text-on-surface-variant transition-colors hover:bg-surface-container-lowest hover:text-on-surface"
             type="button"
-            aria-label="Close catalog move dialog"
+            aria-label="Close folder move dialog"
             @click="emit('close')"
           >
             <span class="material-symbols-outlined text-lg">close</span>
@@ -70,12 +72,20 @@ const emit = defineEmits<{
         </div>
       </div>
 
+      <p
+        v-if="error"
+        role="alert"
+        class="mt-3 bg-error-container p-4 text-sm text-on-error-container"
+      >
+        {{ error }}
+      </p>
+
       <div class="mt-3 max-h-[60vh] overflow-y-auto bg-surface-container-low p-3">
         <p
           v-if="moveDestinationOptions.length === 0"
           class="bg-surface-container-lowest p-5 text-xs font-bold uppercase tracking-widest text-on-surface-variant"
         >
-          No catalog destinations available
+          No folder destinations available
         </p>
 
         <div v-else class="space-y-2">
@@ -87,21 +97,22 @@ const emit = defineEmits<{
             <button
               class="bg-surface-container-high p-4 text-left transition-colors hover:bg-primary-container hover:text-on-primary-container"
               type="button"
+              :disabled="pending"
               @click="emit('selectDestination', option.id)"
             >
               <p class="text-[9px] font-black uppercase tracking-widest text-secondary">
                 Destination
               </p>
               <p class="mt-1 text-base font-black uppercase tracking-tight">
-                {{ option.folder?.name ?? 'CENTRAL' }}
+                {{ option.folder?.name ?? 'Library' }}
               </p>
 
               <div
                 class="mt-3 flex flex-wrap items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant"
-                :title="option.folder ? catalogName(option.folder) : 'CENTRAL'"
+                :title="option.folder ? folderName(option.folder) : 'Library'"
               >
                 <span class="bg-surface-container-low px-2 py-1 text-primary-container">
-                  CENTRAL
+                  Library
                 </span>
                 <template v-if="isBreadcrumbCollapsed(option.folder)">
                   <span class="material-symbols-outlined text-[13px] text-primary-container">

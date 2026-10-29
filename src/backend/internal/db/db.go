@@ -48,6 +48,9 @@ func (db *DB) DefaultAdminCreated() bool {
 }
 
 func migrate(conn *sql.DB) (bool, error) {
+	if err := migrateFolderNaming(conn); err != nil {
+		return false, err
+	}
 	_, err := conn.Exec(`
 		CREATE TABLE IF NOT EXISTS user (
 			id            INTEGER  PRIMARY KEY AUTOINCREMENT,
@@ -74,9 +77,9 @@ func migrate(conn *sql.DB) (bool, error) {
 		DROP TABLE IF EXISTS reading_jobs;
 		DROP TABLE IF EXISTS scan;
 
-		CREATE TABLE IF NOT EXISTS catalog (
+		CREATE TABLE IF NOT EXISTS folder (
 			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
-			parent_id  INTEGER  REFERENCES catalog(id) ON DELETE CASCADE,
+			parent_id  INTEGER  REFERENCES folder(id) ON DELETE CASCADE,
 			name       TEXT     NOT NULL,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -85,7 +88,7 @@ func migrate(conn *sql.DB) (bool, error) {
 		CREATE TABLE IF NOT EXISTS manga (
 			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
 			path       TEXT     NOT NULL UNIQUE,
-			catalog_id INTEGER  REFERENCES catalog(id) ON DELETE SET NULL,
+			folder_id INTEGER  REFERENCES folder(id) ON DELETE SET NULL,
 			title      TEXT     NOT NULL,
 			page_count INTEGER  NOT NULL DEFAULT 0,
 			indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -110,7 +113,7 @@ func migrate(conn *sql.DB) (bool, error) {
 		CREATE TABLE IF NOT EXISTS audio (
 			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
 			path       TEXT     NOT NULL UNIQUE,
-			catalog_id INTEGER  REFERENCES catalog(id) ON DELETE SET NULL,
+			folder_id INTEGER  REFERENCES folder(id) ON DELETE SET NULL,
 			title      TEXT     NOT NULL,
 			artist     TEXT     NOT NULL DEFAULT '',
 			album      TEXT     NOT NULL DEFAULT '',
@@ -121,7 +124,7 @@ func migrate(conn *sql.DB) (bool, error) {
 		CREATE TABLE IF NOT EXISTS video (
 			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
 			path       TEXT     NOT NULL UNIQUE,
-			catalog_id INTEGER  REFERENCES catalog(id) ON DELETE SET NULL,
+			folder_id INTEGER  REFERENCES folder(id) ON DELETE SET NULL,
 			title      TEXT     NOT NULL,
 			duration   INTEGER  NOT NULL DEFAULT 0,
 			width      INTEGER  NOT NULL DEFAULT 0,
@@ -150,7 +153,7 @@ func migrate(conn *sql.DB) (bool, error) {
 			total_chunks  INTEGER  NOT NULL,
 			status        TEXT     NOT NULL DEFAULT 'active',
 			target_path    TEXT     NOT NULL DEFAULT '',
-			catalog_id    INTEGER  REFERENCES catalog(id) ON DELETE SET NULL,
+			folder_id    INTEGER  REFERENCES folder(id) ON DELETE SET NULL,
 			error_message TEXT,
 			created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -191,10 +194,10 @@ func migrate(conn *sql.DB) (bool, error) {
 	if err := addColumnIfMissing(conn, "video", "height", "INTEGER NOT NULL DEFAULT 0"); err != nil {
 		return false, err
 	}
-	if err := addColumnIfMissing(conn, "catalog", "parent_id", "INTEGER REFERENCES catalog(id) ON DELETE CASCADE"); err != nil {
+	if err := addColumnIfMissing(conn, "folder", "parent_id", "INTEGER REFERENCES folder(id) ON DELETE CASCADE"); err != nil {
 		return false, err
 	}
-	if err := addColumnIfMissing(conn, "manga", "catalog_id", "INTEGER REFERENCES catalog(id) ON DELETE SET NULL"); err != nil {
+	if err := addColumnIfMissing(conn, "manga", "folder_id", "INTEGER REFERENCES folder(id) ON DELETE SET NULL"); err != nil {
 		return false, err
 	}
 
@@ -207,39 +210,39 @@ func migrate(conn *sql.DB) (bool, error) {
 			return false, err
 		}
 	}
-	if err := addColumnIfMissing(conn, "audio", "catalog_id", "INTEGER REFERENCES catalog(id) ON DELETE SET NULL"); err != nil {
+	if err := addColumnIfMissing(conn, "audio", "folder_id", "INTEGER REFERENCES folder(id) ON DELETE SET NULL"); err != nil {
 		return false, err
 	}
-	if err := addColumnIfMissing(conn, "video", "catalog_id", "INTEGER REFERENCES catalog(id) ON DELETE SET NULL"); err != nil {
+	if err := addColumnIfMissing(conn, "video", "folder_id", "INTEGER REFERENCES folder(id) ON DELETE SET NULL"); err != nil {
 		return false, err
 	}
-	if err := addColumnIfMissing(conn, "upload_sessions", "catalog_id", "INTEGER REFERENCES catalog(id) ON DELETE SET NULL"); err != nil {
+	if err := addColumnIfMissing(conn, "upload_sessions", "folder_id", "INTEGER REFERENCES folder(id) ON DELETE SET NULL"); err != nil {
 		return false, err
 	}
 
 	_, err = conn.Exec(`
-		CREATE INDEX IF NOT EXISTS idx_catalog_parent_id
-		ON catalog(parent_id);
+		CREATE INDEX IF NOT EXISTS idx_folder_parent_id
+		ON folder(parent_id);
 
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_catalog_root_name
-		ON catalog(name)
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_folder_root_name
+		ON folder(name)
 		WHERE parent_id IS NULL;
 
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_catalog_parent_name
-		ON catalog(parent_id, name)
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_folder_parent_name
+		ON folder(parent_id, name)
 		WHERE parent_id IS NOT NULL;
 
-		CREATE INDEX IF NOT EXISTS idx_manga_catalog_id
-		ON manga(catalog_id);
+		CREATE INDEX IF NOT EXISTS idx_manga_folder_id
+		ON manga(folder_id);
 
-		CREATE INDEX IF NOT EXISTS idx_audio_catalog_id
-		ON audio(catalog_id);
+		CREATE INDEX IF NOT EXISTS idx_audio_folder_id
+		ON audio(folder_id);
 
-		CREATE INDEX IF NOT EXISTS idx_video_catalog_id
-		ON video(catalog_id);
+		CREATE INDEX IF NOT EXISTS idx_video_folder_id
+		ON video(folder_id);
 
-		CREATE INDEX IF NOT EXISTS idx_upload_sessions_catalog_id
-		ON upload_sessions(catalog_id);
+		CREATE INDEX IF NOT EXISTS idx_upload_sessions_folder_id
+		ON upload_sessions(folder_id);
 	`)
 	if err != nil {
 		return false, err

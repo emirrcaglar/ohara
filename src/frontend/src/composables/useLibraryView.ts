@@ -5,11 +5,12 @@ import { useAudioStore } from '../stores/audio'
 import { useVideoStore } from '../stores/video'
 import { usePlayerStore } from '../stores/player'
 import { useUploadStore } from '../stores/upload'
-import { useCatalogStore } from '../stores/catalog'
-import type { MangaRow, AudioRow, VideoRow, CatalogFolder } from '../types/api'
+import { useFolderStore } from '../stores/folder'
+import type { MangaRow, AudioRow, VideoRow, Folder } from '../types/api'
 import { folderSlug } from './useLibrarySlugs'
 import { videoStats } from './useLibraryFormatting'
 import { matchesMangaSearch } from '../utils/mangaMetadata'
+import { selectFolderCoverChapters } from '../utils/folderCovers'
 
 interface MenuAnchor {
   top: number
@@ -24,72 +25,114 @@ export function useLibraryView() {
   const videoStore = useVideoStore()
   const playerStore = usePlayerStore()
   const uploadStore = useUploadStore()
-  const catalogStore = useCatalogStore()
+  const folderStore = useFolderStore()
 
-  const selectedTab = ref<'ALL' | 'CBZ' | 'AUDIO' | 'VIDEO'>('ALL')
-  const mangaSearch = ref('')
+  const mediaFilter = ref<'ALL' | 'CBZ' | 'AUDIO' | 'VIDEO'>('ALL')
+  const searchQuery = ref('')
+  const scrollContainer = ref<HTMLElement | null>(null)
+  const actionError = ref<string | null>(null)
+  const actionPending = ref(false)
+
+  async function performAction(action: () => Promise<void>) {
+    if (actionPending.value) return
+    actionPending.value = true
+    actionError.value = null
+    try {
+      await action()
+    } catch (error) {
+      actionError.value = error instanceof Error ? error.message : 'Unable to complete this action.'
+    } finally {
+      actionPending.value = false
+    }
+  }
   const showActionDialog = ref(false)
   const showUploadDialog = ref(false)
-  const showCatalogDialog = ref(false)
-  const showRenameCatalogDialog = ref(false)
-  const showDeleteCatalogDialog = ref(false)
+  const showFolderDialog = ref(false)
+  const showRenameFolderDialog = ref(false)
+  const showDeleteFolderDialog = ref(false)
   const showTransfersPanel = ref(false)
   const showMoveDialog = ref(false)
   const fileInputRef = ref<HTMLInputElement | null>(null)
-  const newCatalogInputRef = ref<HTMLInputElement | null>(null)
-  const newCatalogName = ref('')
-  const renameCatalogName = ref('')
-  const renamingFolder = ref<CatalogFolder | null>(null)
-  const deletingFolder = ref<CatalogFolder | null>(null)
+  const newFolderInputRef = ref<HTMLInputElement | null>(null)
+  const renameFolderInputRef = ref<HTMLInputElement | null>(null)
+  const newFolderName = ref('')
+  const renameFolderName = ref('')
+  const renamingFolder = ref<Folder | null>(null)
+  const deletingFolder = ref<Folder | null>(null)
   const deletingMedia = ref<MangaRow | VideoRow | null>(null)
   const deleteDialogAnchor = ref<MenuAnchor | null>(null)
   const pendingMoveItem = ref<MangaRow | AudioRow | VideoRow | null>(null)
-  const pendingMoveFolder = ref<CatalogFolder | null>(null)
+  const pendingMoveFolder = ref<Folder | null>(null)
   const pendingMoveExcludedIds = ref<Set<number>>(new Set())
   const expandedBreadcrumbs = ref<Set<string>>(new Set())
 
-  const currentCatalogId = computed(() => {
+  const currentFolderId = computed(() => {
     const folder = route.query.folder
     if (typeof folder !== 'string') return null
 
     const id = Number(folder)
     if (Number.isInteger(id) && id > 0) return id
 
-    return catalogStore.catalogFolders.find((catalog) => folderSlug(catalog) === folder)?.id ?? null
+    return folderStore.allFolders.find((item) => folderSlug(item) === folder)?.id ?? -1
   })
 
-  const catalogManga = computed(() =>
-    mangaStore.items.filter((item) => item.catalogId === currentCatalogId.value),
+  const folderManga = computed(() =>
+    mangaStore.items.filter((item) => item.folderId === currentFolderId.value),
   )
 
-  const catalogAudio = computed(() =>
-    audioStore.items.filter((item) => item.catalogId === currentCatalogId.value),
+  const folderAudio = computed(() =>
+    audioStore.items.filter((item) => item.folderId === currentFolderId.value),
   )
 
-  const catalogVideo = computed(() =>
-    videoStore.items.filter((item) => item.catalogId === currentCatalogId.value),
+  const folderVideo = computed(() =>
+    videoStore.items.filter((item) => item.folderId === currentFolderId.value),
   )
 
   const filteredManga = computed(() => {
-    if (selectedTab.value === 'ALL' || selectedTab.value === 'CBZ') {
-      return catalogManga.value.filter((item) => matchesMangaSearch(item, mangaSearch.value))
+    if (mediaFilter.value === 'ALL' || mediaFilter.value === 'CBZ') {
+      return folderManga.value.filter((item) => matchesMangaSearch(item, searchQuery.value))
     }
     return []
   })
 
   const filteredAudio = computed(() => {
-    if (selectedTab.value === 'ALL' || selectedTab.value === 'AUDIO') return catalogAudio.value
+    if (mediaFilter.value === 'ALL' || mediaFilter.value === 'AUDIO') {
+      return folderAudio.value.filter((item) =>
+        `${item.title} ${item.artist} ${item.album}`
+          .toLowerCase()
+          .includes(searchQuery.value.trim().toLowerCase()),
+      )
+    }
     return []
   })
 
   const filteredVideo = computed(() => {
-    if (selectedTab.value === 'ALL' || selectedTab.value === 'VIDEO') return catalogVideo.value
+    if (mediaFilter.value === 'ALL' || mediaFilter.value === 'VIDEO') {
+      return folderVideo.value.filter((item) =>
+        item.title.toLowerCase().includes(searchQuery.value.trim().toLowerCase()),
+      )
+    }
     return []
   })
 
   const totalMedia = computed(
-    () => filteredManga.value.length + filteredAudio.value.length + filteredVideo.value.length,
+    () => folderManga.value.length + folderAudio.value.length + folderVideo.value.length,
   )
+
+  const currentFolder = computed(() => folderStore.path.at(-1))
+  const folderCoverChapters = computed(() =>
+    selectFolderCoverChapters(mangaStore.items, folderStore.allFolders),
+  )
+  const filteredFolders = computed(() =>
+    folderStore.folders.filter((folder) =>
+      folder.name.toLowerCase().includes(searchQuery.value.trim().toLowerCase()),
+    ),
+  )
+
+  function clearFilters() {
+    searchQuery.value = ''
+    mediaFilter.value = 'ALL'
+  }
 
   const hasVisibleMedia = computed(
     () => filteredManga.value.length + filteredAudio.value.length + filteredVideo.value.length > 0,
@@ -102,25 +145,34 @@ export function useLibraryView() {
   })
 
   watch(
-    currentCatalogId,
-    (catalogId) => {
-      catalogStore.fetchChildren(catalogId)
+    currentFolderId,
+    async (folderId) => {
+      await folderStore.fetchChildren(folderId)
+      await nextTick()
+      if (scrollContainer.value) scrollContainer.value.scrollTop = 0
     },
     { immediate: true },
   )
 
-  watch(showCatalogDialog, async (isOpen) => {
+  watch(showFolderDialog, async (isOpen) => {
     if (!isOpen) return
 
     await nextTick()
-    newCatalogInputRef.value?.focus()
+    newFolderInputRef.value?.focus()
+  })
+
+  watch(showRenameFolderDialog, async (isOpen) => {
+    if (!isOpen) return
+    await nextTick()
+    renameFolderInputRef.value?.focus()
+    renameFolderInputRef.value?.select()
   })
 
   onMounted(() => {
     mangaStore.fetchLibrary()
     audioStore.fetchLibrary()
     videoStore.fetchLibrary()
-    catalogStore.fetchAll()
+    void folderStore.fetchAll().catch(() => {})
     uploadStore.fetchPendingTransfers()
     window.addEventListener('keydown', handleGlobalKeydown)
   })
@@ -151,11 +203,13 @@ export function useLibraryView() {
     })
   }
 
-  function openFolder(folder: CatalogFolder) {
-    router.push({ path: '/library', query: { folder: folderSlug(folder) } })
+  function openFolder(folder: Folder) {
+    clearFilters()
+    router.push({ path: '/library', query: { folder: String(folder.id) } })
   }
 
   function openRoot() {
+    clearFilters()
     router.push({ path: '/library' })
   }
 
@@ -163,19 +217,35 @@ export function useLibraryView() {
     const trimmedName = name.trim()
     if (!trimmedName) return
 
-    await catalogStore.createFolder(trimmedName, currentCatalogId.value)
+    await folderStore.createFolder(trimmedName, currentFolderId.value)
   }
 
-  function catalogName(folder: CatalogFolder) {
-    return catalogPath(folder)
+  function renameFolder(folder: Folder) {
+    closeFloatingDialogs()
+    actionError.value = null
+    renamingFolder.value = folder
+    renameFolderName.value = folder.name
+    showRenameFolderDialog.value = true
+  }
+
+  function moveFolder(folder: Folder) {
+    void openMoveDialog(null, folder)
+  }
+
+  function deleteFolder(folder: Folder, anchor: MenuAnchor) {
+    openDeleteDialog(folder, null, anchor)
+  }
+
+  function folderName(folder: Folder) {
+    return folderPath(folder)
       .map((item) => item.name)
       .join(' / ')
   }
 
-  function catalogPath(folder: CatalogFolder) {
-    const byId = new Map(catalogStore.catalogFolders.map((item) => [item.id, item]))
-    const path: CatalogFolder[] = []
-    let current: CatalogFolder | undefined = folder
+  function folderPath(folder: Folder) {
+    const byId = new Map(folderStore.allFolders.map((item) => [item.id, item]))
+    const path: Folder[] = []
+    let current: Folder | undefined = folder
 
     while (current) {
       path.unshift(current)
@@ -187,15 +257,14 @@ export function useLibraryView() {
 
   const moveDestinationOptions = computed(() => {
     const currentDestinationId =
-      pendingMoveFolder.value?.parentId ?? pendingMoveItem.value?.catalogId ?? null
-    const folderOptions = catalogStore.catalogFolders
+      pendingMoveFolder.value?.parentId ?? pendingMoveItem.value?.folderId ?? null
+    const folderOptions = folderStore.allFolders
       .filter((folder) => !pendingMoveExcludedIds.value.has(folder.id))
       .map((folder) => ({ id: folder.id as number | null, folder }))
 
-    return [
-      { id: null as number | null, folder: null as CatalogFolder | null },
-      ...folderOptions,
-    ].filter((option) => option.id !== currentDestinationId)
+    return [{ id: null as number | null, folder: null as Folder | null }, ...folderOptions].filter(
+      (option) => option.id !== currentDestinationId,
+    )
   })
 
   const movingSubjectName = computed(() => {
@@ -209,7 +278,7 @@ export function useLibraryView() {
   })
 
   const deletingSubjectType = computed(() => {
-    if (deletingFolder.value) return 'Catalog'
+    if (deletingFolder.value) return 'Folder'
     if (deletingMedia.value && 'pageCount' in deletingMedia.value) return 'Manga_Archive'
     if (deletingMedia.value) return 'Video_Stream'
     return 'Object'
@@ -217,7 +286,7 @@ export function useLibraryView() {
 
   const deletingImpactText = computed(() => {
     if (deletingFolder.value) {
-      return 'Deletes this catalog and child catalogs. Media inside becomes uncataloged.'
+      return 'Deletes this folder and its subfolders. Media inside moves to the library root.'
     }
 
     if (deletingMedia.value && 'pageCount' in deletingMedia.value) {
@@ -236,15 +305,15 @@ export function useLibraryView() {
     }
   })
 
-  function breadcrumbKey(folder: CatalogFolder | null) {
+  function breadcrumbKey(folder: Folder | null) {
     return folder ? `folder-${folder.id}` : 'root'
   }
 
-  function breadcrumbParts(folder: CatalogFolder | null) {
-    return folder ? catalogPath(folder) : []
+  function breadcrumbParts(folder: Folder | null) {
+    return folder ? folderPath(folder) : []
   }
 
-  function visibleBreadcrumbParts(folder: CatalogFolder | null) {
+  function visibleBreadcrumbParts(folder: Folder | null) {
     const parts = breadcrumbParts(folder)
     const key = breadcrumbKey(folder)
 
@@ -252,11 +321,11 @@ export function useLibraryView() {
     return parts.slice(-2)
   }
 
-  function isBreadcrumbCollapsed(folder: CatalogFolder | null) {
+  function isBreadcrumbCollapsed(folder: Folder | null) {
     return breadcrumbParts(folder).length > visibleBreadcrumbParts(folder).length
   }
 
-  function toggleBreadcrumb(folder: CatalogFolder | null) {
+  function toggleBreadcrumb(folder: Folder | null) {
     const key = breadcrumbKey(folder)
     const next = new Set(expandedBreadcrumbs.value)
 
@@ -271,15 +340,34 @@ export function useLibraryView() {
 
   async function openMoveDialog(
     item: MangaRow | AudioRow | VideoRow | null,
-    folder: CatalogFolder | null,
-    excludedIds = new Set<number>(),
+    folder: Folder | null,
   ) {
-    await catalogStore.fetchAll()
-    pendingMoveItem.value = item
-    pendingMoveFolder.value = folder
-    pendingMoveExcludedIds.value = excludedIds
-    expandedBreadcrumbs.value = new Set()
-    showMoveDialog.value = true
+    await performAction(async () => {
+      await folderStore.fetchAll()
+      pendingMoveItem.value = item
+      pendingMoveFolder.value = folder
+      const excludedIds = new Set<number>()
+      if (folder) {
+        excludedIds.add(folder.id)
+        let changed = true
+        while (changed) {
+          changed = false
+          for (const item of folderStore.allFolders) {
+            if (
+              item.parentId !== null &&
+              excludedIds.has(item.parentId) &&
+              !excludedIds.has(item.id)
+            ) {
+              excludedIds.add(item.id)
+              changed = true
+            }
+          }
+        }
+      }
+      pendingMoveExcludedIds.value = excludedIds
+      expandedBreadcrumbs.value = new Set()
+      showMoveDialog.value = true
+    })
   }
 
   function closeMoveDialog() {
@@ -290,31 +378,33 @@ export function useLibraryView() {
     expandedBreadcrumbs.value = new Set()
   }
 
-  async function selectMoveDestination(catalogId: number | null) {
-    if (pendingMoveFolder.value) {
-      await catalogStore.updateFolder(
-        pendingMoveFolder.value.id,
-        pendingMoveFolder.value.name,
-        catalogId,
-      )
-      await catalogStore.fetchChildren(currentCatalogId.value)
+  async function selectMoveDestination(folderId: number | null) {
+    await performAction(async () => {
+      if (pendingMoveFolder.value) {
+        await folderStore.updateFolder(
+          pendingMoveFolder.value.id,
+          pendingMoveFolder.value.name,
+          folderId,
+        )
+        await folderStore.fetchChildren(currentFolderId.value)
+        closeMoveDialog()
+        return
+      }
+
+      const item = pendingMoveItem.value
+      if (!item) return
+
+      if ('pageCount' in item) {
+        await mangaStore.moveManga(item.id, folderId)
+      } else if ('artist' in item) {
+        await audioStore.moveAudio(item.id, folderId)
+      } else {
+        await videoStore.moveVideo(item.id, folderId)
+      }
+
+      await folderStore.fetchChildren(currentFolderId.value)
       closeMoveDialog()
-      return
-    }
-
-    const item = pendingMoveItem.value
-    if (!item) return
-
-    if ('pageCount' in item) {
-      await mangaStore.moveManga(item.id, catalogId)
-    } else if ('artist' in item) {
-      await audioStore.moveAudio(item.id, catalogId)
-    } else {
-      await videoStore.moveVideo(item.id, catalogId)
-    }
-
-    await catalogStore.fetchChildren(currentCatalogId.value)
-    closeMoveDialog()
+    })
   }
 
   function handleMangaClick(item: MangaRow | AudioRow | VideoRow) {
@@ -351,9 +441,9 @@ export function useLibraryView() {
     if (
       showActionDialog.value ||
       showUploadDialog.value ||
-      showCatalogDialog.value ||
-      showRenameCatalogDialog.value ||
-      showDeleteCatalogDialog.value
+      showFolderDialog.value ||
+      showRenameFolderDialog.value ||
+      showDeleteFolderDialog.value
     ) {
       closeFloatingDialogs()
       return
@@ -365,106 +455,109 @@ export function useLibraryView() {
   function closeFloatingDialogs() {
     closeActionDialog()
     closeUploadDialog()
-    closeCatalogDialog()
-    closeRenameCatalogDialog()
-    closeDeleteCatalogDialog()
-  }
-
-  function openUploadDialog() {
-    closeCatalogDialog()
-    closeRenameCatalogDialog()
-    closeDeleteCatalogDialog()
-    showUploadDialog.value = true
+    closeFolderDialog()
+    closeRenameFolderDialog()
+    closeDeleteFolderDialog()
   }
 
   function closeUploadDialog() {
     showUploadDialog.value = false
   }
 
-  function openCatalogDialog() {
+  function openFolderDialog() {
+    actionError.value = null
     closeUploadDialog()
-    closeRenameCatalogDialog()
-    closeDeleteCatalogDialog()
-    showCatalogDialog.value = true
+    closeRenameFolderDialog()
+    closeDeleteFolderDialog()
+    showFolderDialog.value = true
   }
 
-  function closeCatalogDialog() {
-    showCatalogDialog.value = false
-    newCatalogName.value = ''
+  function closeFolderDialog() {
+    showFolderDialog.value = false
+    newFolderName.value = ''
   }
 
-  function closeRenameCatalogDialog() {
-    showRenameCatalogDialog.value = false
-    renameCatalogName.value = ''
+  function closeRenameFolderDialog() {
+    showRenameFolderDialog.value = false
+    renameFolderName.value = ''
     renamingFolder.value = null
   }
 
   function openDeleteDialog(
-    folder: CatalogFolder | null,
+    folder: Folder | null,
     media: MangaRow | VideoRow | null,
     anchor: MenuAnchor,
   ) {
+    actionError.value = null
     closeUploadDialog()
-    closeCatalogDialog()
-    closeRenameCatalogDialog()
+    closeFolderDialog()
+    closeRenameFolderDialog()
     deletingFolder.value = folder
     deletingMedia.value = media
     deleteDialogAnchor.value = anchor
-    showDeleteCatalogDialog.value = true
+    showDeleteFolderDialog.value = true
   }
 
-  function closeDeleteCatalogDialog() {
-    showDeleteCatalogDialog.value = false
+  function closeDeleteFolderDialog() {
+    showDeleteFolderDialog.value = false
     deletingFolder.value = null
     deletingMedia.value = null
     deleteDialogAnchor.value = null
   }
 
   function openFilePicker() {
+    closeFloatingDialogs()
     fileInputRef.value?.click()
   }
 
-  async function createFolderFromCatalogDialog() {
-    await createFolder(newCatalogName.value)
-    closeFloatingDialogs()
+  async function createFolderFromDialog() {
+    await performAction(async () => {
+      await createFolder(newFolderName.value)
+      closeFloatingDialogs()
+    })
   }
 
-  async function renameFolderFromCatalogDialog() {
-    const folder = renamingFolder.value
-    const name = renameCatalogName.value.trim()
-    if (!folder || !name || name === folder.name) {
-      closeRenameCatalogDialog()
-      return
-    }
+  async function renameFolderFromDialog() {
+    await performAction(async () => {
+      const folder = renamingFolder.value
+      const name = renameFolderName.value.trim()
+      if (!folder || !name || name === folder.name) {
+        closeRenameFolderDialog()
+        return
+      }
 
-    await catalogStore.updateFolder(folder.id, name, folder.parentId)
-    await catalogStore.fetchChildren(currentCatalogId.value)
-    closeRenameCatalogDialog()
+      await folderStore.updateFolder(folder.id, name, folder.parentId)
+      await folderStore.fetchChildren(currentFolderId.value)
+      closeRenameFolderDialog()
+    })
   }
 
-  async function deleteFromCatalogDialog() {
-    if (deletingFolder.value) {
-      await catalogStore.deleteFolder(deletingFolder.value.id)
-      await Promise.all([
-        catalogStore.fetchChildren(currentCatalogId.value),
-        mangaStore.fetchLibrary(),
-        audioStore.fetchLibrary(),
-        videoStore.fetchLibrary(),
-      ])
-      closeDeleteCatalogDialog()
-      return
-    }
+  async function deleteFromFolderDialog() {
+    await performAction(async () => {
+      if (deletingFolder.value) {
+        await folderStore.deleteFolder(deletingFolder.value.id)
+        await Promise.all([
+          folderStore.fetchChildren(currentFolderId.value),
+          folderStore.fetchAll(),
+          mangaStore.fetchLibrary(),
+          audioStore.fetchLibrary(),
+          videoStore.fetchLibrary(),
+        ])
+        closeDeleteFolderDialog()
+        return
+      }
 
-    if (deletingMedia.value && 'pageCount' in deletingMedia.value) {
-      await mangaStore.removeManga(deletingMedia.value.id)
-      closeDeleteCatalogDialog()
-      return
-    }
+      if (deletingMedia.value && 'pageCount' in deletingMedia.value) {
+        await mangaStore.removeManga(deletingMedia.value.id)
+        closeDeleteFolderDialog()
+        return
+      }
 
-    if (deletingMedia.value) {
-      await videoStore.removeVideo(deletingMedia.value.id)
-      closeDeleteCatalogDialog()
-    }
+      if (deletingMedia.value) {
+        await videoStore.removeVideo(deletingMedia.value.id)
+        closeDeleteFolderDialog()
+      }
+    })
   }
 
   function openTransfersPanel() {
@@ -477,7 +570,7 @@ export function useLibraryView() {
   }
 
   function handleFilesSelected(files: File[]) {
-    uploadStore.enqueue(files, currentCatalogId.value)
+    uploadStore.enqueue(files, currentFolderId.value)
   }
 
   function handleFileInputChange(event: Event) {
@@ -485,6 +578,7 @@ export function useLibraryView() {
     if (!target.files || target.files.length === 0) return
 
     handleFilesSelected(Array.from(target.files))
+    showUploadDialog.value = true
     target.value = ''
   }
 
@@ -504,7 +598,8 @@ export function useLibraryView() {
         mangaStore.fetchLibrary(),
         audioStore.fetchLibrary(),
         videoStore.fetchLibrary(),
-        catalogStore.fetchChildren(currentCatalogId.value),
+        folderStore.fetchChildren(currentFolderId.value),
+        folderStore.fetchAll(),
       ])
     })
     uploadStore.processAll()
@@ -517,9 +612,9 @@ export function useLibraryView() {
     if (
       showActionDialog.value ||
       showUploadDialog.value ||
-      showCatalogDialog.value ||
-      showRenameCatalogDialog.value ||
-      showDeleteCatalogDialog.value
+      showFolderDialog.value ||
+      showRenameFolderDialog.value ||
+      showDeleteFolderDialog.value
     ) {
       closeFloatingDialogs()
     }
@@ -538,20 +633,24 @@ export function useLibraryView() {
     audioStore,
     videoStore,
     uploadStore,
-    catalogStore,
-    selectedTab,
-    mangaSearch,
+    folderStore,
+    mediaFilter,
+    searchQuery,
+    scrollContainer,
+    actionError,
+    actionPending,
     showActionDialog,
     showUploadDialog,
-    showCatalogDialog,
-    showRenameCatalogDialog,
-    showDeleteCatalogDialog,
+    showFolderDialog,
+    showRenameFolderDialog,
+    showDeleteFolderDialog,
     showTransfersPanel,
     showMoveDialog,
     fileInputRef,
-    newCatalogInputRef,
-    newCatalogName,
-    renameCatalogName,
+    newFolderInputRef,
+    renameFolderInputRef,
+    newFolderName,
+    renameFolderName,
     renamingFolder,
     deletingFolder,
     deletingMedia,
@@ -561,6 +660,10 @@ export function useLibraryView() {
     filteredAudio,
     filteredVideo,
     totalMedia,
+    currentFolder,
+    folderCoverChapters,
+    filteredFolders,
+    clearFilters,
     hasVisibleMedia,
     floatingButtonsBottomClass,
     moveDestinationOptions,
@@ -571,7 +674,7 @@ export function useLibraryView() {
     deleteDialogStyle,
     openFolder,
     openRoot,
-    catalogName,
+    folderName,
     breadcrumbKey,
     breadcrumbParts,
     visibleBreadcrumbParts,
@@ -585,22 +688,24 @@ export function useLibraryView() {
     playAudio,
     openVideo,
     moveMedia,
+    renameFolder,
+    moveFolder,
+    deleteFolder,
     deleteManga,
     deleteVideo,
     openActionDialog,
     closeActionDialog,
     toggleActionDialog,
     closeFloatingDialogs,
-    openUploadDialog,
-    openCatalogDialog,
-    closeCatalogDialog,
-    closeRenameCatalogDialog,
+    openFolderDialog,
+    closeFolderDialog,
+    closeRenameFolderDialog,
     openDeleteDialog,
-    closeDeleteCatalogDialog,
+    closeDeleteFolderDialog,
     openFilePicker,
-    createFolderFromCatalogDialog,
-    renameFolderFromCatalogDialog,
-    deleteFromCatalogDialog,
+    createFolderFromDialog,
+    renameFolderFromDialog,
+    deleteFromFolderDialog,
     openTransfersPanel,
     closeTransfersPanel,
     handleFileInputChange,

@@ -28,7 +28,7 @@ export interface MangaRelease {
 
 export interface MangaRow extends MangaRelease {
   id: number
-  catalogId: number | null
+  folderId: number | null
   title: string
   path: string
   pageCount: number
@@ -39,7 +39,7 @@ export interface MangaRow extends MangaRelease {
 
 export interface MangaInfo extends MangaRelease {
   id: number
-  catalogId: number | null
+  folderId: number | null
   title: string
   path: string
   pageCount: number
@@ -56,7 +56,7 @@ export interface MangaPage {
 
 export interface AudioRow {
   id: number
-  catalogId: number | null
+  folderId: number | null
   title: string
   artist: string
   album: string
@@ -66,7 +66,7 @@ export interface AudioRow {
 
 export interface VideoRow {
   id: number
-  catalogId: number | null
+  folderId: number | null
   title: string
   duration: number
   width: number
@@ -79,7 +79,7 @@ export interface VideoRow {
 
 export interface VideoInfo {
   id: number
-  catalogId: number | null
+  folderId: number | null
   title: string
   path: string
   duration: number
@@ -100,16 +100,16 @@ export interface VideoStateUpdate {
   lastError: string
 }
 
-export interface CatalogFolder {
+export interface Folder {
   id: number
   parentId: number | null
   name: string
   objectCount: number
 }
 
-export interface CatalogListResponse {
-  items: CatalogFolder[]
-  path: CatalogFolder[]
+export interface FolderListResponse {
+  items: Folder[]
+  path: Folder[]
 }
 
 export interface AudioLibraryResponse {

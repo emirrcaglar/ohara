@@ -1,63 +1,33 @@
 <script setup lang="ts">
-import type { CatalogFolder } from '../types/api'
-
-type LibraryTab = 'ALL' | 'CBZ' | 'AUDIO' | 'VIDEO'
-
 defineProps<{
-  totalManga?: number
-  modelValue?: LibraryTab
-  catalogs?: CatalogFolder[]
+  title: string
+  folderCount: number
+  mediaCount: number
 }>()
-
-defineEmits<{
-  'update:modelValue': [value: LibraryTab]
-  openCatalog: [folder: CatalogFolder]
-}>()
-
-const tabs = ['ALL', 'CBZ', 'AUDIO', 'VIDEO'] as const
+defineEmits<{ createFolder: [] }>()
 </script>
 
 <template>
-  <div class="flex flex-wrap items-end justify-between gap-4 mb-4 md:mb-6">
-    <div>
-      <div class="flex flex-wrap items-start gap-2">
-        <button
-          v-for="tab in tabs"
-          :key="tab"
-          @click="$emit('update:modelValue', tab)"
-          class="px-3 md:px-6 py-2 font-bold text-xs uppercase transition-colors"
-          :class="
-            modelValue === tab
-              ? 'bg-primary-container text-on-primary-container'
-              : 'bg-surface-hover text-secondary hover:text-on-surface'
-          "
-        >
-          {{ tab }}
-        </button>
-
-        <button
-          v-for="catalog in catalogs"
-          :key="catalog.id"
-          class="flex items-center gap-2 bg-surface-hover px-3 py-2 text-xs font-bold uppercase leading-none text-primary-container transition-colors hover:text-on-surface md:px-6"
-          type="button"
-          @click="$emit('openCatalog', catalog)"
-        >
-          <span>{{ catalog.name }}</span>
-          <span
-            class="flex h-4 w-4 shrink-0 items-center justify-center rounded-full font-mono text-xs font-black leading-none text-primary-container"
-          >
-            -{{ catalog.objectCount }}-
-          </span>
-        </button>
-      </div>
-    </div>
-    <div class="text-right hidden sm:block">
-      <p class="text-[10px] text-secondary font-bold uppercase tracking-widest mb-1">
-        Index_Status
-      </p>
-      <p class="text-2xl font-mono text-on-surface">
-        {{ totalManga?.toLocaleString() || 0 }} <span class="text-sm text-outline">UNITS</span>
+  <header class="mb-5 flex flex-wrap items-center justify-between gap-4">
+    <div class="min-w-0">
+      <h1
+        class="break-words text-2xl font-bold uppercase leading-tight tracking-tight text-on-surface md:text-3xl"
+      >
+        {{ title }}
+      </h1>
+      <p class="mt-1 text-xs text-on-surface-variant">
+        {{ folderCount.toLocaleString() }} folders <span class="mx-1" aria-hidden="true">/</span>
+        {{ mediaCount.toLocaleString() }} files
       </p>
     </div>
-  </div>
+    <button
+      type="button"
+      class="flex min-h-10 shrink-0 items-center gap-2 bg-surface-container-high px-3 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-highest focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      @click="$emit('createFolder')"
+    >
+      <span class="material-symbols-outlined text-lg text-primary" aria-hidden="true"
+        >create_new_folder</span
+      >New folder
+    </button>
+  </header>
 </template>

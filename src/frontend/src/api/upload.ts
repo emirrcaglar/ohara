@@ -3,7 +3,7 @@ import { API_BASE, fetchJson } from './client'
 export interface UploadResponse {
   success: boolean
   filename: string
-  catalogId: number | null
+  folderId: number | null
   indexing?: string
 }
 
@@ -14,7 +14,7 @@ interface ChunkedUploadInitResponse {
   uploadedChunks: number[]
   status: string
   resumed: boolean
-  catalogId: number | null
+  folderId: number | null
 }
 
 export interface PendingUpload {
@@ -29,7 +29,7 @@ export interface PendingUpload {
   complete: boolean
   createdAt: string
   updatedAt: string
-  catalogId: number | null
+  folderId: number | null
 }
 
 interface PendingUploadsResponse {
@@ -52,7 +52,7 @@ export async function cancelUpload(uploadId: string): Promise<void> {
 export async function uploadFile(
   file: File,
   metadataProfile: string,
-  catalogId: number | null,
+  folderId: number | null,
   onProgress?: (progress: number) => void,
   onUploadId?: (uploadId: string) => void,
   signal?: AbortSignal,
@@ -65,7 +65,7 @@ export async function uploadFile(
       size: file.size,
       profile: metadataProfile,
       lastModified: file.lastModified,
-      catalogId,
+      folderId,
     }),
   })
 

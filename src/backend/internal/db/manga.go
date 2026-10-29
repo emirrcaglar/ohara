@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"ohara/src/internal/media/manga"
@@ -11,7 +12,7 @@ import (
 type MangaRow struct {
 	ID            int64
 	Path          string
-	CatalogID     *int64
+	FolderID      *int64
 	Title         string
 	PageCount     int
 	Progress      int
@@ -41,7 +42,7 @@ func (db *DB) IndexedMangaPaths() (map[string]struct{}, error) {
 
 func (db *DB) ListManga(userID int64) ([]MangaRow, error) {
 	rows, err := db.Query(`
-		SELECT m.id, m.path, m.catalog_id, m.title, m.page_count, COALESCE(p.page, 0), p.updated_at,
+		SELECT m.id, m.path, m.folder_id, m.title, m.page_count, COALESCE(p.page, 0), p.updated_at,
 		       m.series_title, m.metadata_json, m.parser_version
 		FROM manga m
 		LEFT JOIN manga_progress p ON p.manga_id = m.id AND p.user_id = ?
@@ -55,17 +56,17 @@ func (db *DB) ListManga(userID int64) ([]MangaRow, error) {
 	var list []MangaRow
 	for rows.Next() {
 		var m MangaRow
-		var catalogID sql.NullInt64
+		var folderID sql.NullInt64
 		var metadataJSON string
-		if err := rows.Scan(&m.ID, &m.Path, &catalogID, &m.Title, &m.PageCount, &m.Progress, &m.UpdatedAt,
+		if err := rows.Scan(&m.ID, &m.Path, &folderID, &m.Title, &m.PageCount, &m.Progress, &m.UpdatedAt,
 			&m.SeriesTitle, &metadataJSON, &m.ParserVersion); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal([]byte(metadataJSON), &m.Metadata); err != nil {
 			return nil, err
 		}
-		if catalogID.Valid {
-			m.CatalogID = &catalogID.Int64
+		if folderID.Valid {
+			m.FolderID = &folderID.Int64
 		}
 		list = append(list, m)
 	}
@@ -73,11 +74,11 @@ func (db *DB) ListManga(userID int64) ([]MangaRow, error) {
 }
 
 func (db *DB) GetMangaByID(id int64) (*MangaRow, error) {
-	row := db.QueryRow(`SELECT id, path, catalog_id, title, page_count, series_title, metadata_json, parser_version FROM manga WHERE id = ?`, id)
+	row := db.QueryRow(`SELECT id, path, folder_id, title, page_count, series_title, metadata_json, parser_version FROM manga WHERE id = ?`, id)
 	var m MangaRow
-	var catalogID sql.NullInt64
+	var folderID sql.NullInt64
 	var metadataJSON string
-	if err := row.Scan(&m.ID, &m.Path, &catalogID, &m.Title, &m.PageCount, &m.SeriesTitle, &metadataJSON, &m.ParserVersion); err != nil {
+	if err := row.Scan(&m.ID, &m.Path, &folderID, &m.Title, &m.PageCount, &m.SeriesTitle, &metadataJSON, &m.ParserVersion); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -86,8 +87,8 @@ func (db *DB) GetMangaByID(id int64) (*MangaRow, error) {
 	if err := json.Unmarshal([]byte(metadataJSON), &m.Metadata); err != nil {
 		return nil, err
 	}
-	if catalogID.Valid {
-		m.CatalogID = &catalogID.Int64
+	if folderID.Valid {
+		m.FolderID = &folderID.Int64
 	}
 	return &m, nil
 }
@@ -114,37 +115,80 @@ func (db *DB) UpsertMangaProgress(userID, mangaID int64, page int) error {
 }
 
 func (db *DB) InsertManga(path, title string, pageCount int) (int64, error) {
-	return db.InsertMangaWithCatalog(path, title, pageCount, nil)
+	return db.InsertMangaWithFolder(path, title, pageCount, nil)
 }
 
-func (db *DB) InsertMangaWithCatalog(path, title string, pageCount int, catalogID *int64) (int64, error) {
-	return db.InsertMangaWithMetadata(path, title, pageCount, catalogID, "", nil, "")
+func (db *DB) InsertMangaWithFolder(path, title string, pageCount int, folderID *int64) (int64, error) {
+	return db.InsertMangaWithMetadata(path, title, pageCount, folderID, "", nil, "")
 }
 
-func (db *DB) InsertMangaWithMetadata(path, title string, pageCount int, catalogID *int64, seriesTitle string, metadata *manga.Metadata, parserVersion string) (int64, error) {
+func (db *DB) InsertMangaWithMetadata(path, title string, pageCount int, folderID *int64, seriesTitle string, metadata *manga.Metadata, parserVersion string) (int64, error) {
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return 0, err
 	}
-	// RETURNING avoids a stale LastInsertId when an existing path is imported again.
-	var id int64
-	err = db.QueryRow(`
-		INSERT INTO manga (path, title, page_count, catalog_id, series_title, metadata_json, parser_version)
-		VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(path) DO NOTHING RETURNING id
-	`, path, title, pageCount, catalogID, seriesTitle, string(metadataJSON), parserVersion).Scan(&id)
-	if err == sql.ErrNoRows {
-		err = db.QueryRow(`SELECT id FROM manga WHERE path = ?`, path).Scan(&id)
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, err
 	}
+	defer tx.Rollback()
+
+	// Re-imports preserve manual placement and must not create unused folders.
+	var id int64
+	err = tx.QueryRow(`SELECT id FROM manga WHERE path = ?`, path).Scan(&id)
+	if err == nil {
+		return id, tx.Commit()
+	}
+	if err != sql.ErrNoRows {
+		return 0, err
+	}
+
+	if name := strings.TrimSpace(seriesTitle); name != "" {
+		seriesFolderID, err := mangaSeriesFolder(tx, folderID, name)
+		if err != nil {
+			return 0, err
+		}
+		folderID = &seriesFolderID
+	}
+
+	err = tx.QueryRow(`
+		INSERT INTO manga (path, title, page_count, folder_id, series_title, metadata_json, parser_version)
+		VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
+	`, path, title, pageCount, folderID, seriesTitle, string(metadataJSON), parserVersion).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id, tx.Commit()
+}
+
+// mangaSeriesFolder groups releases within their import destination. Importing
+// directly into a matching series folder must not create another nested copy.
+func mangaSeriesFolder(tx *sql.Tx, parentID *int64, name string) (int64, error) {
+	if parentID != nil {
+		var parentName string
+		if err := tx.QueryRow(`SELECT name FROM folder WHERE id = ?`, *parentID).Scan(&parentName); err != nil {
+			return 0, err
+		}
+		if parentName == name {
+			return *parentID, nil
+		}
+	}
+
+	if _, err := tx.Exec(`INSERT INTO folder (parent_id, name) VALUES (?, ?) ON CONFLICT DO NOTHING`, parentID, name); err != nil {
+		return 0, err
+	}
+	var id int64
+	err := tx.QueryRow(`SELECT id FROM folder WHERE parent_id IS ? AND name = ?`, parentID, name).Scan(&id)
 	return id, err
 }
 
-func (db *DB) UpdateMangaCatalog(id int64, catalogID *int64) error {
-	if catalogID == nil {
-		_, err := db.Exec(`UPDATE manga SET catalog_id = NULL WHERE id = ?`, id)
+func (db *DB) UpdateMangaFolder(id int64, folderID *int64) error {
+	if folderID == nil {
+		_, err := db.Exec(`UPDATE manga SET folder_id = NULL WHERE id = ?`, id)
 		return err
 	}
 
-	_, err := db.Exec(`UPDATE manga SET catalog_id = ? WHERE id = ?`, *catalogID, id)
+	_, err := db.Exec(`UPDATE manga SET folder_id = ? WHERE id = ?`, *folderID, id)
 	return err
 }
 

@@ -15,10 +15,10 @@ export async function saveMangaProgress(id: number, page: number): Promise<void>
   })
 }
 
-export async function moveMangaToCatalog(id: number, catalogId: number | null): Promise<void> {
-  await fetchJson<void>(`${API_BASE}/manga/${id}/catalog`, {
+export async function moveMangaToFolder(id: number, folderId: number | null): Promise<void> {
+  await fetchJson<void>(`${API_BASE}/manga/${id}/folder`, {
     method: 'PUT',
-    body: JSON.stringify({ catalogId }),
+    body: JSON.stringify({ folderId }),
   })
 }
 
@@ -31,4 +31,8 @@ export async function deleteManga(id: number): Promise<void> {
 export function getMangaPageUrl(id: number, page: number): string {
   // Distinguish originals from JPEG responses cached under the previous URL.
   return `${API_BASE}/manga/${id}/page/${page}?representation=original`
+}
+
+export function getMangaCoverUrl(id: number): string {
+  return `${API_BASE}/manga/${id}/cover`
 }

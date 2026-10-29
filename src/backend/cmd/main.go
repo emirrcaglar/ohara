@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"os"
 	"time"
 
+	"ohara/src/internal/covers"
 	"ohara/src/internal/db"
 	"ohara/src/internal/logger"
 	"ohara/src/internal/router"
@@ -36,6 +38,18 @@ func main() {
 			log.Info("[main] deployment recorded deployed_at=%s", deployedAt)
 		}
 	}
+
+	coverCache := covers.New(dataDir)
+	ctx, cancel := context.WithCancel(context.Background())
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		coverCache.Run(ctx, database, log)
+	}()
+	defer func() {
+		cancel()
+		<-workerDone
+	}()
 
 	r := router.SetupRoutes(database, dataDir, log)
 

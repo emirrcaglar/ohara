@@ -16,10 +16,10 @@ export async function saveVideoState(id: number, state: VideoStateUpdate): Promi
   })
 }
 
-export async function moveVideoToCatalog(id: number, catalogId: number | null): Promise<void> {
-  await fetchJson<void>(`${API_BASE}/video/${id}/catalog`, {
+export async function moveVideoToFolder(id: number, folderId: number | null): Promise<void> {
+  await fetchJson<void>(`${API_BASE}/video/${id}/folder`, {
     method: 'PUT',
-    body: JSON.stringify({ catalogId }),
+    body: JSON.stringify({ folderId }),
   })
 }
 

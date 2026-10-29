@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"ohara/src/internal/covers"
 	"ohara/src/internal/db"
 	"ohara/src/internal/handler"
 	"ohara/src/internal/logger"
@@ -60,7 +61,7 @@ func WithRole(role string, log *logger.Logger, next http.HandlerFunc) http.Handl
 func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handler {
 	mux := http.DefaultServeMux
 
-	mangaHandler := &handler.MangaHandler{DB: database, Log: log}
+	mangaHandler := &handler.MangaHandler{DB: database, Log: log, Covers: covers.New(dataDir)}
 	audioHandler := &handler.AudioHandler{DB: database, Log: log}
 	videoHandler := &handler.VideoHandler{DB: database, Log: log}
 	logHandler := &handler.LogHandler{Logger: log}
@@ -68,7 +69,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	adminHandler := &handler.AdminHandler{DB: database, Log: log}
 	preferencesHandler := &handler.PreferencesHandler{DB: database, Log: log}
 	deploymentHandler := &handler.DeploymentHandler{DB: database, Log: log}
-	catalogHandler := &handler.CatalogHandler{DB: database, Log: log}
+	folderHandler := &handler.FolderHandler{DB: database, Log: log}
 
 	mediaScanner := scanner.NewScanner(database, log)
 	uploadHandler := handler.NewUploadHandler(database, mediaScanner, log, dataDir)
@@ -88,29 +89,30 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	mux.HandleFunc("GET /api/manga", WithAuth(database, log, mangaHandler.HandleMangaList))
 	mux.HandleFunc("GET /api/audio", WithAuth(database, log, audioHandler.HandleAudioList))
 	mux.HandleFunc("GET /api/video", WithAuth(database, log, videoHandler.HandleVideoList))
-	mux.HandleFunc("GET /api/catalog", WithAuth(database, log, catalogHandler.HandleCatalogList))
-	mux.HandleFunc("POST /api/catalog", WithAuth(database, log, catalogHandler.HandleCatalogCreate))
-	mux.HandleFunc("GET /api/catalog/all", WithAuth(database, log, catalogHandler.HandleCatalogAll))
-	mux.HandleFunc("GET /api/catalog/{id}", WithAuth(database, log, catalogHandler.HandleCatalogGet))
-	mux.HandleFunc("PUT /api/catalog/{id}", WithAuth(database, log, catalogHandler.HandleCatalogUpdate))
-	mux.HandleFunc("DELETE /api/catalog/{id}", WithAuth(database, log, catalogHandler.HandleCatalogDelete))
+	mux.HandleFunc("GET /api/folder", WithAuth(database, log, folderHandler.HandleFolderList))
+	mux.HandleFunc("POST /api/folder", WithAuth(database, log, folderHandler.HandleFolderCreate))
+	mux.HandleFunc("GET /api/folder/all", WithAuth(database, log, folderHandler.HandleFolderAll))
+	mux.HandleFunc("GET /api/folder/{id}", WithAuth(database, log, folderHandler.HandleFolderGet))
+	mux.HandleFunc("PUT /api/folder/{id}", WithAuth(database, log, folderHandler.HandleFolderUpdate))
+	mux.HandleFunc("DELETE /api/folder/{id}", WithAuth(database, log, folderHandler.HandleFolderDelete))
 
 	mux.HandleFunc("GET /api/preferences", WithAuth(database, log, preferencesHandler.HandlePreferencesList))
 	mux.HandleFunc("GET /api/preferences/{key}", WithAuth(database, log, preferencesHandler.HandlePreferenceGet))
 	mux.HandleFunc("PUT /api/preferences/{key}", WithAuth(database, log, preferencesHandler.HandlePreferenceUpsert))
 	mux.HandleFunc("DELETE /api/preferences/{key}", WithAuth(database, log, preferencesHandler.HandlePreferenceDelete))
 
-	mux.HandleFunc("PUT /api/manga/{id}/catalog", WithAuth(database, log, mangaHandler.HandleMangaCatalogUpdate))
+	mux.HandleFunc("PUT /api/manga/{id}/folder", WithAuth(database, log, mangaHandler.HandleMangaFolderUpdate))
 	mux.HandleFunc("DELETE /api/manga/{id}", WithAuth(database, log, mangaHandler.HandleMangaDelete))
 	mux.HandleFunc("GET /api/manga/{id}/resume", WithAuth(database, log, mangaHandler.HandleMangaResume))
 	mux.HandleFunc("GET /api/manga/{id}/page/{page}", WithAuth(database, log, mangaHandler.HandleMangaPage))
+	mux.HandleFunc("GET /api/manga/{id}/cover", WithAuth(database, log, mangaHandler.HandleMangaCover))
 	mux.HandleFunc("POST /api/manga/{id}/progress/{page}", WithAuth(database, log, mangaHandler.HandleMangaProgress))
 	mux.HandleFunc("GET /api/manga/{id}/info", WithAuth(database, log, mangaHandler.HandleMangaInfo))
 
-	mux.HandleFunc("PUT /api/audio/{id}/catalog", WithAuth(database, log, audioHandler.HandleAudioCatalogUpdate))
+	mux.HandleFunc("PUT /api/audio/{id}/folder", WithAuth(database, log, audioHandler.HandleAudioFolderUpdate))
 	mux.HandleFunc("GET /api/video/{id}/info", WithAuth(database, log, videoHandler.HandleVideoInfo))
 	mux.HandleFunc("PUT /api/video/{id}/state", WithAuth(database, log, videoHandler.HandleVideoState))
-	mux.HandleFunc("PUT /api/video/{id}/catalog", WithAuth(database, log, videoHandler.HandleVideoCatalogUpdate))
+	mux.HandleFunc("PUT /api/video/{id}/folder", WithAuth(database, log, videoHandler.HandleVideoFolderUpdate))
 	mux.HandleFunc("DELETE /api/video/{id}", WithAuth(database, log, videoHandler.HandleVideoDelete))
 
 	mux.HandleFunc("GET /audio/{id}/stream", WithAuth(database, log, audioHandler.HandleAudioStream))

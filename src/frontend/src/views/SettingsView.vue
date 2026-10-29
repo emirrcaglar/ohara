@@ -21,7 +21,7 @@ onMounted(() => {
 })
 
 async function toggleRightToLeftSwipeForManga() {
-  if (isLoadingPreferences.value || isSavingPreference.value) return
+  if (scrollReadingForManga.value || isLoadingPreferences.value || isSavingPreference.value) return
 
   isSavingPreference.value = true
 
@@ -161,64 +161,6 @@ async function toggleScrollReadingForManga() {
               type="button"
               class="w-full bg-surface-container-high p-6 text-left transition-colors hover:bg-surface-container-highest active:scale-[0.99]"
               role="switch"
-              :aria-checked="rightToLeftSwipeForManga"
-              aria-label="Right to left swipe for manga"
-              :disabled="isLoadingPreferences || isSavingPreference"
-              @click="toggleRightToLeftSwipeForManga"
-            >
-              <div class="flex h-full flex-col justify-between gap-8">
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <p
-                      class="font-body text-[10px] font-bold text-secondary uppercase tracking-widest"
-                    >
-                      SWIPE_DIRECTION
-                    </p>
-                    <p
-                      class="font-display mt-2 text-lg font-black text-on-surface uppercase tracking-tighter"
-                    >
-                      Right to left swipe for manga
-                    </p>
-                  </div>
-
-                  <div
-                    class="w-14 h-7 bg-surface-container-lowest p-1 flex transition-all duration-75 shrink-0"
-                    :class="rightToLeftSwipeForManga ? 'justify-end' : 'justify-start'"
-                  >
-                    <div
-                      class="w-5 h-5 transition-colors"
-                      :class="
-                        rightToLeftSwipeForManga ? 'bg-primary-container' : 'bg-outline-variant/40'
-                      "
-                    ></div>
-                  </div>
-                </div>
-
-                <div class="flex items-end justify-between gap-4">
-                  <span
-                    class="font-body text-[10px] text-on-surface-variant uppercase tracking-widest"
-                  >
-                    {{
-                      isLoadingPreferences
-                        ? 'LOADING'
-                        : isSavingPreference
-                          ? 'SYNCING'
-                          : rightToLeftSwipeForManga
-                            ? 'ENABLED'
-                            : 'DISABLED'
-                    }}
-                  </span>
-                  <span class="material-symbols-outlined text-primary-container">
-                    {{ rightToLeftSwipeForManga ? 'swipe_left' : 'swipe' }}
-                  </span>
-                </div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              class="w-full bg-surface-container-high p-6 text-left transition-colors hover:bg-surface-container-highest active:scale-[0.99]"
-              role="switch"
               :aria-checked="scrollReadingForManga"
               aria-label="Scroll reading for manga"
               :disabled="isLoadingPreferences || isSavingPreference"
@@ -268,6 +210,64 @@ async function toggleScrollReadingForManga() {
                   </span>
                   <span class="material-symbols-outlined text-primary-container">
                     {{ scrollReadingForManga ? 'vertical_align_bottom' : 'swipe' }}
+                  </span>
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              class="w-full bg-surface-container-high p-6 text-left transition-colors enabled:hover:bg-surface-container-highest enabled:active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+              role="switch"
+              :aria-checked="rightToLeftSwipeForManga"
+              aria-label="Right to left swipe for manga"
+              :disabled="scrollReadingForManga || isLoadingPreferences || isSavingPreference"
+              @click="toggleRightToLeftSwipeForManga"
+            >
+              <div class="flex h-full flex-col justify-between gap-8">
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <p
+                      class="font-body text-[10px] font-bold text-secondary uppercase tracking-widest"
+                    >
+                      SWIPE_DIRECTION
+                    </p>
+                    <p
+                      class="font-display mt-2 text-lg font-black text-on-surface uppercase tracking-tighter"
+                    >
+                      Right to left swipe for manga
+                    </p>
+                  </div>
+
+                  <div
+                    class="w-14 h-7 bg-surface-container-lowest p-1 flex transition-all duration-75 shrink-0"
+                    :class="rightToLeftSwipeForManga ? 'justify-end' : 'justify-start'"
+                  >
+                    <div
+                      class="w-5 h-5 transition-colors"
+                      :class="
+                        rightToLeftSwipeForManga ? 'bg-primary-container' : 'bg-outline-variant/40'
+                      "
+                    ></div>
+                  </div>
+                </div>
+
+                <div class="flex items-end justify-between gap-4">
+                  <span
+                    class="font-body text-[10px] text-on-surface-variant uppercase tracking-widest"
+                  >
+                    {{
+                      isLoadingPreferences
+                        ? 'LOADING'
+                        : isSavingPreference
+                          ? 'SYNCING'
+                          : rightToLeftSwipeForManga
+                            ? 'ENABLED'
+                            : 'DISABLED'
+                    }}
+                  </span>
+                  <span class="material-symbols-outlined text-primary-container">
+                    {{ rightToLeftSwipeForManga ? 'swipe_left' : 'swipe' }}
                   </span>
                 </div>
               </div>

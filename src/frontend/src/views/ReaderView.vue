@@ -16,7 +16,7 @@ const { rightToLeftSwipeForManga, scrollReadingForManga } = storeToRefs(preferen
 const mangaId = computed(() => Number(route.query.manga))
 const totalPages = ref(Number(route.query.total) || 0)
 
-const pageUrl = computed(() => getPageUrl(currentPage.value))
+const pageUrl = computed(() => getPageSrc(currentPage.value))
 
 function getPageUrl(page: number) {
   return getMangaPageUrl(mangaId.value, page)
@@ -33,7 +33,9 @@ const {
   goVisualLeft,
   goVisualRight,
   commitPage,
+  getPageSrc,
   getMobilePageSrc,
+  isPageInPrefetchWindow,
   showPageSkeleton,
   onMainImageLoaded,
   currentImageStyle,
@@ -49,6 +51,7 @@ const {
   totalPages,
   initialPage: Number(route.query.page) || 0,
   rightToLeftSwipe: rightToLeftSwipeForManga,
+  scrollReadingForManga,
   router,
   getPageUrl,
 })
@@ -182,7 +185,7 @@ const {
                 : '',
           ]"
           :style="getDesktopImageStyle(mobilePage.page)"
-          loading="lazy"
+          :loading="isPageInPrefetchWindow(mobilePage.page) ? 'eager' : 'lazy'"
           :fetchpriority="mobilePage.page === currentPage ? 'high' : 'low'"
           decoding="async"
           draggable="false"

@@ -27,7 +27,7 @@ func (h *AudioHandler) HandleAudioList(w http.ResponseWriter, r *http.Request) {
 	for _, t := range tracks {
 		items = append(items, AudioResponse{
 			ID:            t.ID,
-			CatalogID:     t.CatalogID,
+			FolderID:      t.FolderID,
 			Title:         t.Title,
 			Artist:        t.Artist,
 			Album:         t.Album,
@@ -47,7 +47,7 @@ func (h *AudioHandler) HandleAudioList(w http.ResponseWriter, r *http.Request) {
 
 type AudioResponse struct {
 	ID            int64  `json:"id"`
-	CatalogID     *int64 `json:"catalogId"`
+	FolderID      *int64 `json:"folderId"`
 	Title         string `json:"title"`
 	Artist        string `json:"artist"`
 	Album         string `json:"album"`
@@ -77,25 +77,25 @@ func (h *AudioHandler) audioByID(idStr string) (*db.AudioRow, int) {
 	return track, 0
 }
 
-func (h *AudioHandler) HandleAudioCatalogUpdate(w http.ResponseWriter, r *http.Request) {
+func (h *AudioHandler) HandleAudioFolderUpdate(w http.ResponseWriter, r *http.Request) {
 	track, status := h.audioByID(r.PathValue("id"))
 	if status != 0 {
 		http.Error(w, "Track not found", status)
 		return
 	}
 
-	var req MediaCatalogUpdateRequest
+	var req MediaFolderUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
-	if !validMediaCatalog(w, h.DB, req.CatalogID) {
+	if !validMediaFolder(w, h.DB, req.FolderID) {
 		return
 	}
 
-	if err := h.DB.UpdateAudioCatalog(track.ID, req.CatalogID); err != nil {
+	if err := h.DB.UpdateAudioFolder(track.ID, req.FolderID); err != nil {
 		if h.Log != nil {
-			h.Log.Error("[audio] catalog update failed audio=%d catalog=%v err=%v", track.ID, req.CatalogID, err)
+			h.Log.Error("[audio] folder update failed audio=%d folder=%v err=%v", track.ID, req.FolderID, err)
 		}
 		http.Error(w, "Failed to move audio", http.StatusInternalServerError)
 		return

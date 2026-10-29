@@ -5,7 +5,7 @@ import {
   deleteManga,
   fetchMangaInfo,
   fetchMangaLibrary,
-  moveMangaToCatalog,
+  moveMangaToFolder,
   saveMangaProgress,
 } from '../api/manga'
 import { compareManga } from '../utils/mangaMetadata'
@@ -52,15 +52,15 @@ export const useMangaStore = defineStore('manga', () => {
     }
   }
 
-  async function moveManga(id: number, catalogId: number | null) {
+  async function moveManga(id: number, folderId: number | null) {
     const item = items.value.find((m) => m.id === id)
-    const previousCatalogId = item?.catalogId
-    if (item) item.catalogId = catalogId
+    const previousFolderId = item?.folderId
+    if (item) item.folderId = folderId
 
     try {
-      await moveMangaToCatalog(id, catalogId)
+      await moveMangaToFolder(id, folderId)
     } catch (e) {
-      if (item) item.catalogId = previousCatalogId ?? null
+      if (item) item.folderId = previousFolderId ?? null
       error.value = e instanceof Error ? e.message : 'Failed to move manga'
       throw e
     }

@@ -13,7 +13,7 @@ export interface UploadQueueItem {
   progress: number
   status: UploadStatus
   file: File
-  catalogId: number | null
+  folderId: number | null
 }
 
 export interface TransferItemData {
@@ -29,7 +29,7 @@ export interface TransferItemData {
   startedAt: number
   bytesPerSecond: number
   file?: File
-  catalogId: number | null
+  folderId: number | null
 }
 
 const allowedExtensions = [
@@ -91,7 +91,7 @@ export const useUploadStore = defineStore('upload', () => {
     onCompleteCallback = fn
   }
 
-  function enqueue(files: File[], catalogId: number | null = null) {
+  function enqueue(files: File[], folderId: number | null = null) {
     rejectedItems.value = []
     const filtered = files.filter((file) => {
       const supported = isSupportedUpload(file)
@@ -105,7 +105,7 @@ export const useUploadStore = defineStore('upload', () => {
       progress: 0,
       status: 'queued' as const,
       file,
-      catalogId,
+      folderId,
     }))
     queuedItems.value = [...queuedItems.value, ...newItems].sort(compareQueueItemNames)
   }
@@ -167,7 +167,7 @@ export const useUploadStore = defineStore('upload', () => {
           startedAt: performance.now(),
           bytesPerSecond: 0,
           file: queueItem.file,
-          catalogId: queueItem.catalogId,
+          folderId: queueItem.folderId,
         }
 
         transfers.value = [...transfers.value, transfer].sort(compareTransferNames)
@@ -178,7 +178,7 @@ export const useUploadStore = defineStore('upload', () => {
           await uploadFile(
             queueItem.file,
             '',
-            queueItem.catalogId,
+            queueItem.folderId,
             (progress) => {
               const t = transfers.value.find((t) => t.id === transfer.id)
               if (t) {
@@ -319,7 +319,7 @@ export const useUploadStore = defineStore('upload', () => {
       progress: transfer.progress,
       status: 'queued',
       file: transfer.file as File,
-      catalogId: transfer.catalogId,
+      folderId: transfer.folderId,
     }
   }
 
@@ -376,7 +376,7 @@ export const useUploadStore = defineStore('upload', () => {
     if (!transfer?.file || (transfer.status !== 'failed' && transfer.status !== 'paused')) return
 
     transfers.value = transfers.value.filter((transfer) => transfer.id !== transferId)
-    enqueue([transfer.file], transfer.catalogId)
+    enqueue([transfer.file], transfer.folderId)
     processAll()
   }
 
@@ -391,7 +391,7 @@ export const useUploadStore = defineStore('upload', () => {
       speed: 'waiting',
       startedAt: 0,
       bytesPerSecond: 0,
-      catalogId: item.catalogId,
+      folderId: item.folderId,
     }
   }
 
@@ -408,7 +408,7 @@ export const useUploadStore = defineStore('upload', () => {
       speed: upload.status === 'assembling' ? 'finalizing' : '--',
       startedAt: 0,
       bytesPerSecond: 0,
-      catalogId: upload.catalogId,
+      folderId: upload.folderId,
     }
   }
 

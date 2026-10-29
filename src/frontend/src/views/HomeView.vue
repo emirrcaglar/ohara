@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ArrowRight, BookOpen, History, RefreshCw } from 'lucide-vue-next'
-import { fetchMangaLibrary, getMangaPageUrl } from '../api/manga'
+import { fetchMangaLibrary, getMangaCoverUrl } from '../api/manga'
 import type { MangaRow } from '../types/api'
 import { mangaTitle, mangaSubtitle } from '../utils/mangaMetadata'
 
@@ -132,7 +132,7 @@ onMounted(loadHistory)
             <BookOpen class="absolute h-12 w-12 text-outline" aria-hidden="true" />
             <img
               v-if="!failedCovers.has(latest.id)"
-              :src="getMangaPageUrl(latest.id, 0)"
+              :src="getMangaCoverUrl(latest.id)"
               alt=""
               class="relative h-full w-full object-cover"
               decoding="async"
@@ -208,7 +208,7 @@ onMounted(loadHistory)
                 <BookOpen class="absolute h-10 w-10 text-outline" aria-hidden="true" />
                 <img
                   v-if="!failedCovers.has(chapter.id)"
-                  :src="getMangaPageUrl(chapter.id, 0)"
+                  :src="getMangaCoverUrl(chapter.id)"
                   alt=""
                   class="relative h-full w-full object-cover"
                   loading="lazy"
