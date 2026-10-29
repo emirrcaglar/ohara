@@ -289,7 +289,7 @@ export function useLibraryView() {
 
   const deletingImpactText = computed(() => {
     if (deletingFolder.value) {
-      return 'Deletes this folder and its subfolders. Media inside moves to the library root.'
+      return 'Deletes this folder, all subfolders, and all media inside, including progress and upload records. Source files stay on disk.'
     }
 
     if (deletingMedia.value && 'pageCount' in deletingMedia.value) {

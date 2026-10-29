@@ -209,12 +209,43 @@ func (db *DB) UpdateFolder(id int64, parentID *int64, name string) (*FolderRow, 
 }
 
 func (db *DB) DeleteFolder(id int64) (bool, error) {
-	result, err := db.Exec(`DELETE FROM folder WHERE id = ?`, id)
+	tx, err := db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+
+	// Remove contents before deleting folders: their foreign keys otherwise move
+	// media and uploads to the library root via ON DELETE SET NULL.
+	const descendants = `
+		WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM folder WHERE id = ?
+			UNION ALL
+			SELECT f.id FROM folder f JOIN descendants d ON f.parent_id = d.id
+		)
+	`
+	for _, query := range []string{
+		`DELETE FROM manga_progress WHERE manga_id IN (SELECT id FROM manga WHERE folder_id IN (SELECT id FROM descendants))`,
+		`DELETE FROM manga WHERE folder_id IN (SELECT id FROM descendants)`,
+		`DELETE FROM audio WHERE folder_id IN (SELECT id FROM descendants)`,
+		`DELETE FROM video_progress WHERE video_id IN (SELECT id FROM video WHERE folder_id IN (SELECT id FROM descendants))`,
+		`DELETE FROM video WHERE folder_id IN (SELECT id FROM descendants)`,
+		`DELETE FROM upload_sessions WHERE folder_id IN (SELECT id FROM descendants)`,
+	} {
+		if _, err := tx.Exec(descendants+query, id); err != nil {
+			return false, err
+		}
+	}
+
+	result, err := tx.Exec(`DELETE FROM folder WHERE id = ?`, id)
 	if err != nil {
 		return false, err
 	}
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
 		return false, err
 	}
 	return rowsAffected > 0, nil
