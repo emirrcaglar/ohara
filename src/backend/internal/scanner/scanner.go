@@ -9,15 +9,13 @@ import (
 	"ohara/src/internal/logger"
 	"ohara/src/internal/media/audio"
 	"ohara/src/internal/media/manga"
-	"ohara/src/internal/worker"
 )
 
 type Scanner struct {
-	db          *db.DB
-	scanDir     string
-	scanType    ScanType
-	log         *logger.Logger
-	cacheWorker *worker.CacheWorker
+	db       *db.DB
+	scanDir  string
+	scanType ScanType
+	log      *logger.Logger
 }
 
 type ScannerOption func(*Scanner)
@@ -43,13 +41,12 @@ func WithScanType(scanType ScanType) ScannerOption {
 	}
 }
 
-func NewScanner(database *db.DB, cacheWorker *worker.CacheWorker, log *logger.Logger, opts ...ScannerOption) *Scanner {
+func NewScanner(database *db.DB, log *logger.Logger, opts ...ScannerOption) *Scanner {
 	scanner := &Scanner{
-		db:          database,
-		cacheWorker: cacheWorker,
-		scanDir:     ".",
-		scanType:    ScanTypeAll,
-		log:         log,
+		db:       database,
+		scanDir:  ".",
+		scanType: ScanTypeAll,
+		log:      log,
 	}
 
 	for _, opt := range opts {
@@ -193,23 +190,10 @@ func (s *Scanner) indexManga(absPath string, catalogID *int64) error {
 	defer archive.Close()
 
 	seriesTitle, metadata := manga.ParseFilename(absPath)
-	mangaID, err := s.db.InsertMangaWithMetadata(absPath, archive.Title, archive.PageCount, catalogID, seriesTitle, &metadata, manga.ParserVersion)
+	_, err = s.db.InsertMangaWithMetadata(absPath, archive.Title, archive.PageCount, catalogID, seriesTitle, &metadata, manga.ParserVersion)
 	if err != nil {
 		return fmt.Errorf("indexer: failed to insert %s: %v", absPath, err)
 	}
-
-	hasProgress, err := s.db.HasMangaProgress(mangaID)
-	if err != nil {
-		return fmt.Errorf("indexer: failed to check manga progress %s: %v", absPath, err)
-	}
-	if !hasProgress {
-		for pageIndex := 0; pageIndex < archive.PageCount; pageIndex++ {
-			if err := s.cacheWorker.EnqueuePage(mangaID, pageIndex); err != nil {
-				return fmt.Errorf("indexer: failed to enqueue page cache for %s: %w", absPath, err)
-			}
-		}
-	}
-
 	return nil
 }
 

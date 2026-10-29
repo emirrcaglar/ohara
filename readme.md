@@ -17,7 +17,6 @@ On Linux systems with systemd, it also creates and starts an `ohara` service usi
 - Binary: `/usr/local/bin/ohara`
 - Data: `/var/lib/ohara`
 - Config: `/etc/ohara`
-- Cache: `/var/cache/ohara`
 
 ### Manual download
 

@@ -9,7 +9,6 @@ import (
 	"ohara/src/internal/handler"
 	"ohara/src/internal/logger"
 	"ohara/src/internal/scanner"
-	"ohara/src/internal/worker"
 	"ohara/src/ui"
 
 	_ "net/http/pprof"
@@ -61,7 +60,7 @@ func WithRole(role string, log *logger.Logger, next http.HandlerFunc) http.Handl
 func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handler {
 	mux := http.DefaultServeMux
 
-	mangaHandler := &handler.MangaHandler{DB: database, Cache: handler.NewPageCache(dataDir, database), Inflight: handler.NewInflight(), Log: log}
+	mangaHandler := &handler.MangaHandler{DB: database, Log: log}
 	audioHandler := &handler.AudioHandler{DB: database, Log: log}
 	videoHandler := &handler.VideoHandler{DB: database, Log: log}
 	logHandler := &handler.LogHandler{Logger: log}
@@ -71,10 +70,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	deploymentHandler := &handler.DeploymentHandler{DB: database, Log: log}
 	catalogHandler := &handler.CatalogHandler{DB: database, Log: log}
 
-	cacheWorker := worker.NewCacheWorker(dataDir, database)
-	cacheWorker.Start()
-
-	mediaScanner := scanner.NewScanner(database, cacheWorker, log)
+	mediaScanner := scanner.NewScanner(database, log)
 	uploadHandler := handler.NewUploadHandler(database, mediaScanner, log, dataDir)
 
 	mux.HandleFunc("POST /api/auth/login", authHandler.HandleLogin)

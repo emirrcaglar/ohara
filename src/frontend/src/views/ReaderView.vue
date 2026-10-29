@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { usePreferencesStore } from '../stores/preferences'
-import { API_BASE } from '../api/client'
+import { getMangaPageUrl } from '../api/manga'
 import { useReaderSetup } from '../composables/useReaderSetup'
 import { useDesktopReaderZoom } from '../composables/useDesktopReaderZoom'
 import { useReaderScrollPages } from '../composables/useReaderScrollPages'
@@ -16,10 +16,10 @@ const { rightToLeftSwipeForManga, scrollReadingForManga } = storeToRefs(preferen
 const mangaId = computed(() => Number(route.query.manga))
 const totalPages = ref(Number(route.query.total) || 0)
 
-const pageUrl = computed(() => `${API_BASE}/manga/${mangaId.value}/page/${currentPage.value}`)
+const pageUrl = computed(() => getPageUrl(currentPage.value))
 
 function getPageUrl(page: number) {
-  return `${API_BASE}/manga/${mangaId.value}/page/${page}`
+  return getMangaPageUrl(mangaId.value, page)
 }
 
 const {
@@ -96,6 +96,7 @@ const {
   mobileScrollPageRefs,
   mobileScrollPages,
 })
+
 </script>
 
 <template>
@@ -126,6 +127,8 @@ const {
             :class="mobilePage.page === currentPage ? 'transition-transform duration-150' : ''"
             :style="mobilePage.page === currentPage ? currentImageStyle : undefined"
             draggable="false"
+            :fetchpriority="mobilePage.page === currentPage ? 'high' : 'low'"
+            decoding="async"
             @load="onMainImageLoaded(mobilePage.page)"
           />
         </div>
@@ -180,6 +183,8 @@ const {
           ]"
           :style="getDesktopImageStyle(mobilePage.page)"
           loading="lazy"
+          :fetchpriority="mobilePage.page === currentPage ? 'high' : 'low'"
+          decoding="async"
           draggable="false"
           @mouseenter="handleScrollPageImageEnter(mobilePage.page, $event)"
           @click="toggleDesktopZoom(mobilePage.page, $event)"
@@ -201,6 +206,8 @@ const {
         <img
           :key="currentPage"
           :src="pageUrl"
+          fetchpriority="high"
+          decoding="async"
           :alt="`Page ${currentPage + 1}`"
           class="absolute inset-0 w-full h-full object-contain transition-transform duration-150 cursor-zoom-in"
           :class="desktopZoomedPages.includes(currentPage) ? 'cursor-zoom-out' : ''"

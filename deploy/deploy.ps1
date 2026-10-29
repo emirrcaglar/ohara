@@ -18,7 +18,6 @@ $settings = @{
     DEPLOY_DIR = '/opt/ohara'
     DEPLOY_DATA_DIR = '/var/lib/ohara'
     DEPLOY_CONFIG_DIR = '/etc/ohara'
-    DEPLOY_CACHE_DIR = '/var/cache/ohara'
     DEPLOY_BINARY_NAME = 'ohara'
     DEPLOY_SERVICE_NAME = 'ohara'
 }
@@ -44,7 +43,7 @@ if (!$Server) { $Server = $settings.DEPLOY_SERVER }
 if (!$BuildOnly -and $Server -notmatch '^[A-Za-z0-9_.-]+@(?:[A-Za-z0-9_.-]+|\[[0-9A-Fa-f:]+\])$') {
     throw 'Specify a target as user@host: .\deploy\deploy.ps1 user@host, or set DEPLOY_SERVER in deploy.conf.'
 }
-foreach ($key in @('DEPLOY_DIR', 'DEPLOY_DATA_DIR', 'DEPLOY_CONFIG_DIR', 'DEPLOY_CACHE_DIR')) {
+foreach ($key in @('DEPLOY_DIR', 'DEPLOY_DATA_DIR', 'DEPLOY_CONFIG_DIR')) {
     if ($settings[$key] -notmatch '^/[A-Za-z0-9_./-]+$' -or $settings[$key] -match '%') {
         throw "$key must be an absolute Linux path without spaces or shell expressions."
     }
@@ -163,7 +162,6 @@ try {
     $remoteDir = $settings.DEPLOY_DIR
     $dataDir = $settings.DEPLOY_DATA_DIR
     $configDir = $settings.DEPLOY_CONFIG_DIR
-    $cacheDir = $settings.DEPLOY_CACHE_DIR
     $binaryName = $settings.DEPLOY_BINARY_NAME
     $deployedAt = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
 
@@ -197,13 +195,13 @@ cleanup() {
     rmdir -- "`$deploy_tmp"
 }
 trap cleanup EXIT
-mkdir -p '$remoteDir' '$dataDir' '$configDir' '$cacheDir'
+mkdir -p '$remoteDir' '$dataDir' '$configDir'
 install -m 644 -- "`$deploy_tmp/ohara.service" '/etc/systemd/system/$serviceName.service'
 systemctl daemon-reload
 systemctl enable '$serviceName'
 systemctl stop '$serviceName' || true
 install -m 755 -- "`$deploy_tmp/ohara.bin" '$remoteDir/$binaryName'
-chown -R '${serviceUser}:${serviceGroup}' '$remoteDir' '$dataDir' '$configDir' '$cacheDir'
+chown -R '${serviceUser}:${serviceGroup}' '$remoteDir' '$dataDir' '$configDir'
 systemctl reset-failed '$serviceName' || true
 systemctl start '$serviceName'
 sleep 2

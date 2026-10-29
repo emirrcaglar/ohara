@@ -18,7 +18,6 @@ SERVER="${1:-${DEPLOY_SERVER:-}}"
 REMOTE_DIR="${DEPLOY_DIR:-/opt/ohara}"
 DATA_DIR="${DEPLOY_DATA_DIR:-/var/lib/ohara}"
 CONFIG_DIR="${DEPLOY_CONFIG_DIR:-/etc/ohara}"
-CACHE_DIR="${DEPLOY_CACHE_DIR:-/var/cache/ohara}"
 BINARY_NAME="${DEPLOY_BINARY_NAME:-ohara}"
 SERVICE_NAME="${DEPLOY_SERVICE_NAME:-ohara}"
 DEPLOY_PASSWORD="${DEPLOY_PASSWORD:-}"
@@ -30,7 +29,6 @@ SERVER="${SERVER//$'\r'/}"
 REMOTE_DIR="${REMOTE_DIR//$'\r'/}"
 DATA_DIR="${DATA_DIR//$'\r'/}"
 CONFIG_DIR="${CONFIG_DIR//$'\r'/}"
-CACHE_DIR="${CACHE_DIR//$'\r'/}"
 BINARY_NAME="${BINARY_NAME//$'\r'/}"
 SERVICE_NAME="${SERVICE_NAME//$'\r'/}"
 DEPLOY_PASSWORD="${DEPLOY_PASSWORD//$'\r'/}"
@@ -137,7 +135,6 @@ echo "Step 3/3: Running remote installation..."
 REMOTE_DIR_Q=$(printf '%q' "$REMOTE_DIR")
 DATA_DIR_Q=$(printf '%q' "$DATA_DIR")
 CONFIG_DIR_Q=$(printf '%q' "$CONFIG_DIR")
-CACHE_DIR_Q=$(printf '%q' "$CACHE_DIR")
 SERVICE_USER_Q=$(printf '%q' "$SERVICE_USER")
 SERVICE_REMOTE_TMP_Q=$(printf '%q' "/tmp/$SERVICE_NAME.service.tmp")
 SERVICE_REMOTE_PATH_Q=$(printf '%q' "/etc/systemd/system/$SERVICE_NAME.service")
@@ -153,14 +150,14 @@ set -euo pipefail
 trap 'rm -f "$REMOTE_INSTALL_TMP"' EXIT
 echo "Finalizing deployment as root..."
 mkdir -p $REMOTE_DIR_Q
-mkdir -p $DATA_DIR_Q $CONFIG_DIR_Q $CACHE_DIR_Q
+mkdir -p $DATA_DIR_Q $CONFIG_DIR_Q
 mv $SERVICE_REMOTE_TMP_Q $SERVICE_REMOTE_PATH_Q
 systemctl daemon-reload
 systemctl enable $SERVICE_NAME_Q
 systemctl stop $SERVICE_NAME_Q || true
 mv $BINARY_REMOTE_TMP_Q $BINARY_REMOTE_PATH_Q
 chmod +x $BINARY_REMOTE_PATH_Q
-chown -R $SERVICE_USER_Q:$SERVICE_USER_Q $REMOTE_DIR_Q $DATA_DIR_Q $CONFIG_DIR_Q $CACHE_DIR_Q
+chown -R $SERVICE_USER_Q:$SERVICE_USER_Q $REMOTE_DIR_Q $DATA_DIR_Q $CONFIG_DIR_Q
 systemctl reset-failed $SERVICE_NAME_Q || true
 systemctl start $SERVICE_NAME_Q
 if ! systemctl is-active --quiet $SERVICE_NAME_Q; then

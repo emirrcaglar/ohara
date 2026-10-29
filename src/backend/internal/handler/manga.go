@@ -1,9 +1,10 @@
 package handler
 
 import (
-	"bytes"
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -12,14 +13,11 @@ import (
 	"ohara/src/internal/db"
 	"ohara/src/internal/logger"
 	"ohara/src/internal/media/manga"
-	"ohara/src/internal/utils/imgutil"
 )
 
 type MangaHandler struct {
-	DB       *db.DB
-	Cache    *PageCache
-	Inflight *Inflight
-	Log      *logger.Logger
+	DB  *db.DB
+	Log *logger.Logger
 }
 
 func (h *MangaHandler) mangaByID(idStr string) (*db.MangaRow, int, error) {
@@ -94,42 +92,6 @@ type MediaCatalogUpdateRequest struct {
 	CatalogID *int64 `json:"catalogId"`
 }
 
-func (h *MangaHandler) loadPage(m *db.MangaRow, pageIndex int) ([]byte, error) {
-	if data, ok := h.Cache.Get(m.ID, pageIndex); ok {
-		return data, nil
-	}
-
-	data, err := h.Inflight.Do(m.ID, pageIndex, func() ([]byte, error) {
-		if data, ok := h.Cache.Get(m.ID, pageIndex); ok {
-			return data, nil
-		}
-
-		archive, err := manga.Open(m.Path)
-		if err != nil {
-			return nil, err
-		}
-		defer archive.Close()
-
-		rc, err := archive.OpenPage(pageIndex)
-		if err != nil {
-			return nil, err
-		}
-		defer rc.Close()
-
-		var buf bytes.Buffer
-		if err := imgutil.Compress(rc, &buf, 1200, 70); err != nil {
-			return nil, err
-		}
-
-		data := buf.Bytes()
-		h.Cache.Set(m.ID, pageIndex, data)
-
-		return data, nil
-	})
-
-	return data, err
-}
-
 func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 
 	m, status, err := h.mangaByID(r.PathValue("id"))
@@ -144,16 +106,48 @@ func (h *MangaHandler) HandleMangaPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := h.loadPage(m, pageIndex)
+	archive, err := manga.Open(m.Path)
 	if err != nil {
 		http.Error(w, "Page not found", http.StatusNotFound)
 		return
 	}
+	defer archive.Close()
+	if pageIndex >= len(archive.Pages) {
+		http.Error(w, "Page not found", http.StatusNotFound)
+		return
+	}
+	rc, err := archive.OpenPage(pageIndex)
+	if err != nil {
+		http.Error(w, "Page not found", http.StatusNotFound)
+		return
+	}
+	defer rc.Close()
 
-	w.Header().Set("Content-Type", "image/jpeg")
-	w.Header().Set("Cache-Control", "public, max-age=3600")
-	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-	w.Write(data)
+	// Sniff a bounded prefix without decoding image pixels or buffering the
+	// whole entry. Peek leaves these bytes available for the subsequent copy.
+	reader := bufio.NewReader(rc)
+	prefix, err := reader.Peek(512)
+	if err != nil && err != io.EOF {
+		http.Error(w, "Failed to read page", http.StatusInternalServerError)
+		return
+	}
+	contentType := http.DetectContentType(prefix)
+	if contentType != "image/png" && contentType != "image/jpeg" && contentType != "image/webp" {
+		http.Error(w, "Unsupported page image", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, no-store, no-transform")
+	w.Header().Set("X-Ohara-Representation", "original")
+	w.Header().Set("Content-Length", strconv.FormatUint(archive.Pages[pageIndex].Size, 10))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if r.Method == http.MethodHead || r.Context().Err() != nil {
+		return
+	}
+	if _, err := io.Copy(w, reader); err != nil && r.Context().Err() == nil && h.Log != nil {
+		h.Log.Error("[manga] original page stream failed manga=%d page=%d err=%v", m.ID, pageIndex, err)
+	}
 }
 
 func (h *MangaHandler) HandleMangaDelete(w http.ResponseWriter, r *http.Request) {
@@ -168,14 +162,6 @@ func (h *MangaHandler) HandleMangaDelete(w http.ResponseWriter, r *http.Request)
 			h.Log.Error("[manga] delete failed manga=%d err=%v", m.ID, err)
 		}
 		http.Error(w, "Failed to delete manga", http.StatusInternalServerError)
-		return
-	}
-
-	if err := h.Cache.DeleteManga(m.ID); err != nil {
-		if h.Log != nil {
-			h.Log.Error("[manga] cache delete failed manga=%d err=%v", m.ID, err)
-		}
-		http.Error(w, "Failed to delete manga cache", http.StatusInternalServerError)
 		return
 	}
 

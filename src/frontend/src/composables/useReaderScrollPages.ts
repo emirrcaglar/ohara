@@ -77,7 +77,7 @@ export function useReaderScrollPages(options: ReaderScrollPagesOptions) {
   }
 
   watch(
-    [options.scrollReadingForManga, mobileScrollPages],
+    [options.scrollReadingForManga, () => mobileScrollPages.value.map((page) => page.page).join(',')],
     async () => {
       mobileScrollPageRefs.value = []
       await nextTick()

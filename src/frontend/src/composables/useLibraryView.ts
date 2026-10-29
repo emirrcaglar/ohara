@@ -221,7 +221,7 @@ export function useLibraryView() {
     }
 
     if (deletingMedia.value && 'pageCount' in deletingMedia.value) {
-      return 'Removes its index, reading progress, and cached pages.'
+      return 'Removes its index and reading progress.'
     }
 
     return 'Removes its index but keeps the video file on disk.'

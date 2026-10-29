@@ -69,6 +69,11 @@ func migrate(conn *sql.DB) (bool, error) {
 	}
 
 	_, err = conn.Exec(`
+		-- Retire derivative queues from older installations. Source media and
+		-- reading progress are independent of these disposable job tables.
+		DROP TABLE IF EXISTS reading_jobs;
+		DROP TABLE IF EXISTS scan;
+
 		CREATE TABLE IF NOT EXISTS catalog (
 			id         INTEGER  PRIMARY KEY AUTOINCREMENT,
 			parent_id  INTEGER  REFERENCES catalog(id) ON DELETE CASCADE,
@@ -132,18 +137,6 @@ func migrate(conn *sql.DB) (bool, error) {
 			last_error    TEXT     NOT NULL DEFAULT '',
 			updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (user_id, video_id)
-		);
-
-		CREATE TABLE IF NOT EXISTS scan (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			manga_id INTEGER NOT NULL,
-			page_idx INTEGER NOT NULL,
-			status TEXT NOT NULL DEFAULT 'pending',
-			attempts INTEGER NOT NULL DEFAULT 0,
-			error_message TEXT,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY(manga_id) REFERENCES manga(id) ON DELETE CASCADE
 		);
 
 		CREATE TABLE IF NOT EXISTS upload_sessions (

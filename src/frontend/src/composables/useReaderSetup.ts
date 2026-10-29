@@ -3,7 +3,7 @@ import type { Router } from 'vue-router'
 import { useMangaStore } from '../stores/manga'
 import { usePreferencesStore } from '../stores/preferences'
 import { usePageNavigation } from './usePageNavigation'
-import { usePagePrefetch } from './usePagePrefetch'
+import { useReaderPageLoading } from './useReaderPageLoading'
 import { useZoomAndPan } from './useZoomAndPan'
 import { useTouchGestures } from './useTouchGestures'
 
@@ -46,14 +46,9 @@ export function useReaderSetup(options: ReaderSetupOptions) {
     goVisualRight,
   } = navigation
 
-  const prefetch = usePagePrefetch(
-    options.mangaId,
-    currentPage,
-    options.totalPages,
-    options.getPageUrl,
-  )
+  const pageLoading = useReaderPageLoading(currentPage, options.getPageUrl)
 
-  const { getMobilePageSrc, prefetchPages, showPageSkeleton, onMainImageLoaded } = prefetch
+  const { getMobilePageSrc, showPageSkeleton, onMainImageLoaded } = pageLoading
 
   const zoom = useZoomAndPan(viewportWidth)
 
@@ -148,12 +143,11 @@ export function useReaderSetup(options: ReaderSetupOptions) {
       }
     }
 
-    prefetchPages()
   })
 
   onBeforeUnmount(() => {
     navigation.cleanup()
-    prefetch.cleanup()
+    pageLoading.cleanup()
     gestures.cleanup()
     window.removeEventListener('keydown', handleKeydown)
     window.removeEventListener('resize', updateViewportWidth)

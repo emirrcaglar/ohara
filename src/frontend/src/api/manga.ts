@@ -29,5 +29,6 @@ export async function deleteManga(id: number): Promise<void> {
 }
 
 export function getMangaPageUrl(id: number, page: number): string {
-  return `${API_BASE}/manga/${id}/page/${page}`
+  // Distinguish originals from JPEG responses cached under the previous URL.
+  return `${API_BASE}/manga/${id}/page/${page}?representation=original`
 }

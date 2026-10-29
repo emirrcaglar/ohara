@@ -104,34 +104,6 @@ func (db *DB) GetMangaProgress(userID, mangaID int64) (int, error) {
 	return page, err
 }
 
-func (db *DB) HasMangaProgress(mangaID int64) (bool, error) {
-	var exists int
-	err := db.QueryRow(`SELECT 1 FROM manga_progress WHERE manga_id = ? LIMIT 1`, mangaID).Scan(&exists)
-	if err == sql.ErrNoRows {
-		return false, nil
-	}
-	return err == nil, err
-}
-
-func (db *DB) MaxMangaProgressByID() (map[int64]int, error) {
-	rows, err := db.Query(`SELECT manga_id, MAX(page) FROM manga_progress GROUP BY manga_id`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	progress := make(map[int64]int)
-	for rows.Next() {
-		var mangaID int64
-		var page int
-		if err := rows.Scan(&mangaID, &page); err != nil {
-			return nil, err
-		}
-		progress[mangaID] = page
-	}
-	return progress, rows.Err()
-}
-
 func (db *DB) UpsertMangaProgress(userID, mangaID int64, page int) error {
 	_, err := db.Exec(`
 		INSERT INTO manga_progress (user_id, manga_id, page, updated_at)
@@ -184,9 +156,6 @@ func (db *DB) DeleteManga(id int64) error {
 	defer tx.Rollback()
 
 	if _, err := tx.Exec(`DELETE FROM manga_progress WHERE manga_id = ?`, id); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`DELETE FROM scan WHERE manga_id = ?`, id); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`DELETE FROM manga WHERE id = ?`, id); err != nil {

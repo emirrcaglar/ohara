@@ -82,13 +82,11 @@ if [ -d /etc/systemd/system ] && [ "$OS" = "linux" ]; then
     # FHS-compliant paths
     DATA_DIR="/var/lib/ohara"          # Application state data
     CONFIG_DIR="/etc/ohara"             # Configuration files
-    CACHE_DIR="/var/cache/ohara"        # Cache/temporary data
 
     # Create directories with proper ownership
-    sudo mkdir -p "$DATA_DIR" "$CONFIG_DIR" "$CACHE_DIR"
-    sudo chown -R ohara:ohara "$DATA_DIR" "$CONFIG_DIR" "$CACHE_DIR"
+    sudo mkdir -p "$DATA_DIR" "$CONFIG_DIR"
+    sudo chown -R ohara:ohara "$DATA_DIR" "$CONFIG_DIR"
     sudo chmod 750 "$DATA_DIR" "$CONFIG_DIR"
-    sudo chmod 755 "$CACHE_DIR"
 
     # Create environment file for configuration
     sudo tee "$CONFIG_DIR/environment" > /dev/null <<EOF
@@ -124,7 +122,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=$DATA_DIR $CACHE_DIR
+ReadWritePaths=$DATA_DIR
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
@@ -142,7 +140,6 @@ EOF
     echo "  Binary:  $INSTALL_DIR/ohara"
     echo "  Data:    $DATA_DIR"
     echo "  Config:  $CONFIG_DIR"
-    echo "  Cache:   $CACHE_DIR"
     echo ""
     echo "⚠ Default admin account is admin/admin. Change this password immediately after logging in."
     echo ""

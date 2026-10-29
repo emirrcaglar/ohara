@@ -6,7 +6,6 @@ require (
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/emirrcaglar/chaptr-go v0.0.0-20261027111849-91442a122b80
 	golang.org/x/crypto v0.48.0
-	golang.org/x/image v0.36.0
 	modernc.org/sqlite v1.46.1
 )
 
