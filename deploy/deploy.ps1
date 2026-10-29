@@ -15,6 +15,7 @@ if (!(Test-Path -LiteralPath $configFile)) {
 
 $settings = @{
     DEPLOY_SERVER = ''
+    DEPLOY_PASSWORD = ''
     DEPLOY_DIR = '/opt/ohara'
     DEPLOY_DATA_DIR = '/var/lib/ohara'
     DEPLOY_CONFIG_DIR = '/etc/ohara'
@@ -22,7 +23,7 @@ $settings = @{
     DEPLOY_SERVICE_NAME = 'ohara'
 }
 
-# Read literal assignments without executing the Bash config or loading passwords.
+# Read literal assignments without executing the Bash config.
 if (Test-Path -LiteralPath $configFile) {
     foreach ($line in Get-Content -LiteralPath $configFile) {
         if ($line -notmatch '^\s*(DEPLOY_[A-Z_]+)=(.*?)\s*$') { continue }
@@ -36,12 +37,15 @@ if (Test-Path -LiteralPath $configFile) {
         } else {
             throw "Use a literal value for $key in $configFile."
         }
-        if ($value) { $settings[$key] = $value }
+        if ($value -or $key -eq 'DEPLOY_PASSWORD') { $settings[$key] = $value }
     }
 }
 if (!$Server) { $Server = $settings.DEPLOY_SERVER }
 if (!$BuildOnly -and $Server -notmatch '^[A-Za-z0-9_.-]+@(?:[A-Za-z0-9_.-]+|\[[0-9A-Fa-f:]+\])$') {
     throw 'Specify a target as user@host: .\deploy\deploy.ps1 user@host, or set DEPLOY_SERVER in deploy.conf.'
+}
+if (!$BuildOnly -and !$settings.DEPLOY_PASSWORD) {
+    throw "Set DEPLOY_PASSWORD in $configFile. A deployment password is required; interactive prompting is disabled."
 }
 foreach ($key in @('DEPLOY_DIR', 'DEPLOY_DATA_DIR', 'DEPLOY_CONFIG_DIR')) {
     if ($settings[$key] -notmatch '^/[A-Za-z0-9_./-]+$' -or $settings[$key] -match '%') {
@@ -84,7 +88,7 @@ if (!$BuildOnly) {
 }
 $timer = [Diagnostics.Stopwatch]::StartNew()
 $tempDir = $null
-$deployPassword = $null
+$deployPassword = $settings.DEPLOY_PASSWORD
 $previousSshEnv = @{}
 Push-Location $repoRoot
 try {
@@ -122,33 +126,20 @@ try {
 
     $tempDir = Join-Path ([IO.Path]::GetTempPath()) "ohara-deploy-$([Guid]::NewGuid().ToString('N'))"
     New-Item -ItemType Directory -Path $tempDir | Out-Null
-    $securePassword = Read-Host 'SSH password (also used for sudo; leave empty for SSH keys)' -AsSecureString
-    $passwordPointer = [IntPtr]::Zero
-    try {
-        $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-        $deployPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
-    } finally {
-        if ($passwordPointer -ne [IntPtr]::Zero) {
-            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
-        }
-        $securePassword.Dispose()
+    # The helper contains no credentials; SSH and SCP read the same in-memory password.
+    $askpassFile = Join-Path $tempDir 'askpass.cmd'
+    $askpassShell = Join-Path $PSHOME 'powershell.exe'
+    if (!(Test-Path -LiteralPath $askpassShell)) { $askpassShell = Join-Path $PSHOME 'pwsh.exe' }
+    [IO.File]::WriteAllText($askpassFile, "@echo off`r`n`"$askpassShell`" -NoLogo -NoProfile -NonInteractive -Command `"[Console]::OutputEncoding = [Text.UTF8Encoding]::new(`$false); [Console]::WriteLine(`$env:OHARA_DEPLOY_PASSWORD)`"`r`n")
+    foreach ($name in @('SSH_ASKPASS', 'SSH_ASKPASS_REQUIRE', 'OHARA_DEPLOY_PASSWORD')) {
+        $previousSshEnv[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
     }
-    if ($deployPassword) {
-        # The helper contains no credentials; SSH and SCP read the same in-memory password.
-        $askpassFile = Join-Path $tempDir 'askpass.cmd'
-        $askpassShell = Join-Path $PSHOME 'powershell.exe'
-        if (!(Test-Path -LiteralPath $askpassShell)) { $askpassShell = Join-Path $PSHOME 'pwsh.exe' }
-        [IO.File]::WriteAllText($askpassFile, "@echo off`r`n`"$askpassShell`" -NoLogo -NoProfile -NonInteractive -Command `"[Console]::OutputEncoding = [Text.UTF8Encoding]::new(`$false); [Console]::WriteLine(`$env:OHARA_DEPLOY_PASSWORD)`"`r`n")
-        foreach ($name in @('SSH_ASKPASS', 'SSH_ASKPASS_REQUIRE', 'OHARA_DEPLOY_PASSWORD')) {
-            $previousSshEnv[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
-        }
-        $env:SSH_ASKPASS = $askpassFile
-        $env:SSH_ASKPASS_REQUIRE = 'force'
-        $env:OHARA_DEPLOY_PASSWORD = $deployPassword
-    }
+    $env:SSH_ASKPASS = $askpassFile
+    $env:SSH_ASKPASS_REQUIRE = 'force'
+    $env:OHARA_DEPLOY_PASSWORD = $deployPassword
 
     $sshOptions = @('-o', 'ConnectTimeout=15', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3', '-o', 'StrictHostKeyChecking=accept-new')
-    if ($deployPassword) { $sshOptions += @('-o', 'NumberOfPasswordPrompts=1') }
+    $sshOptions += @('-o', 'PreferredAuthentications=password,keyboard-interactive', '-o', 'NumberOfPasswordPrompts=1')
     Write-Host 'Preparing VPS staging directory...'
     $remoteInfo = @(& $ssh @sshOptions $Server 'set -e; id -un; id -gn; mktemp -d /tmp/ohara-deploy.XXXXXXXX')
     if ($LASTEXITCODE -ne 0) { throw 'Failed to prepare the VPS staging directory.' }
@@ -215,15 +206,11 @@ fi
     Write-Host 'Uploading binary and service files...'
     Invoke-Checked $scp ($sshOptions + @($stagedBinary, $serviceFile, $installFile, "${Server}:${remoteTemp}/"))
     Write-Host 'Installing and restarting the service...'
-    if ($deployPassword) {
-        # Base64 keeps native PowerShell pipe encoding from altering the password.
-        # Remove transport line endings before decoding, and never put it in a remote command.
-        $encodedPassword = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($deployPassword + "`n"))
-        $encodedPassword | & $ssh @sshOptions -T $Server "tr -d '\r\n' | base64 -d | sudo -S -p '' bash '$remoteTemp/install.sh'"
-        if ($LASTEXITCODE -ne 0) { throw "SSH installation failed with exit code $LASTEXITCODE." }
-    } else {
-        Invoke-Checked $ssh ($sshOptions + @('-t', $Server, "sudo bash '$remoteTemp/install.sh'"))
-    }
+    # Base64 keeps native PowerShell pipe encoding from altering the password.
+    # Remove transport line endings before decoding, and never put it in a remote command.
+    $encodedPassword = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($deployPassword + "`n"))
+    $encodedPassword | & $ssh @sshOptions -T $Server "tr -d '\r\n' | base64 -d | sudo -S -p '' bash '$remoteTemp/install.sh'"
+    if ($LASTEXITCODE -ne 0) { throw "SSH installation failed with exit code $LASTEXITCODE." }
     Write-Host ('Deployment complete in {0:m\:ss}. Service: {1}' -f $timer.Elapsed, $serviceName)
 } finally {
     foreach ($name in $previousSshEnv.Keys) {

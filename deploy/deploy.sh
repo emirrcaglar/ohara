@@ -8,6 +8,8 @@ if [[ ! -f "$CONFIG_FILE" && -f "$SCRIPT_DIR/.deploy.conf" ]]; then
 	CONFIG_FILE="$SCRIPT_DIR/.deploy.conf"
 fi
 
+# Only accept the deployment password from the local config.
+DEPLOY_PASSWORD=""
 # Normalize Windows line endings before loading the local config.
 # shellcheck source=/dev/null
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -63,6 +65,11 @@ fi
 
 cd "$REPO_ROOT"
 
+if [[ -z "$DEPLOY_PASSWORD" ]]; then
+	echo "Error: Set DEPLOY_PASSWORD in $CONFIG_FILE. A deployment password is required; interactive prompting is disabled."
+	exit 1
+fi
+
 for cmd in npm go ssh scp sshpass; do
 	if ! command -v "$cmd" >/dev/null 2>&1; then
 		echo "Error: '$cmd' is required but not installed."
@@ -71,16 +78,7 @@ for cmd in npm go ssh scp sshpass; do
 	fi
 done
 
-if [[ -z "$DEPLOY_PASSWORD" ]]; then
-	IFS= read -r -s -p "SSH password (also used for sudo): " DEPLOY_PASSWORD
-	printf '\n'
-	if [[ -z "$DEPLOY_PASSWORD" ]]; then
-		echo "Error: A deployment password is required."
-		exit 1
-	fi
-fi
-
-SSH_OPTS=(-o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new)
+SSH_OPTS=(-o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new -o PreferredAuthentications=password,keyboard-interactive -o NumberOfPasswordPrompts=1)
 # Keep the password out of process arguments and reuse it for every connection.
 run_ssh() {
 	SSHPASS="$DEPLOY_PASSWORD" sshpass -e ssh "${SSH_OPTS[@]}" "$@"
