@@ -34,6 +34,31 @@ type PendingUploadSession struct {
 	UploadedCount int64
 }
 
+// UploadConflictPaths includes imported media and reserved names of unfinished
+// uploads. Completed session history is excluded so deleted media can be added again.
+func (db *DB) UploadConflictPaths(excludeUploadID string) ([]string, error) {
+	rows, err := db.Query(`
+		SELECT path FROM manga
+		UNION ALL SELECT path FROM audio
+		UNION ALL SELECT path FROM video
+		UNION ALL SELECT filename FROM upload_sessions
+		WHERE id <> ? AND status IN ('active', 'paused', 'failed', 'assembling')
+	`, excludeUploadID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var paths []string
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return paths, rows.Err()
+}
+
 func (db *DB) CreateUploadSession(s UploadSession) error {
 	_, err := db.Exec(`
 		INSERT INTO upload_sessions (
@@ -151,6 +176,11 @@ func (db *DB) ListUploadChunkIndexes(uploadID string) ([]int, error) {
 		indexes = append(indexes, index)
 	}
 	return indexes, rows.Err()
+}
+
+func (db *DB) DeleteUploadChunk(uploadID string, index int) error {
+	_, err := db.Exec(`DELETE FROM upload_chunks WHERE upload_id = ? AND chunk_index = ?`, uploadID, index)
+	return err
 }
 
 func (db *DB) CountUploadChunks(uploadID string) (int64, error) {

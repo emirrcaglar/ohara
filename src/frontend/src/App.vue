@@ -5,8 +5,17 @@ import Sidebar from './components/Sidebar.vue'
 import TopBar from './components/TopBar.vue'
 import MediaBar from './components/media/MediaBar.vue'
 import { usePlayerStore } from './stores/player'
+import { useAuthStore } from './stores/auth'
+import { useUploadStore } from './stores/upload'
 
 const playerStore = usePlayerStore()
+const authStore = useAuthStore()
+const uploadStore = useUploadStore()
+watch(
+  () => authStore.user?.id ?? null,
+  (id) => uploadStore.initialize(id),
+  { immediate: true },
+)
 const audioRef = ref<HTMLAudioElement | null>(null)
 const sidebarOpen = ref(false)
 const previousFromStart = ref(false)

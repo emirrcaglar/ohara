@@ -1,10 +1,25 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import TransferItem from '../uploads/TransferItem.vue'
 import type { useUploadStore } from '../../stores/upload'
+import { selectUploadFiles, uploadAccept } from '../../utils/uploadFiles'
 
-defineProps<{
+const props = defineProps<{
   uploadStore: ReturnType<typeof useUploadStore>
 }>()
+
+const fileInput = ref<HTMLInputElement | null>(null)
+async function selectFiles() {
+  const files = await selectUploadFiles(() => fileInput.value?.click())
+  if (files.length) await props.uploadStore.reselectTransfers(files)
+}
+
+async function inputChanged(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  if (files.length) await props.uploadStore.reselectTransfers(files)
+}
 
 const emit = defineEmits<{
   close: []
@@ -34,7 +49,30 @@ const emit = defineEmits<{
         </button>
       </div>
 
+      <div
+        v-if="uploadStore.visibleTransfers.some((transfer) => transfer.needsFile)"
+        class="border-b border-outline/30 px-6 py-4"
+      >
+        <p class="text-xs leading-relaxed text-on-surface-variant">
+          <button class="cursor-pointer text-yellow-400" type="button" @click="selectFiles">
+            Select files
+          </button>
+          again to resume.
+        </p>
+      </div>
+
       <div class="flex-1 overflow-y-auto p-6 space-y-6">
+        <input
+          ref="fileInput"
+          class="hidden"
+          type="file"
+          multiple
+          :accept="uploadAccept"
+          @change="inputChanged"
+        />
+        <p v-if="uploadStore.storageNotice" class="text-xs text-on-surface-variant">
+          {{ uploadStore.storageNotice }}
+        </p>
         <p
           v-if="uploadStore.loadingTransfers"
           class="text-xs text-on-surface-variant uppercase tracking-widest"
@@ -65,6 +103,10 @@ const emit = defineEmits<{
           :storagePath="transfer.storagePath"
           :canMoveUp="uploadStore.canMoveTransferUp(transfer.id)"
           :canMoveDown="uploadStore.canMoveTransferDown(transfer.id)"
+          :needsFile="transfer.needsFile"
+          :canResume="transfer.canResume"
+          @pause="uploadStore.pauseTransfer(transfer.id)"
+          @resume="uploadStore.retryTransfer(transfer.id)"
           @cancel="uploadStore.cancelTransfer(transfer.id)"
           @moveUp="uploadStore.moveTransferUp(transfer.id)"
           @moveDown="uploadStore.moveTransferDown(transfer.id)"

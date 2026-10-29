@@ -119,6 +119,7 @@ func SetupRoutes(database *db.DB, dataDir string, log *logger.Logger) http.Handl
 	mux.HandleFunc("GET /video/{id}/stream", WithAuth(database, log, videoHandler.HandleVideoStream))
 
 	mux.HandleFunc("GET /api/uploads", WithAuth(database, log, uploadHandler.HandleUploadsList))
+	mux.HandleFunc("POST /api/uploads/check", WithAuth(database, log, uploadHandler.HandleUploadNameCheck))
 	mux.HandleFunc("POST /api/uploads/init", WithAuth(database, log, uploadHandler.HandleChunkedUploadInit))
 	mux.HandleFunc("PUT /api/uploads/{id}/chunk", WithAuth(database, log, uploadHandler.HandleChunkedUploadChunk))
 	mux.HandleFunc("POST /api/uploads/{id}/complete", WithAuth(database, log, uploadHandler.HandleChunkedUploadComplete))

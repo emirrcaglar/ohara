@@ -333,24 +333,29 @@ const {
             v-if="showUploadDialog"
             class="absolute bottom-48 right-0 w-64 bg-surface-container-highest/80 p-2 shadow-[0_0_28px_rgba(14,14,14,0.4)] backdrop-blur"
           >
-            <div v-if="uploadStore.queuedItems.length" class="mt-2 bg-surface-container-low p-2">
+            <div v-if="uploadStore.draftItems.length" class="mt-2 bg-surface-container-low p-2">
               <div class="mb-2 flex items-center justify-between">
                 <span class="text-[8px] font-black uppercase tracking-widest text-secondary">
                   In_Queue
                 </span>
                 <span class="font-mono text-[8px] font-bold text-primary-container">
-                  {{ String(uploadStore.queuedItems.length).padStart(2, '0') }}
+                  {{ String(uploadStore.draftItems.length).padStart(2, '0') }}
                 </span>
               </div>
 
               <ul class="max-h-40 space-y-2 overflow-y-auto">
                 <li
-                  v-for="item in uploadStore.queuedItems"
+                  v-for="item in uploadStore.draftItems"
                   :key="item.id"
-                  class="truncate text-xs text-on-surface"
+                  class="flex items-center justify-between gap-2 text-xs text-on-surface"
                   :title="item.name"
                 >
-                  {{ item.name }}
+                  <span class="truncate">{{ item.name }}</span>
+                  <span
+                    v-if="item.status === 'exists'"
+                    class="shrink-0 text-[10px] text-on-surface-variant"
+                    >Already exists</span
+                  >
                 </li>
               </ul>
             </div>
@@ -362,7 +367,7 @@ const {
               Rejected: {{ uploadStore.rejectedItems.join(', ') }}
             </p>
 
-            <div v-if="uploadStore.queuedItems.length" class="mt-2 grid grid-cols-2 gap-2">
+            <div v-if="uploadStore.draftItems.length" class="mt-2 grid grid-cols-2 gap-2">
               <button
                 class="bg-surface-container-high px-3 py-2 text-[10px] font-black uppercase tracking-widest text-on-surface transition-colors hover:bg-surface-container-low"
                 type="button"

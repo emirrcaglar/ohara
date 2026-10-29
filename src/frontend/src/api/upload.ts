@@ -1,4 +1,4 @@
-import { API_BASE, fetchJson } from './client'
+import { API_BASE, ApiError, fetchJson } from './client'
 
 export interface UploadResponse {
   success: boolean
@@ -21,6 +21,7 @@ export interface PendingUpload {
   uploadId: string
   filename: string
   size: number
+  lastModified: number
   chunkSize: number
   totalChunks: number
   uploadedChunks: number[]
@@ -36,6 +37,14 @@ interface PendingUploadsResponse {
   uploads: PendingUpload[]
 }
 
+export async function checkUploadNames(filenames: string[]): Promise<string[]> {
+  const response = await fetchJson<{ existing: string[] }>(`${API_BASE}/uploads/check`, {
+    method: 'POST',
+    body: JSON.stringify({ filenames }),
+  })
+  return response.existing
+}
+
 export async function listPendingUploads(): Promise<PendingUpload[]> {
   const response = await fetchJson<PendingUploadsResponse>(`${API_BASE}/uploads`)
   return response.uploads
@@ -49,13 +58,25 @@ export async function cancelUpload(uploadId: string): Promise<void> {
   await fetchJson(`${API_BASE}/uploads/${uploadId}`, { method: 'DELETE' })
 }
 
+export async function getUploadStatus(uploadId: string): Promise<{ status: string }> {
+  return fetchJson(`${API_BASE}/uploads/${uploadId}/status`)
+}
+
+export async function completeUpload(
+  uploadId: string,
+  signal?: AbortSignal,
+): Promise<UploadResponse> {
+  return fetchJson(`${API_BASE}/uploads/${uploadId}/complete`, { method: 'POST', signal })
+}
+
 export async function uploadFile(
   file: File,
   metadataProfile: string,
   folderId: number | null,
   onProgress?: (progress: number) => void,
-  onUploadId?: (uploadId: string) => void,
+  onUploadId?: (uploadId: string) => void | Promise<void>,
   signal?: AbortSignal,
+  existingUploadId?: string,
 ): Promise<UploadResponse> {
   const init = await fetchJson<ChunkedUploadInitResponse>(`${API_BASE}/uploads/init`, {
     method: 'POST',
@@ -66,10 +87,16 @@ export async function uploadFile(
       profile: metadataProfile,
       lastModified: file.lastModified,
       folderId,
+      uploadId: existingUploadId,
     }),
   })
 
-  onUploadId?.(init.uploadId)
+  await onUploadId?.(init.uploadId)
+  if (signal?.aborted) throw new DOMException('Upload aborted', 'AbortError')
+  if (init.status === 'complete') {
+    onProgress?.(100)
+    return { success: true, filename: file.name, folderId: init.folderId }
+  }
 
   const totalChunks = init.totalChunks || Math.ceil(file.size / init.chunkSize)
   const uploadedChunks = new Set(init.uploadedChunks ?? [])
@@ -97,9 +124,7 @@ export async function uploadFile(
   }
 
   onProgress?.(100)
-  return fetchJson<UploadResponse>(`${API_BASE}/uploads/${init.uploadId}/complete`, {
-    method: 'POST',
-  })
+  return completeUpload(init.uploadId, signal)
 }
 
 function uploadedBytesForChunks(
@@ -145,18 +170,26 @@ function uploadChunk(
         resolve()
       } else {
         signal?.removeEventListener('abort', abortUpload)
-        reject(new Error(xhr.responseText || `Chunk upload failed: ${xhr.statusText}`))
+        reject(
+          new ApiError(xhr.responseText || `Chunk upload failed: ${xhr.statusText}`, xhr.status),
+        )
       }
     })
 
     xhr.addEventListener('error', () => {
       signal?.removeEventListener('abort', abortUpload)
-      reject(new Error('Chunk upload failed'))
+      reject(new TypeError('Connection interrupted'))
     })
 
     xhr.addEventListener('abort', () => {
       signal?.removeEventListener('abort', abortUpload)
       reject(new DOMException('Upload aborted', 'AbortError'))
+    })
+
+    xhr.timeout = 120_000
+    xhr.addEventListener('timeout', () => {
+      signal?.removeEventListener('abort', abortUpload)
+      reject(new ApiError('Upload timed out', 408))
     })
 
     xhr.open('PUT', `${API_BASE}/uploads/${uploadId}/chunk`)

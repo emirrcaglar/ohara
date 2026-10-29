@@ -3,18 +3,22 @@ defineProps<{
   name: string
   progress: number
   sizeInfo?: string
-  status: 'queued' | 'active' | 'complete' | 'paused' | 'failed'
+  status: 'queued' | 'active' | 'complete' | 'paused' | 'failed' | 'exists'
   eta?: string
   speed?: string
   storagePath?: string
   canMoveUp?: boolean
   canMoveDown?: boolean
+  needsFile?: boolean
+  canResume?: boolean
 }>()
 
 defineEmits<{
   cancel: []
   moveUp: []
   moveDown: []
+  pause: []
+  resume: []
 }>()
 </script>
 
@@ -25,7 +29,8 @@ defineEmits<{
         <p class="text-xs font-black truncate uppercase tracking-tight text-on-surface">
           {{ name }}
         </p>
-        <p v-if="status === 'complete'" class="text-[10px] text-secondary-fixed-dim font-mono">
+        <p v-if="status === 'exists'" class="text-[10px] text-on-surface-variant">Already exists</p>
+        <p v-else-if="status === 'complete'" class="text-[10px] text-secondary-fixed-dim font-mono">
           SUCCESS_COMPLETED
         </p>
         <p v-else-if="status === 'failed'" class="text-[10px] text-error font-mono">FAILED</p>
@@ -36,6 +41,24 @@ defineEmits<{
 
       <div class="flex items-center gap-2">
         <button
+          v-if="!needsFile && canResume"
+          class="shrink-0 text-[10px] font-bold text-primary hover:underline"
+          type="button"
+          @click="$emit('resume')"
+        >
+          {{ status === 'queued' ? 'Upload' : status === 'failed' ? 'Retry' : 'Resume' }}
+        </button>
+        <button
+          v-else-if="!needsFile && (status === 'active' || status === 'queued')"
+          class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary"
+          type="button"
+          aria-label="Pause upload"
+          @click="$emit('pause')"
+        >
+          pause
+        </button>
+        <button
+          v-if="status !== 'exists'"
           class="h-8 w-8 text-xl leading-none font-black text-on-surface-variant hover:text-primary disabled:opacity-20 disabled:hover:text-on-surface-variant"
           type="button"
           aria-label="Move transfer up"
@@ -45,6 +68,7 @@ defineEmits<{
           ↑
         </button>
         <button
+          v-if="status !== 'exists'"
           class="h-8 w-8 text-xl leading-none font-black text-on-surface-variant hover:text-primary disabled:opacity-20 disabled:hover:text-on-surface-variant"
           type="button"
           aria-label="Move transfer down"
@@ -65,7 +89,7 @@ defineEmits<{
       </div>
     </div>
 
-    <div class="h-1 w-full bg-surface-container-highest">
+    <div v-if="status !== 'exists'" class="h-1 w-full bg-surface-container-highest">
       <div
         class="h-full transition-all duration-500 ease-out"
         :class="status === 'complete' ? 'bg-secondary-container' : 'bg-primary-container'"
@@ -74,13 +98,13 @@ defineEmits<{
     </div>
 
     <div v-if="status === 'complete'" class="flex justify-end">
-      <span class="text-[9px] font-mono text-secondary-fixed-dim uppercase">
+      <span v-if="storagePath" class="text-[9px] font-mono text-secondary-fixed-dim uppercase">
         STORED: {{ storagePath }}
       </span>
     </div>
-    <div v-else class="flex justify-between items-center">
+    <div v-else-if="status !== 'exists'" class="flex justify-between items-center">
       <span class="text-[9px] font-mono text-on-surface-variant">
-        {{ status === 'queued' || status === 'failed' ? 'STATUS' : 'ETA' }}: {{ eta }}
+        {{ status === 'active' ? 'ETA' : 'STATUS' }}: {{ eta }}
       </span>
       <span class="text-[9px] font-mono text-primary">{{ speed }}</span>
     </div>

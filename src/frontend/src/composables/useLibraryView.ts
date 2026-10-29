@@ -11,6 +11,7 @@ import { folderSlug } from './useLibrarySlugs'
 import { videoStats } from './useLibraryFormatting'
 import { matchesMangaSearch } from '../utils/mangaMetadata'
 import { selectFolderCoverChapters } from '../utils/folderCovers'
+import { selectUploadFiles } from '../utils/uploadFiles'
 
 interface MenuAnchor {
   top: number
@@ -169,6 +170,7 @@ export function useLibraryView() {
   })
 
   onMounted(() => {
+    uploadStore.setOnComplete(refreshAfterUpload)
     mangaStore.fetchLibrary()
     audioStore.fetchLibrary()
     videoStore.fetchLibrary()
@@ -178,6 +180,7 @@ export function useLibraryView() {
   })
 
   onBeforeUnmount(() => {
+    uploadStore.setOnComplete(null)
     window.removeEventListener('keydown', handleGlobalKeydown)
   })
 
@@ -505,9 +508,13 @@ export function useLibraryView() {
     deleteDialogAnchor.value = null
   }
 
-  function openFilePicker() {
+  async function openFilePicker() {
     closeFloatingDialogs()
-    fileInputRef.value?.click()
+    const files = await selectUploadFiles(() => fileInputRef.value?.click())
+    if (files.length) {
+      await handleFilesSelected(files)
+      showUploadDialog.value = true
+    }
   }
 
   async function createFolderFromDialog() {
@@ -569,15 +576,15 @@ export function useLibraryView() {
     showTransfersPanel.value = false
   }
 
-  function handleFilesSelected(files: File[]) {
-    uploadStore.enqueue(files, currentFolderId.value)
+  async function handleFilesSelected(files: File[]) {
+    await uploadStore.enqueue(files, currentFolderId.value)
   }
 
-  function handleFileInputChange(event: Event) {
+  async function handleFileInputChange(event: Event) {
     const target = event.target as HTMLInputElement
     if (!target.files || target.files.length === 0) return
 
-    handleFilesSelected(Array.from(target.files))
+    await handleFilesSelected(Array.from(target.files))
     showUploadDialog.value = true
     target.value = ''
   }
@@ -591,17 +598,18 @@ export function useLibraryView() {
     closeUploadDialog()
   }
 
+  function refreshAfterUpload() {
+    void Promise.all([
+      mangaStore.fetchLibrary(),
+      audioStore.fetchLibrary(),
+      videoStore.fetchLibrary(),
+      folderStore.fetchChildren(currentFolderId.value),
+      folderStore.fetchAll(),
+    ])
+  }
+
   function processAll() {
     closeFloatingDialogs()
-    uploadStore.setOnComplete(() => {
-      void Promise.all([
-        mangaStore.fetchLibrary(),
-        audioStore.fetchLibrary(),
-        videoStore.fetchLibrary(),
-        folderStore.fetchChildren(currentFolderId.value),
-        folderStore.fetchAll(),
-      ])
-    })
     uploadStore.processAll()
     openTransfersPanel()
   }

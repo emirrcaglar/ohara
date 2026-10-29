@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { droppedUploadFiles, selectUploadFiles } from '../../utils/uploadFiles'
 
 const props = withDefaults(
   defineProps<{
@@ -39,29 +40,18 @@ function handleDragleave() {
   }
 }
 
-function handleDrop(event: DragEvent) {
+async function handleDrop(event: DragEvent) {
   event.preventDefault()
   isDragging.value = false
   dragCounter = 0
 
-  const files = droppedFiles(event.dataTransfer)
+  const files = await droppedUploadFiles(event.dataTransfer)
   if (files.length > 0) emit('filesSelected', files)
 }
 
-function droppedFiles(dataTransfer: DataTransfer | null): File[] {
-  if (!dataTransfer) return []
-
-  const itemFiles = Array.from(dataTransfer.items ?? [])
-    .filter((item) => item.kind === 'file')
-    .map((item) => item.getAsFile())
-    .filter((file): file is File => file !== null)
-
-  if (itemFiles.length > 0) return itemFiles
-  return Array.from(dataTransfer.files ?? [])
-}
-
-function openPicker() {
-  fileInputRef.value?.click()
+async function openPicker() {
+  const files = await selectUploadFiles(() => fileInputRef.value?.click())
+  if (files.length) emit('filesSelected', files)
 }
 
 function handleInputChange(event: Event) {

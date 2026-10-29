@@ -1,38 +1,50 @@
-import { ref, computed } from 'vue'
+import { computed, markRaw, onScopeDispose, ref, toRaw } from 'vue'
 import { defineStore } from 'pinia'
-import { cancelUpload, listPendingUploads, pauseUpload, uploadFile } from '../api/upload'
+import { ApiError } from '../api/client'
+import {
+  cancelUpload,
+  checkUploadNames,
+  completeUpload,
+  getUploadStatus,
+  listPendingUploads,
+  pauseUpload,
+  uploadFile,
+} from '../api/upload'
 import type { PendingUpload } from '../api/upload'
 import { compareByNaturalText } from '../utils/naturalSort'
-
-export type UploadStatus = 'queued' | 'active' | 'complete'
-
-export interface UploadQueueItem {
-  id: number
-  name: string
-  ext: string
-  progress: number
-  status: UploadStatus
-  file: File
-  folderId: number | null
-}
+import { matchesUploadFile, restoreUploadFile, uploadFileHandle } from '../utils/uploadFiles'
+import { uploadStorage } from '../utils/uploadStorage'
+import type { SavedUpload } from '../utils/uploadStorage'
 
 export interface TransferItemData {
-  id: number | string
+  id: string
   uploadId?: string
   name: string
   progress: number
   sizeInfo?: string
-  status: 'queued' | 'active' | 'complete' | 'paused' | 'failed'
+  status: 'queued' | 'active' | 'complete' | 'paused' | 'failed' | 'exists'
   eta?: string
   speed?: string
   storagePath?: string
-  startedAt: number
-  bytesPerSecond: number
-  file?: File
+  needsFile?: boolean
+  canResume?: boolean
   folderId: number | null
 }
 
-const allowedExtensions = [
+interface UploadJob extends Omit<SavedUpload, 'status'> {
+  status: TransferItemData['status']
+  file?: File
+  sourceIssue?: 'unavailable' | 'changed'
+  message?: string
+  bytesPerSecond: number
+  startedAt: number
+  startingProgress: number
+  retries: number
+  retryAt: number
+  readyToFinalize?: boolean
+}
+
+const extensions = [
   '.cbz',
   '.mp3',
   '.flac',
@@ -47,456 +59,761 @@ const allowedExtensions = [
   '.avi',
   '.m4v',
 ]
-
-function fileExtension(fileName: string): string {
-  const dotIndex = fileName.lastIndexOf('.')
-  if (dotIndex < 0) return ''
-  return fileName.slice(dotIndex).toLowerCase()
-}
-
-function isSupportedUpload(file: File): boolean {
-  const ext = fileExtension(file.name)
-  return allowedExtensions.includes(ext) || file.type.startsWith('video/')
-}
+const compareNames = compareByNaturalText<UploadJob>((item) => item.name)
 
 export const useUploadStore = defineStore('upload', () => {
-  const queuedItems = ref<UploadQueueItem[]>([])
-  const transfers = ref<TransferItemData[]>([])
+  const jobs = ref<UploadJob[]>([])
+  const remoteTransfers = ref<TransferItemData[]>([])
   const loadingTransfers = ref(false)
   const transfersError = ref<string | null>(null)
-  const processingUploads = ref(false)
+  const storageNotice = ref<string | null>(null)
   const rejectedItems = ref<string[]>([])
-  const uploadControllers = new Map<string | number, AbortController>()
+  const processingUploads = ref(false)
+  let userId: number | null = null
+  let generation = 0
+  let initialization: Promise<void> = Promise.resolve()
+  let worker: Promise<void> | undefined
+  let controller: AbortController | undefined
+  let lockController: AbortController | undefined
+  let storageAvailable = true
+  let timer: number | undefined
+  let writes: Promise<unknown> = Promise.resolve()
   let onCompleteCallback: (() => void) | null = null
-  let nextQueueId = 1
-  let resumeTimer: number | undefined
 
-  const totalBandwidth = computed(() => {
-    const bps = transfers.value
-      .filter((t) => t.status === 'active')
-      .reduce((sum, t) => sum + t.bytesPerSecond, 0)
-    return `${((bps * 8) / (1024 * 1024)).toFixed(2)} Mbps`
-  })
-
+  const queuedItems = computed(() =>
+    jobs.value.filter((job) => job.status === 'queued' && job.file),
+  )
+  const draftItems = computed(() => jobs.value.filter((job) => !job.confirmed))
+  const transfers = computed(() =>
+    jobs.value.filter((job) => job.status !== 'queued').map(toTransfer),
+  )
   const visibleTransfers = computed(() => {
-    const activeTransfers = transfers.value.filter((transfer) => transfer.status === 'active')
-    const waitingTransfers = queuedItems.value.map(queueItemToTransfer)
-    const inactiveTransfers = transfers.value.filter((transfer) => transfer.status !== 'active')
-    return [...activeTransfers, ...waitingTransfers, ...inactiveTransfers]
+    const local = [...jobs.value].sort((a, b) => a.order - b.order).map(toTransfer)
+    return [
+      ...local.filter((item) => item.status === 'active'),
+      ...local.filter((item) => item.status === 'queued'),
+      ...local.filter((item) => item.status !== 'active' && item.status !== 'queued'),
+      ...remoteTransfers.value.filter(
+        (item) => !jobs.value.some((job) => job.uploadId === item.uploadId),
+      ),
+    ]
   })
-
   const hasActiveTransfers = computed(() => visibleTransfers.value.length > 0)
+  const totalBandwidth = computed(
+    () =>
+      ((jobs.value.reduce((sum, job) => sum + job.bytesPerSecond, 0) * 8) / 1024 ** 2).toFixed(2) +
+      ' Mbps',
+  )
 
-  function setOnComplete(fn: (() => void) | null) {
-    onCompleteCallback = fn
+  function savedJob(job: UploadJob): SavedUpload {
+    return {
+      id: job.id,
+      userId: job.userId,
+      uploadId: job.uploadId,
+      name: job.name,
+      size: job.size,
+      lastModified: job.lastModified,
+      folderId: job.folderId,
+      order: job.order,
+      confirmed: job.confirmed,
+      status: job.status === 'complete' ? 'queued' : job.status,
+      progress: job.progress,
+      handle: job.handle && toRaw(job.handle),
+    }
   }
 
-  function enqueue(files: File[], folderId: number | null = null) {
+  // Serialize mutations so an older save cannot resurrect a canceled job.
+  function write(operation: () => Promise<unknown>): Promise<void> {
+    const result = writes.then(operation).then(
+      () => {},
+      () => {
+        storageAvailable = false
+        storageNotice.value =
+          'This browser cannot save the queue. Keep this tab open; server progress is still saved.'
+      },
+    )
+    writes = result
+    return result
+  }
+
+  function save(job: UploadJob): Promise<void> {
+    const snapshot = savedJob(job)
+    return write(() => uploadStorage.save(snapshot))
+  }
+
+  function forget(job: { userId: number; id: string }): Promise<void> {
+    return write(() => uploadStorage.remove(job.userId, job.id))
+  }
+
+  function fromSaved(saved: SavedUpload): UploadJob {
+    return {
+      ...saved,
+      handle: saved.handle && markRaw(saved.handle),
+      status: saved.status === 'active' ? 'queued' : saved.status,
+      bytesPerSecond: 0,
+      startedAt: 0,
+      startingProgress: 0,
+      retries: 0,
+      retryAt: 0,
+    }
+  }
+
+  function initialize(nextUserId: number | null) {
+    if (userId === nextUserId) return
+    userId = nextUserId
+    const version = ++generation
+    controller?.abort()
+    lockController?.abort()
+    if (timer !== undefined) window.clearTimeout(timer)
+    timer = undefined
+    const previousWorker = worker
+    jobs.value = []
+    remoteTransfers.value = []
     rejectedItems.value = []
-    const filtered = files.filter((file) => {
-      const supported = isSupportedUpload(file)
-      if (!supported) rejectedItems.value.push(file.name)
-      return supported
+    transfersError.value = null
+    storageNotice.value = null
+    storageAvailable = true
+    onCompleteCallback = null
+    initialization = (async () => {
+      await previousWorker
+      await writes
+      if (version !== generation || nextUserId === null) return
+      loadingTransfers.value = true
+      try {
+        const saved = await uploadStorage.list(nextUserId)
+        const restored = await Promise.all(
+          saved
+            .sort((a, b) => a.order - b.order)
+            .map(async (record) => {
+              const job = fromSaved(record)
+              if (record.status === 'exists') return job
+              const source = await restoreUploadFile(record)
+              job.file = source.file && markRaw(source.file)
+              job.sourceIssue = source.reason
+              return job
+            }),
+        )
+        if (version !== generation) return
+        jobs.value = restored
+      } catch {
+        if (version === generation) {
+          storageAvailable = false
+          storageNotice.value =
+            'This browser cannot save the queue. Server progress is still saved.'
+        }
+      } finally {
+        if (version === generation) loadingTransfers.value = false
+      }
+    })()
+    void initialization.then(() => {
+      if (version !== generation || userId === null) return
+      void fetchPendingTransfers()
+      startWorker()
     })
-    const newItems: UploadQueueItem[] = filtered.map((file) => ({
-      id: nextQueueId++,
-      name: file.name,
-      ext: fileExtension(file.name).replace('.', '').toUpperCase() || 'FILE',
-      progress: 0,
-      status: 'queued' as const,
-      file,
-      folderId,
-    }))
-    queuedItems.value = [...queuedItems.value, ...newItems].sort(compareQueueItemNames)
   }
 
-  function clearQueue() {
-    queuedItems.value = []
+  async function enqueue(files: File[], folderId: number | null = null) {
+    await initialization
+    if (userId === null) return
+    const version = generation
+    // This request contains names only. The init endpoint repeats the check
+    // before any chunks are sent, including when this preflight is offline.
+    const existingNames = new Set(
+      await checkUploadNames(files.map((file) => file.name)).catch(() => []),
+    )
+    if (version !== generation) return
     rejectedItems.value = []
+    const added: UploadJob[] = []
+    for (const file of files) {
+      const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
+      if (!extensions.includes(ext) && !file.type.startsWith('video/')) {
+        rejectedItems.value.push(file.name)
+        continue
+      }
+      // Reconnect an interrupted source to its original destination, even when
+      // the library is currently showing a different folder.
+      const interrupted = jobs.value.find(
+        (job) =>
+          !['complete', 'exists'].includes(job.status) && !job.file && matchesUploadFile(file, job),
+      )
+      if (interrupted) {
+        attachFile(interrupted, file)
+        await save(interrupted)
+        continue
+      }
+      const exists =
+        existingNames.has(file.name) ||
+        [...jobs.value, ...added].some(
+          (job) =>
+            !['complete', 'exists'].includes(job.status) &&
+            job.name.toLowerCase() === file.name.toLowerCase(),
+        )
+      const handle = uploadFileHandle(file)
+      added.push({
+        id: 'local-' + Date.now() + '-' + Math.random().toString(16).slice(2),
+        userId,
+        name: file.name,
+        size: file.size,
+        lastModified: file.lastModified,
+        folderId,
+        order: 0,
+        confirmed: false,
+        status: exists ? 'exists' : 'queued',
+        progress: 0,
+        file: exists ? undefined : markRaw(file),
+        handle: !exists && handle ? markRaw(handle) : undefined,
+        bytesPerSecond: 0,
+        startedAt: 0,
+        startingProgress: 0,
+        retries: 0,
+        retryAt: 0,
+      })
+    }
+    const startOrder = Math.max(-1, ...jobs.value.map((job) => job.order)) + 1
+    added.sort(compareNames).forEach((job, index) => {
+      job.order = startOrder + index
+    })
+    jobs.value.push(...added)
+    await Promise.all(added.map(save))
+    startWorker()
+  }
+
+  function attachFile(job: UploadJob, file: File) {
+    const handle = uploadFileHandle(file)
+    job.file = markRaw(file)
+    job.handle = handle && markRaw(handle)
+    job.sourceIssue = undefined
+    job.message = undefined
+    job.retries = 0
+    job.retryAt = 0
+    if (job.status === 'failed') job.status = 'paused'
+  }
+
+  async function reselectTransfers(files: File[]) {
+    await initialization
+    if (userId === null || files.length === 0) return
+    const version = generation
+    const matched: UploadJob[] = []
+    let remoteError: string | null = null
+    let pending: PendingUpload[] = []
+
+    // Fetch server-only records once for the whole selection. Existing local
+    // jobs already contain the source identity and original destination.
+    if (
+      remoteTransfers.value.some(
+        (item) => item.needsFile && !jobs.value.some((job) => job.uploadId === item.uploadId),
+      )
+    ) {
+      try {
+        pending = await listPendingUploads()
+      } catch {
+        remoteError = 'Unable to check saved uploads. Try selecting their files again.'
+      }
+    }
+    if (version !== generation) return
+
+    for (const job of jobs.value) {
+      if (job.file || job.readyToFinalize || ['complete', 'exists'].includes(job.status)) continue
+      const file = files.find((file) => matchesUploadFile(file, job))
+      if (!file) continue
+      attachFile(job, file)
+      job.confirmed = true
+      job.status = 'queued'
+      matched.push(job)
+    }
+
+    for (const upload of pending) {
+      if (!remoteTransfers.value.some((item) => item.uploadId === upload.uploadId)) continue
+      if (jobs.value.some((job) => job.uploadId === upload.uploadId)) continue
+      const file = files.find((file) =>
+        matchesUploadFile(file, {
+          name: upload.filename,
+          size: upload.size,
+          lastModified: upload.lastModified,
+        }),
+      )
+      if (!file) continue
+      const job = fromSaved({
+        id: 'local-' + upload.uploadId,
+        userId,
+        uploadId: upload.uploadId,
+        name: upload.filename,
+        size: upload.size,
+        lastModified: upload.lastModified,
+        folderId: upload.folderId,
+        order: Math.max(-1, ...jobs.value.map((job) => job.order)) + 1,
+        status: 'queued',
+        confirmed: true,
+        progress: upload.totalChunks
+          ? Math.round((upload.uploadedCount / upload.totalChunks) * 100)
+          : 0,
+      })
+      attachFile(job, file)
+      jobs.value.push(job)
+      matched.push(job)
+    }
+
+    if (!matched.length) {
+      transfersError.value =
+        remoteError ?? 'No matching files. Select the original, unchanged files to resume.'
+      return
+    }
+    await Promise.all(matched.map(save))
+    if (version !== generation) return
+    transfersError.value = remoteError
+    startWorker()
+  }
+
+  async function clearQueue() {
+    const drafts = jobs.value.filter((job) => !job.confirmed)
+    jobs.value = jobs.value.filter((job) => job.confirmed)
+    rejectedItems.value = []
+    await Promise.all(drafts.map(forget))
   }
 
   async function fetchPendingTransfers() {
-    if (processingUploads.value) return
-
+    await initialization
+    if (userId === null) return
+    const version = generation
     loadingTransfers.value = true
-    transfersError.value = null
     try {
-      const pendingUploads = await listPendingUploads()
-      const runtimeTransfers = transfers.value.filter(isRuntimeTransfer)
-      const runtimeUploadIds = new Set(
-        runtimeTransfers.map((transfer) => transfer.uploadId).filter(Boolean),
-      )
-      const runtimeTransferNames = new Set(runtimeTransfers.map((transfer) => transfer.name))
-      const pendingTransfers = pendingUploads
-        .filter(
-          (upload) =>
-            !runtimeUploadIds.has(upload.uploadId) && !runtimeTransferNames.has(upload.filename),
-        )
-        .map(pendingUploadToTransfer)
-      transfers.value = [...runtimeTransfers, ...pendingTransfers]
-    } catch (error) {
-      transfersError.value = error instanceof Error ? error.message : 'Failed to load transfers'
-    } finally {
-      loadingTransfers.value = false
-    }
-  }
-
-  function processAll() {
-    if (processingUploads.value) return
-    processingUploads.value = true
-    void runUploadWorker()
-  }
-
-  async function runUploadWorker() {
-    let completedAny = false
-
-    try {
-      while (queuedItems.value.length > 0) {
-        const queueItem = queuedItems.value[0]
-        if (!queueItem) break
-
-        queuedItems.value = queuedItems.value.slice(1)
-        const transfer: TransferItemData = {
-          id: `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-          name: queueItem.name,
-          progress: 0,
-          sizeInfo: formatFileSize(queueItem.file.size),
-          status: 'active',
-          eta: '--',
-          speed: '--',
-          startedAt: performance.now(),
-          bytesPerSecond: 0,
-          file: queueItem.file,
-          folderId: queueItem.folderId,
-        }
-
-        transfers.value = [...transfers.value, transfer].sort(compareTransferNames)
-
-        try {
-          const controller = new AbortController()
-          uploadControllers.set(transfer.id, controller)
-          await uploadFile(
-            queueItem.file,
-            '',
-            queueItem.folderId,
-            (progress) => {
-              const t = transfers.value.find((t) => t.id === transfer.id)
-              if (t) {
-                t.progress = progress
-                updateTransferStats(t, queueItem.file.size, progress)
-              }
-            },
-            (uploadId) => {
-              const t = transfers.value.find((t) => t.id === transfer.id)
-              if (t) {
-                t.uploadId = uploadId
-              }
-            },
-            controller.signal,
-          )
-          const t = transfers.value.find((t) => t.id === transfer.id)
-          if (t) {
-            t.progress = 100
-            t.status = 'complete'
-            updateTransferStats(t, queueItem.file.size, 100)
-          }
-          completedAny = true
-        } catch (error) {
-          const t = transfers.value.find((t) => t.id === transfer.id)
-          if (t) {
-            if (isAbortError(error) && t.status === 'paused') {
-              t.speed = '--'
-              t.eta = 'reselect file to continue'
-            } else if (isSQLiteBusyError(error)) {
-              transfers.value = transfers.value.filter((transfer) => transfer.id !== t.id)
-              queuedItems.value = [queueItem, ...queuedItems.value]
-              scheduleUploadResume()
-              break
-            } else {
-              t.status = 'failed'
-              t.speed = '--'
-              t.eta = uploadErrorMessage(error)
+      const pending = await listPendingUploads()
+      if (version === generation) {
+        remoteTransfers.value = pending.map(pendingTransfer)
+        transfersError.value = null
+        for (const job of jobs.value) {
+          if (['active', 'complete', 'exists'].includes(job.status)) continue
+          const server = pending.find((item) => item.uploadId === job.uploadId)
+          if (server) {
+            job.progress = server.totalChunks
+              ? Math.round((server.uploadedCount / server.totalChunks) * 100)
+              : 0
+            job.readyToFinalize = server.complete
+          } else if (job.uploadId) {
+            // The last response can be lost after the server finished. Check
+            // that checkpoint even when local file access has already expired.
+            const result = await getUploadStatus(job.uploadId).catch(() => undefined)
+            if (version !== generation) return
+            if (result?.status === 'complete') await finishJob(job)
+            else if (result?.status === 'cancelled') {
+              jobs.value = jobs.value.filter((item) => item.id !== job.id)
+              await forget(job)
             }
-            t.bytesPerSecond = 0
           }
-        } finally {
-          uploadControllers.delete(transfer.id)
         }
       }
+    } catch (error) {
+      if (version === generation) transfersError.value = errorMessage(error)
     } finally {
-      processingUploads.value = false
-      if (completedAny) onCompleteCallback?.()
-      await fetchPendingTransfers()
-    }
-  }
-
-  function scheduleUploadResume() {
-    if (resumeTimer !== undefined) return
-
-    resumeTimer = window.setTimeout(() => {
-      resumeTimer = undefined
-      processAll()
-    }, 1500)
-  }
-
-  function isRuntimeTransfer(transfer: TransferItemData): boolean {
-    return typeof transfer.id === 'string' && transfer.id.startsWith('local-')
-  }
-
-  async function pauseTransfer(transferId: string | number) {
-    const transfer = transfers.value.find((transfer) => transfer.id === transferId)
-    if (!transfer) return
-
-    transfer.status = 'paused'
-    transfer.speed = '--'
-    transfer.eta = 'reselect file to continue'
-    transfer.bytesPerSecond = 0
-    uploadControllers.get(transferId)?.abort()
-
-    if (transfer.uploadId) {
-      try {
-        await pauseUpload(transfer.uploadId)
-      } catch (error) {
-        transfersError.value = error instanceof Error ? error.message : 'Failed to pause transfer'
+      if (version === generation) {
+        loadingTransfers.value = false
+        startWorker()
       }
     }
   }
 
-  async function moveTransferUp(transferId: string | number) {
-    if (typeof transferId !== 'string' || !transferId.startsWith('queue-')) return
-
-    const queueId = Number(transferId.slice('queue-'.length))
-    const index = queuedItems.value.findIndex((item) => item.id === queueId)
-    if (index < 0) return
-
-    if (index > 0) {
-      const nextQueue = [...queuedItems.value]
-      ;[nextQueue[index - 1], nextQueue[index]] = [nextQueue[index], nextQueue[index - 1]]
-      queuedItems.value = nextQueue
-      return
-    }
-
-    const activeTransfer = transfers.value.find((transfer) => transfer.status === 'active')
-    if (activeTransfer) {
-      preemptActiveTransfer(activeTransfer, 1)
-    }
-  }
-
-  async function moveTransferDown(transferId: string | number) {
-    const activeTransfer = transfers.value.find((transfer) => transfer.id === transferId)
-    if (activeTransfer?.status === 'active' && queuedItems.value.length > 0) {
-      preemptActiveTransfer(activeTransfer, 1)
-      return
-    }
-
-    if (typeof transferId !== 'string' || !transferId.startsWith('queue-')) return
-
-    const queueId = Number(transferId.slice('queue-'.length))
-    const index = queuedItems.value.findIndex((item) => item.id === queueId)
-    if (index < 0 || index >= queuedItems.value.length - 1) return
-
-    const nextQueue = [...queuedItems.value]
-    ;[nextQueue[index], nextQueue[index + 1]] = [nextQueue[index + 1], nextQueue[index]]
-    queuedItems.value = nextQueue
-  }
-
-  function preemptActiveTransfer(transfer: TransferItemData, queueIndex: number) {
-    if (!transfer.file) return
-
-    const nextQueue = [...queuedItems.value]
-    nextQueue.splice(queueIndex, 0, transferToQueueItem(transfer))
-    queuedItems.value = nextQueue
-    transfers.value = transfers.value.filter((item) => item.id !== transfer.id)
-    uploadControllers.get(transfer.id)?.abort()
-    uploadControllers.delete(transfer.id)
-  }
-
-  function transferToQueueItem(transfer: TransferItemData): UploadQueueItem {
-    return {
-      id: nextQueueId++,
-      name: transfer.name,
-      ext: fileExtension(transfer.name).replace('.', '').toUpperCase() || 'FILE',
-      progress: transfer.progress,
-      status: 'queued',
-      file: transfer.file as File,
-      folderId: transfer.folderId,
-    }
-  }
-
-  function canMoveTransferUp(transferId: string | number): boolean {
-    if (typeof transferId !== 'string' || !transferId.startsWith('queue-')) return false
-
-    const queueId = Number(transferId.slice('queue-'.length))
-    const index = queuedItems.value.findIndex((item) => item.id === queueId)
-    return (
-      index > 0 ||
-      (index === 0 &&
-        transfers.value.some((transfer) => transfer.status === 'active' && transfer.file))
+  async function processAll() {
+    await initialization
+    const waiting = jobs.value.filter(
+      (job) => job.status === 'queued' || (!job.confirmed && job.status === 'exists'),
     )
+    waiting.forEach((job) => {
+      job.confirmed = true
+    })
+    await Promise.all(waiting.map(save))
+    startWorker()
   }
 
-  function canMoveTransferDown(transferId: string | number): boolean {
-    const activeTransfer = transfers.value.find((transfer) => transfer.id === transferId)
-    if (activeTransfer?.status === 'active')
-      return queuedItems.value.length > 0 && Boolean(activeTransfer.file)
-
-    if (typeof transferId !== 'string' || !transferId.startsWith('queue-')) return false
-
-    const queueId = Number(transferId.slice('queue-'.length))
-    const index = queuedItems.value.findIndex((item) => item.id === queueId)
-    return index >= 0 && index < queuedItems.value.length - 1
+  function startWorker() {
+    if (worker || userId === null) return
+    const version = generation
+    processingUploads.value = true
+    worker = runWorker(version)
+      .catch((error) => {
+        if (version === generation) transfersError.value = errorMessage(error)
+      })
+      .finally(() => {
+        worker = undefined
+        processingUploads.value = false
+        if (version === generation) scheduleResume()
+      })
   }
 
-  async function cancelTransfer(transferId: string | number) {
-    if (typeof transferId === 'string' && transferId.startsWith('queue-')) {
-      const queueId = Number(transferId.slice('queue-'.length))
-      queuedItems.value = queuedItems.value.filter((item) => item.id !== queueId)
-      return
+  async function runWorker(version: number) {
+    const run = async () => {
+      while (version === generation) {
+        const job = [...jobs.value]
+          .sort((a, b) => a.order - b.order)
+          .find(
+            (job) =>
+              job.confirmed &&
+              job.status === 'queued' &&
+              (job.file || job.readyToFinalize) &&
+              job.retryAt <= Date.now(),
+          )
+        if (!job) break
+        // Another tab may have finished/canceled/paused while we waited for the lock.
+        try {
+          await writes
+          const saved = storageAvailable
+            ? await uploadStorage.get(job.userId, job.id)
+            : savedJob(job)
+          if (version !== generation) break
+          if (!saved) {
+            jobs.value = jobs.value.filter((item) => item.id !== job.id)
+            continue
+          }
+          if (['paused', 'failed', 'exists'].includes(saved.status)) {
+            job.status = saved.status
+            continue
+          }
+          job.uploadId = saved.uploadId
+        } catch {
+          /* Storage can be disabled; in-memory uploads still work. */
+        }
+        if (version !== generation) break
+        await sendJob(job, version)
+      }
     }
-
-    const transfer = transfers.value.find((transfer) => transfer.id === transferId)
-    if (!transfer) return
-
-    uploadControllers.get(transferId)?.abort()
-    if (transfer.uploadId) {
+    if (navigator.locks) {
+      const pendingLock = new AbortController()
+      lockController = pendingLock
       try {
-        await cancelUpload(transfer.uploadId)
-      } catch (error) {
-        transfersError.value = error instanceof Error ? error.message : 'Failed to cancel transfer'
+        await navigator.locks.request(
+          'ohara-uploads-' + userId,
+          { signal: pendingLock.signal },
+          run,
+        )
+      } finally {
+        if (lockController === pendingLock) lockController = undefined
+      }
+    } else {
+      await run()
+    }
+  }
+
+  async function sendJob(job: UploadJob, version: number) {
+    const file = job.file
+    if (!file && !job.readyToFinalize) return
+    if (job.handle && !job.readyToFinalize) {
+      const source = await restoreUploadFile(job)
+      if (version !== generation) return
+      if (!source.file) {
+        job.file = undefined
+        job.sourceIssue = source.reason
         return
       }
+      job.file = markRaw(source.file)
     }
-
-    uploadControllers.delete(transferId)
-    transfers.value = transfers.value.filter((transfer) => transfer.id !== transferId)
+    if (job.status !== 'queued' || !jobs.value.includes(job)) return
+    job.status = 'active'
+    job.startedAt = performance.now()
+    job.startingProgress = job.progress
+    job.message = undefined
+    controller = new AbortController()
+    const activeController = controller
+    await save(job)
+    let firstProgress = true
+    try {
+      if (job.readyToFinalize && job.uploadId) {
+        await completeUpload(job.uploadId, activeController.signal)
+      } else {
+        await uploadFile(
+          (job.file ?? file) as File,
+          '',
+          job.folderId,
+          (progress) => {
+            if (version !== generation || job.status !== 'active') return
+            // The first callback is confirmed server progress; don't count old bytes.
+            if (firstProgress) {
+              job.startingProgress = progress
+              job.startedAt = performance.now()
+              firstProgress = false
+            }
+            job.progress = progress
+            const seconds = (performance.now() - job.startedAt) / 1000
+            job.bytesPerSecond =
+              seconds > 0
+                ? ((Math.max(0, progress - job.startingProgress) / 100) * job.size) / seconds
+                : 0
+          },
+          async (uploadId) => {
+            job.uploadId = uploadId
+            if (version === generation && !jobs.value.includes(job)) {
+              await cancelUpload(uploadId).catch(() => {})
+              throw new DOMException('Upload canceled', 'AbortError')
+            }
+            // Save the server ID before sending the first chunk.
+            await save(job)
+          },
+          activeController.signal,
+          job.uploadId,
+        )
+      }
+      if (version !== generation || !jobs.value.includes(job)) return
+      await finishJob(job)
+    } catch (error) {
+      if (version !== generation || !jobs.value.includes(job) || job.status !== 'active') return
+      if (isExistingUploadError(error)) {
+        job.status = 'exists'
+        job.file = undefined
+        job.handle = undefined
+        job.progress = 0
+        job.readyToFinalize = false
+      } else if (isTransient(error)) {
+        job.retries++
+        job.retryAt = Date.now() + Math.min(30_000, 1500 * 2 ** Math.min(job.retries - 1, 5))
+        job.status = 'queued'
+        job.message = navigator.onLine
+          ? 'Connection interrupted · retrying'
+          : 'Waiting for connection'
+      } else {
+        job.status = 'failed'
+        job.message = errorMessage(error)
+      }
+      await save(job)
+    } finally {
+      job.bytesPerSecond = 0
+      if (controller === activeController) controller = undefined
+    }
   }
 
-  function retryTransfer(transferId: string | number) {
-    const transfer = transfers.value.find((transfer) => transfer.id === transferId)
-    if (!transfer?.file || (transfer.status !== 'failed' && transfer.status !== 'paused')) return
-
-    transfers.value = transfers.value.filter((transfer) => transfer.id !== transferId)
-    enqueue([transfer.file], transfer.folderId)
-    processAll()
+  async function finishJob(job: UploadJob) {
+    job.status = 'complete'
+    job.progress = 100
+    job.file = undefined
+    job.handle = undefined
+    await forget(job)
+    onCompleteCallback?.()
   }
 
-  function queueItemToTransfer(item: UploadQueueItem): TransferItemData {
+  function scheduleResume() {
+    if (timer !== undefined) window.clearTimeout(timer)
+    timer = undefined
+    const waiting = jobs.value.filter(
+      (job) => job.confirmed && job.status === 'queued' && (job.file || job.readyToFinalize),
+    )
+    if (!waiting.length) return
+    const delay = Math.max(0, Math.min(...waiting.map((job) => job.retryAt)) - Date.now())
+    timer = window.setTimeout(() => {
+      timer = undefined
+      startWorker()
+    }, delay)
+  }
+
+  async function pauseTransfer(id: string) {
+    const job = jobs.value.find((job) => job.id === id)
+    if (!job || ['complete', 'exists'].includes(job.status)) return
+    const wasActive = job.status === 'active'
+    job.status = 'paused'
+    job.message = undefined
+    job.bytesPerSecond = 0
+    if (wasActive) controller?.abort()
+    await save(job)
+    if (job.uploadId) await pauseUpload(job.uploadId).catch(() => {})
+  }
+
+  async function retryTransfer(id: string) {
+    const job = jobs.value.find((job) => job.id === id)
+    if (
+      !job ||
+      (!job.file && !job.readyToFinalize) ||
+      !['queued', 'paused', 'failed'].includes(job.status)
+    )
+      return
+    job.status = 'queued'
+    job.confirmed = true
+    job.message = undefined
+    job.retryAt = 0
+    job.retries = 0
+    await save(job)
+    startWorker()
+  }
+
+  async function cancelTransfer(id: string) {
+    const job = jobs.value.find((job) => job.id === id)
+    const uploadId = job?.uploadId ?? remoteTransfers.value.find((item) => item.id === id)?.uploadId
+    if (job) {
+      const wasActive = job.status === 'active'
+      jobs.value = jobs.value.filter((item) => item.id !== id)
+      if (wasActive) controller?.abort()
+      await forget(job)
+    }
+    remoteTransfers.value = remoteTransfers.value.filter((item) => item.uploadId !== uploadId)
+    if (uploadId) {
+      try {
+        await cancelUpload(uploadId)
+      } catch {
+        transfersError.value =
+          'Removed from this browser. Reconnect and cancel the saved server upload to discard its chunks.'
+      }
+    }
+  }
+
+  function orderedWaiting() {
+    return [...jobs.value]
+      .filter((job) => job.status === 'queued' || job.status === 'active')
+      .sort((a, b) => a.order - b.order)
+  }
+
+  function canMoveTransferUp(id: string) {
+    return orderedWaiting().findIndex((job) => job.id === id) > 0
+  }
+  function canMoveTransferDown(id: string) {
+    const queue = orderedWaiting()
+    const index = queue.findIndex((job) => job.id === id)
+    return index >= 0 && index < queue.length - 1
+  }
+
+  async function moveTransfer(id: string, direction: number) {
+    const queue = orderedWaiting()
+    const index = queue.findIndex((job) => job.id === id)
+    const job = queue[index]
+    const adjacent = queue[index + direction]
+    if (!job || !adjacent) return
+    ;[job.order, adjacent.order] = [adjacent.order, job.order]
+    const active = [job, adjacent].find((item) => item.status === 'active')
+    if (active) {
+      active.status = 'queued'
+      active.bytesPerSecond = 0
+      controller?.abort()
+    }
+    await Promise.all([save(job), save(adjacent)])
+    startWorker()
+  }
+
+  function toTransfer(job: UploadJob): TransferItemData {
+    const needsFile =
+      !job.file && !job.readyToFinalize && !['complete', 'exists'].includes(job.status)
+    const status = needsFile ? 'paused' : job.status
+    const remaining =
+      job.bytesPerSecond > 0
+        ? Math.ceil((job.size * (1 - job.progress / 100)) / job.bytesPerSecond)
+        : 0
     return {
-      id: `queue-${item.id}`,
-      name: item.name,
-      progress: item.progress,
-      sizeInfo: `${formatFileSize(item.file.size)} • waiting`,
-      status: 'queued',
-      eta: 'queued',
-      speed: 'waiting',
-      startedAt: 0,
-      bytesPerSecond: 0,
-      folderId: item.folderId,
+      id: job.id,
+      uploadId: job.uploadId,
+      name: job.name,
+      progress: job.progress,
+      folderId: job.folderId,
+      status,
+      needsFile,
+      sizeInfo: formatFileSize(job.size),
+      canResume:
+        job.status === 'paused' ||
+        job.status === 'failed' ||
+        (job.status === 'queued' && !job.confirmed),
+      eta: needsFile
+        ? job.sourceIssue === 'changed'
+          ? 'File changed · select the original'
+          : 'Select the original file to continue'
+        : (job.message ??
+          (status === 'paused'
+            ? 'Paused'
+            : status === 'queued'
+              ? job.confirmed
+                ? 'Waiting'
+                : 'Ready to upload'
+              : job.progress === 100 && status === 'active'
+                ? 'Finalizing'
+                : remaining
+                  ? formatEta(remaining)
+                  : '--')),
+      speed: job.bytesPerSecond > 0 ? (job.bytesPerSecond / 1024 ** 2).toFixed(2) + ' MB/s' : '--',
     }
   }
 
-  function pendingUploadToTransfer(upload: PendingUpload): TransferItemData {
+  function pendingTransfer(upload: PendingUpload): TransferItemData {
     return {
       id: upload.uploadId,
       uploadId: upload.uploadId,
       name: upload.filename,
-      progress:
-        upload.totalChunks > 0 ? Math.round((upload.uploadedCount / upload.totalChunks) * 100) : 0,
-      sizeInfo: `${formatFileSize(upload.size)} • ${upload.uploadedCount}/${upload.totalChunks} chunks`,
-      status: upload.status === 'active' || upload.status === 'assembling' ? 'active' : 'paused',
-      eta: upload.status === 'assembling' ? 'assembling' : '--',
-      speed: upload.status === 'assembling' ? 'finalizing' : '--',
-      startedAt: 0,
-      bytesPerSecond: 0,
       folderId: upload.folderId,
+      progress: upload.totalChunks
+        ? Math.round((upload.uploadedCount / upload.totalChunks) * 100)
+        : 0,
+      sizeInfo: formatFileSize(upload.size),
+      status: 'paused',
+      needsFile: true,
+      eta: 'Select the original file to continue',
+      speed: '--',
     }
   }
 
-  const compareQueueItemNames = compareByNaturalText<UploadQueueItem>((item) => item.name)
-
-  const compareTransferNames = compareByNaturalText<TransferItemData>((item) => item.name)
-
-  function isAbortError(error: unknown): boolean {
-    return error instanceof DOMException && error.name === 'AbortError'
+  function online() {
+    for (const job of jobs.value) job.retryAt = 0
+    startWorker()
   }
-
-  function isSQLiteBusyError(error: unknown): boolean {
-    const message = uploadErrorMessage(error).toLowerCase()
-    return message.includes('sqlite_busy') || message.includes('database is locked')
-  }
-
-  function uploadErrorMessage(error: unknown): string {
-    if (error instanceof Error && error.message) return error.message
-    if (typeof error === 'object' && error && 'message' in error) {
-      const message = (error as { message?: unknown }).message
-      if (typeof message === 'string' && message) return message
-    }
-    return 'upload failed'
-  }
-
-  function updateTransferStats(transfer: TransferItemData, fileSize: number, progress: number) {
-    if (progress <= 0 || transfer.startedAt <= 0) {
-      transfer.speed = '--'
-      transfer.eta = '--'
-      return
-    }
-    const elapsedSeconds = (performance.now() - transfer.startedAt) / 1000
-    if (elapsedSeconds <= 0) {
-      transfer.speed = '--'
-      transfer.eta = '--'
-      return
-    }
-    const uploadedBytes = fileSize * (progress / 100)
-    const remainingBytes = Math.max(fileSize - uploadedBytes, 0)
-    const bytesPerSecond = uploadedBytes / elapsedSeconds
-    if (bytesPerSecond <= 0) {
-      transfer.speed = '--'
-      transfer.eta = '--'
-      transfer.bytesPerSecond = 0
-      return
-    }
-    transfer.bytesPerSecond = bytesPerSecond
-    transfer.speed = `${(bytesPerSecond / (1024 * 1024)).toFixed(2)} MB/s`
-    transfer.eta = formatEta(Math.ceil(remainingBytes / bytesPerSecond))
-  }
-
-  function formatFileSize(bytes: number): string {
-    if (bytes < 1024) return bytes + ' B'
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
-  }
-
-  function formatEta(seconds: number): string {
-    if (!Number.isFinite(seconds) || seconds < 0) return '--'
-    if (seconds === 0) return '00:00'
-    const minutes = Math.floor(seconds / 60)
-    const remainingSeconds = seconds % 60
-    if (minutes === 0) return `00:${String(remainingSeconds).padStart(2, '0')}`
-    return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
-  }
+  window.addEventListener('online', online)
+  onScopeDispose(() => {
+    initialize(null)
+    window.removeEventListener('online', online)
+  })
 
   return {
     queuedItems,
+    draftItems,
     transfers,
     visibleTransfers,
     loadingTransfers,
     transfersError,
+    storageNotice,
     processingUploads,
     rejectedItems,
     totalBandwidth,
     hasActiveTransfers,
+    initialize,
     enqueue,
     clearQueue,
     fetchPendingTransfers,
     processAll,
     pauseTransfer,
-    moveTransferUp,
-    moveTransferDown,
-    canMoveTransferUp,
-    canMoveTransferDown,
     cancelTransfer,
     retryTransfer,
-    setOnComplete,
+    reselectTransfers,
+    canMoveTransferUp,
+    canMoveTransferDown,
+    moveTransferUp: (id: string) => moveTransfer(id, -1),
+    moveTransferDown: (id: string) => moveTransfer(id, 1),
+    setOnComplete: (fn: (() => void) | null) => {
+      onCompleteCallback = fn
+    },
   }
 })
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Upload failed'
+}
+
+function isExistingUploadError(error: unknown): boolean {
+  if (!(error instanceof ApiError) || error.status !== 409) return false
+  try {
+    return JSON.parse(error.message).code === 'already_exists'
+  } catch {
+    return false
+  }
+}
+
+function isTransient(error: unknown): boolean {
+  const message = errorMessage(error).toLowerCase()
+  return (
+    error instanceof TypeError ||
+    (error instanceof ApiError &&
+      (error.status >= 500 || error.status === 408 || error.status === 429)) ||
+    message.includes('sqlite_busy') ||
+    message.includes('database is locked')
+  )
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 ** 2) return (bytes / 1024).toFixed(1) + ' KB'
+  if (bytes < 1024 ** 3) return (bytes / 1024 ** 2).toFixed(1) + ' MB'
+  return (bytes / 1024 ** 3).toFixed(2) + ' GB'
+}
+
+function formatEta(seconds: number): string {
+  return (
+    String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0')
+  )
+}

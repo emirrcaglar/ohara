@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,6 +24,9 @@ type UploadHandler struct {
 	sc      *scanner.Scanner
 	Log     *logger.Logger
 	dataDir string
+	// Bound lock storage while serializing writes/finalization for each upload.
+	uploadLocks [64]sync.Mutex
+	nameLocks   [64]sync.Mutex
 }
 
 func NewUploadHandler(db *db.DB, sc *scanner.Scanner, log *logger.Logger, dataDir string) *UploadHandler {
@@ -82,6 +86,7 @@ func (f FileExtension) IsVideo() bool {
 }
 
 type ChunkedUploadInitRequest struct {
+	UploadID     string `json:"uploadId"`
 	FileName     string `json:"filename"`
 	Size         int64  `json:"size"`
 	Profile      string `json:"profile"`
@@ -127,6 +132,7 @@ func (h *UploadHandler) HandleUploadsList(w http.ResponseWriter, r *http.Request
 			"uploadId":       session.ID,
 			"filename":       session.Filename,
 			"size":           session.Size,
+			"lastModified":   session.LastModified,
 			"chunkSize":      session.ChunkSize,
 			"totalChunks":    session.TotalChunks,
 			"uploadedChunks": uploaded,
@@ -140,6 +146,37 @@ func (h *UploadHandler) HandleUploadsList(w http.ResponseWriter, r *http.Request
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"uploads": items})
+}
+
+func (h *UploadHandler) HandleUploadNameCheck(w http.ResponseWriter, r *http.Request) {
+	if GetUser(r.Context()) == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	var req struct {
+		Filenames []string `json:"filenames"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+		http.Error(w, "invalid filenames", http.StatusBadRequest)
+		return
+	}
+	names, err := h.existingUploadNames("")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	existing := make([]string, 0)
+	for _, requested := range req.Filenames {
+		name, err := sanitizeUploadFileName(requested)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if _, exists := names[strings.ToLower(name)]; exists {
+			existing = append(existing, requested)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"existing": existing})
 }
 
 func (h *UploadHandler) HandleChunkedUploadInit(w http.ResponseWriter, r *http.Request) {
@@ -173,9 +210,59 @@ func (h *UploadHandler) HandleChunkedUploadInit(w http.ResponseWriter, r *http.R
 	}
 
 	resumed := false
-	session, err := h.DB.FindResumableUploadSession(user.ID, fileName, req.Size, req.LastModified, req.Profile, req.FolderID)
+	var session *db.UploadSession
+	if req.UploadID != "" {
+		if !isValidUploadID(req.UploadID) {
+			http.Error(w, "invalid upload id", http.StatusBadRequest)
+			return
+		}
+		session, err = h.DB.GetUploadSession(req.UploadID, user.ID)
+	} else {
+		session, err = h.DB.FindResumableUploadSession(user.ID, fileName, req.Size, req.LastModified, req.Profile, req.FolderID)
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if req.UploadID != "" && (session == nil || session.Status == db.UploadStatusCancelled) {
+		http.Error(w, "upload not found", http.StatusNotFound)
+		return
+	}
+	if session != nil {
+		defer h.lockUpload(session.ID)()
+		// Re-read after obtaining the lock: finalization may have just finished.
+		session, err = h.DB.GetUploadSession(session.ID, user.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if session == nil || session.Status == db.UploadStatusCancelled {
+			http.Error(w, "upload not found", http.StatusNotFound)
+			return
+		}
+		sameFolder := (session.FolderID == nil && req.FolderID == nil) ||
+			(session.FolderID != nil && req.FolderID != nil && *session.FolderID == *req.FolderID)
+		if session.Filename != fileName || session.Size != req.Size || session.LastModified != req.LastModified || session.Profile != req.Profile || !sameFolder {
+			http.Error(w, "source file or destination changed", http.StatusConflict)
+			return
+		}
+		if session.Status == db.UploadStatusComplete {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"uploadId": session.ID, "status": session.Status, "folderId": session.FolderID,
+				"chunkSize": session.ChunkSize, "totalChunks": session.TotalChunks,
+				"uploadedChunks": []int{}, "resumed": true,
+			})
+			return
+		}
+	}
+	// Reserve the name under a lock before creating a session. A second client
+	// cannot start a conflicting upload while the first is still in progress.
+	defer h.lockUploadName(fileName)()
+	excludeID := ""
+	if session != nil {
+		excludeID = session.ID
+	}
+	if !h.requireAvailableUploadName(w, fileName, excludeID) {
 		return
 	}
 	if session == nil {
@@ -248,6 +335,7 @@ func (h *UploadHandler) HandleChunkedUploadChunk(w http.ResponseWriter, r *http.
 		http.Error(w, "invalid upload id", http.StatusBadRequest)
 		return
 	}
+	defer h.lockUpload(uploadID)()
 
 	user := GetUser(r.Context())
 	if user == nil {
@@ -288,6 +376,9 @@ func (h *UploadHandler) HandleChunkedUploadChunk(w http.ResponseWriter, r *http.
 		return
 	}
 	written, copyErr := io.Copy(dst, io.LimitReader(r.Body, int64(limit)))
+	if copyErr == nil {
+		copyErr = dst.Sync()
+	}
 	closeErr := dst.Close()
 	if copyErr != nil {
 		_ = os.Remove(tmpPath)
@@ -306,6 +397,11 @@ func (h *UploadHandler) HandleChunkedUploadChunk(w http.ResponseWriter, r *http.
 		err := fmt.Errorf("chunk too large")
 		_ = h.DB.FailUploadSession(uploadID, err)
 		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
+		return
+	}
+	if written != expectedUploadChunkSize(session, chunkIndex) {
+		_ = os.Remove(tmpPath)
+		http.Error(w, "chunk size mismatch", http.StatusBadRequest)
 		return
 	}
 	if err := os.Rename(tmpPath, chunkPath); err != nil {
@@ -332,6 +428,7 @@ func (h *UploadHandler) HandleChunkedUploadComplete(w http.ResponseWriter, r *ht
 		http.Error(w, "invalid upload id", http.StatusBadRequest)
 		return
 	}
+	defer h.lockUpload(uploadID)()
 
 	user := GetUser(r.Context())
 	if user == nil {
@@ -345,6 +442,18 @@ func (h *UploadHandler) HandleChunkedUploadComplete(w http.ResponseWriter, r *ht
 	}
 	if session == nil || session.Status == db.UploadStatusCancelled {
 		http.Error(w, "upload not found", http.StatusNotFound)
+		return
+	}
+	// A client may lose the response after assembly succeeded. Repeating the
+	// request must acknowledge that success rather than assemble deleted chunks.
+	if session.Status == db.UploadStatusComplete {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": true, "filename": session.Filename, "folderId": session.FolderID,
+		})
+		return
+	}
+	defer h.lockUploadName(session.Filename)()
+	if !h.requireAvailableUploadName(w, session.Filename, session.ID) {
 		return
 	}
 	if err := h.reconcileUploadChunks(session); err != nil {
@@ -454,6 +563,7 @@ func (h *UploadHandler) HandleChunkedUploadPause(w http.ResponseWriter, r *http.
 		http.Error(w, "invalid upload id", http.StatusBadRequest)
 		return
 	}
+	defer h.lockUpload(uploadID)()
 	user := GetUser(r.Context())
 	if user == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -481,6 +591,7 @@ func (h *UploadHandler) HandleChunkedUploadCancel(w http.ResponseWriter, r *http
 		http.Error(w, "invalid upload id", http.StatusBadRequest)
 		return
 	}
+	defer h.lockUpload(uploadID)()
 	user := GetUser(r.Context())
 	if user == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -687,11 +798,17 @@ func (h *UploadHandler) reconcileUploadChunks(session *db.UploadSession) error {
 		info, err := os.Stat(chunkPath)
 		if err != nil {
 			if os.IsNotExist(err) {
+				if err := h.DB.DeleteUploadChunk(session.ID, int(i)); err != nil {
+					return err
+				}
 				continue
 			}
 			return err
 		}
-		if info.IsDir() {
+		if info.IsDir() || info.Size() != expectedUploadChunkSize(session, int(i)) {
+			if err := h.DB.DeleteUploadChunk(session.ID, int(i)); err != nil {
+				return err
+			}
 			continue
 		}
 		if err := h.DB.UpsertUploadChunk(session.ID, int(i), info.Size(), chunkPath); err != nil {
@@ -699,6 +816,74 @@ func (h *UploadHandler) reconcileUploadChunks(session *db.UploadSession) error {
 		}
 	}
 	return nil
+}
+
+func expectedUploadChunkSize(session *db.UploadSession, index int) int64 {
+	remaining := session.Size - int64(index)*session.ChunkSize
+	if remaining < session.ChunkSize {
+		return remaining
+	}
+	return session.ChunkSize
+}
+
+func (h *UploadHandler) lockUpload(id string) func() {
+	bucket, _ := strconv.ParseUint(id[:2], 16, 8)
+	lock := &h.uploadLocks[bucket%uint64(len(h.uploadLocks))]
+	lock.Lock()
+	return lock.Unlock
+}
+
+func (h *UploadHandler) lockUploadName(name string) func() {
+	var bucket uint64
+	for _, b := range []byte(strings.ToLower(name)) {
+		bucket = bucket*33 + uint64(b)
+	}
+	lock := &h.nameLocks[bucket%uint64(len(h.nameLocks))]
+	lock.Lock()
+	return lock.Unlock
+}
+
+func (h *UploadHandler) existingUploadNames(excludeID string) (map[string]struct{}, error) {
+	paths, err := h.DB.UploadConflictPaths(excludeID)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[string]struct{}, len(paths))
+	for _, path := range paths {
+		// Imported paths may have been recorded on a different operating system.
+		name := filepath.Base(strings.ReplaceAll(path, "\\", "/"))
+		names[strings.ToLower(name)] = struct{}{}
+	}
+	// Assembly writes the target before indexing it. Include those files too,
+	// so a quick re-upload cannot overwrite media waiting to be indexed.
+	for _, directory := range []string{"manga", "audio", "video"} {
+		entries, err := os.ReadDir(filepath.Join(h.dataDir, directory))
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				names[strings.ToLower(entry.Name())] = struct{}{}
+			}
+		}
+	}
+	return names, nil
+}
+
+func (h *UploadHandler) requireAvailableUploadName(w http.ResponseWriter, name, excludeID string) bool {
+	names, err := h.existingUploadNames(excludeID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return false
+	}
+	if _, exists := names[strings.ToLower(name)]; exists {
+		writeJSON(w, http.StatusConflict, map[string]string{"code": "already_exists", "error": "Already exists"})
+		return false
+	}
+	return true
 }
 
 func missingChunkIndexes(uploaded []int, total int64) []int {
